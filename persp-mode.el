@@ -1,7 +1,36 @@
-;;; persp_mode.el --- switch between named "perspectives" of the editor
-;; Author: Bad_ptr zxnotdead@gmail.com (https://github.com/Bad-ptr/elisp/blob/master/emacs/persp_mode.el)
-;; Licensed under the same terms as Emacs.
+;; persp-mode.el --- switch between named "perspectives" of the editor
+
+;; Copyright 2012 Constantin Kulikov (Bad_ptr)
+;;
+;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
+;; Keywords: extensions
+;; X-URL: https://github.com/Bad-ptr/persp-mode.el
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 2, or (at your option)
+;; any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program; if not, write to the Free Software
+;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+;;; Commentary:
+
+;;
 ;; Based on perspective.el by  Nathan Weizenbaum (http://github.com/nex3/perspective-el)
+;; Put this file into your load-path and the following into your ~/.emacs:
+;;   (require 'persp-mode)
+;;   (persp-mode)
+;;
+;; C-x x s for create/switch to persp.
+;; C-x x a for add buffer to persp
+;; And other
 
 
 (eval-when-compile (require 'cl))
