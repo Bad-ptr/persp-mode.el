@@ -26,7 +26,7 @@
 ;; Based on perspective.el by  Nathan Weizenbaum (http://github.com/nex3/perspective-el)
 ;; Put this file into your load-path and the following into your ~/.emacs:
 ;;   (require 'persp-mode)
-;;   (persp-mode)
+;;   (persp-mode t)
 ;;
 ;; C-x x s for create/switch to persp.
 ;; C-x x a for add buffer to persp
