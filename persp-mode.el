@@ -28,9 +28,12 @@
 ;;   (require 'persp-mode)
 ;;   (persp-mode t)
 ;;
-;; C-x x s for create/switch to persp.
-;; C-x x a for add buffer to persp
-;; And other
+;; C-x x s -- to create/switch to persp.
+;; C-x x r -- rename persp
+;; C-x x c -- kill persp.
+;; C-x x a -- add buffer to persp.
+;; C-x x i -- import all buffers from other persp
+;; C-x x k -- remove/kill buffer.
 
 
 (eval-when-compile (require 'cl))
@@ -85,7 +88,7 @@ Run with the activated perspective active.")
 (define-key persp-mode-map (kbd "C-x x c") 'persp-kill)
 (define-key persp-mode-map (kbd "C-x x r") 'persp-rename)
 (define-key persp-mode-map (kbd "C-x x a") 'persp-add-buffer)
-(define-key persp-mode-map (kbd "C-x x i") 'persp-import)
+(define-key persp-mode-map (kbd "C-x x i") 'persp-import-buffers)
 
 ;;;###autoload
 (define-minor-mode persp-mode
@@ -323,7 +326,7 @@ named collections of buffers and window configurations."
   (if (and (gethash name perspectives-hash)
            (not (equal name (persp-name (get-frame-persp)))))
       (loop for buf in (persp-buffers (gethash name perspectives-hash))
-            do (persp-add-buffer (buffer-name buf)))))
+            do (persp-add-buffer buf))))
 
 (defun persp-add-menu ()
   (easy-menu-define persp-minor-mode-menu
