@@ -112,6 +112,7 @@ named collections of buffers and window configurations."
         (ad-activate 'kill-buffer)
         
         (add-hook 'after-make-frame-functions 'persp-init-frame)
+        (add-hook 'delete-frame-functions 'persp-delete-frame)
         (add-hook 'ido-make-buffer-list-hook 'persp-set-ido-buffers)
         (setq read-buffer-function 'persp-read-buffer)
 
@@ -127,6 +128,7 @@ named collections of buffers and window configurations."
     
     (ad-deactivate-regexp "^persp-.*")
     (remove-hook 'after-make-frame-functions 'persp-init-frame)
+    (remove-hook 'delete-frame-functions 'persp-delete-frame)
     (remove-hook 'ido-make-buffer-list-hook 'persp-set-ido-buffers)
 
     (when tabbar-mode
@@ -215,6 +217,8 @@ named collections of buffers and window configurations."
     (persp-activate persp)
     (select-frame oldf)))
 
+(defun persp-delete-frame (frame)
+  (persp-save (get-frame-persp frame)))
 
 (defun persp-kill (name)
   (interactive "i")
