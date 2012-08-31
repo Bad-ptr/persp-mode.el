@@ -206,15 +206,17 @@ named collections of buffers and window configurations."
 
 (defun persp-init-frame (frame)
   (let ((persp (gethash "main" perspectives-hash))
-        (oldf (selected-frame)))
+        (oldf (selected-frame))
+        (new nil))
     (select-frame frame)
     (modify-frame-parameters
      frame
      '((persp nil)))
     (unless persp
-      (setq persp (persp-new "main")))
+      (setq persp (persp-new "main"))
+      (setq new t))
     (set-frame-persp persp)
-    (persp-activate persp)
+    (persp-activate persp frame new)
     (select-frame oldf)))
 
 (defun persp-delete-frame (frame)
@@ -427,16 +429,15 @@ named collections of buffers and window configurations."
     (loop for frame in frames
           do (loop for window in (get-buffer-window-list oldbuf nil frame)
                    do (progn
-                        (loop named obufl for buf in (window-prev-buffers)
+                        (loop named obufl for buf in (window-prev-buffers window)
                               if (member buf (persp-buffers p))
                               do (progn
                                    (setq new-buf buf)
                                    (return-from obufl)))
-                        (if new-buf
-                            (progn
-                              (set-window-buffer window new-buf)
-                              (setq new-buf nil))
-                          (set-window-buffer window (car (persp-buffers p)))))))))
+                        (if (not new-buf)
+                            (set-window-buffer window (car (persp-buffers p)))
+                          (set-window-buffer window new-buf)
+                          (setq new-buf nil)))))))
 
 (defadvice kill-buffer (around persp-kill-buffer (&optional b) )
   (let ((buffer (get-buffer b))
