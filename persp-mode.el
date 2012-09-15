@@ -47,7 +47,7 @@
   (name "")
   (buffers nil)
   (window-conf
-   ;(window-state-get)
+   ;;(window-state-get)
    nil))
 
 
@@ -103,7 +103,8 @@ named collections of buffers and window configurations."
       (progn
         (setf perspectives-hash (make-hash-table :test 'equal :size 10))
         (persp-add-menu)
-        (persp-new "main")
+        ;(persp-new "main")
+        ;(setf (persp-buffers (gethash "main" perspectives-hash)) (buffer-list))
         
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
@@ -116,11 +117,10 @@ named collections of buffers and window configurations."
         (add-hook 'ido-make-buffer-list-hook 'persp-set-ido-buffers)
         (setq read-buffer-function 'persp-read-buffer)
 
-        (loop for frame in (frame-list)
+        (loop for frame in (frame-list-without-initial)
               do (persp-init-frame frame))
-        (setf (persp-buffers (get-frame-persp)) (buffer-list))
         
-        (when tabbar-mode
+        (when (boundp tabbar-mode)
           (setq tabbar-buffer-list-function
                 (lambda () (persp-buffers (get-frame-persp)))))
 
@@ -131,12 +131,21 @@ named collections of buffers and window configurations."
     (remove-hook 'delete-frame-functions 'persp-delete-frame)
     (remove-hook 'ido-make-buffer-list-hook 'persp-set-ido-buffers)
 
-    (when tabbar-mode
+    (when (boundp tabbar-mode)
       (setq tabbar-buffer-list-function 'tabbar-buffer-list))
 
     (setq read-buffer-function nil)
     (setq perspectives-hash nil)))
 
+
+(defun frame-list-without-initial ()
+  (let* ((cframe (selected-frame))
+         (nframe (next-frame))
+         (ret (list cframe)))
+    (while (not (eq nframe cframe))
+      (cons nframe ret)
+      (setq nframe (next-frame nframe)))
+    ret))
 
 (defun* set-frame-persp (p &optional (frame nil))
   (set-frame-parameter frame 'persp p))
@@ -157,6 +166,8 @@ named collections of buffers and window configurations."
           (easy-menu-add-item persp-minor-mode-menu '("kill")
                               (vconcat (list str_name (lambda ()(interactive)
                                                         (persp-kill str_name)))))))
+      (when (equal name "main")
+        (setf (persp-buffers (gethash "main" perspectives-hash)) (buffer-list)))
       persp)))
 
 (defun* persp-add-buffer (bufferorname &optional (persp (get-frame-persp)))
@@ -196,7 +207,7 @@ named collections of buffers and window configurations."
             collect persp))))
 
 (defun* persp-frames-with-persp (&optional (p (get-frame-persp)))
-  (loop for frame in (frame-list)
+  (loop for frame in (frame-list-without-initial)
         if (eq p (get-frame-persp frame))
         collect frame))
 
@@ -235,7 +246,7 @@ named collections of buffers and window configurations."
         (remhash name perspectives-hash)
         (easy-menu-remove-item persp-minor-mode-menu nil name)
         (easy-menu-remove-item persp-minor-mode-menu '("kill") name)
-        (loop for frame in (frame-list)
+        (loop for frame in (frame-list-without-initial)
               if (eq persp (get-frame-persp frame))
               do (when (persp-names-sorted)
                    (persp-switch (car (persp-names)) frame)))
@@ -283,8 +294,8 @@ named collections of buffers and window configurations."
         (funcall initial-major-mode)))
     name))
 
-(defun* persp-activate (persp &optional (frame (selected-frame)) new)
-  (persp-save)
+(defun* persp-activate (persp &optional (frame (selected-frame)) (new nil))
+  (persp-save (get-frame-persp frame))
   (unless new
     (persp-save persp))
   (let ((oldf (selected-frame)))
@@ -292,7 +303,7 @@ named collections of buffers and window configurations."
     (delete-other-windows)
     (set-frame-persp persp frame)
     (when (persp-window-conf persp)
-      (window-state-put (persp-window-conf persp)))
+      (window-state-put (persp-window-conf persp) (frame-root-window frame) t))
     (run-hooks 'persp-activated-hook)
     (select-frame oldf)))
 
@@ -306,6 +317,12 @@ named collections of buffers and window configurations."
       (car (persp-buffers persp)))))
 
 
+(defun* frame-persp-save (&optional (frame (selected-frame)))
+  (let ((persp (get-frame-persp))
+        (rwin (frame-root-window frame)))
+    (when (and persp rwin)
+      (setf (persp-window-conf persp) (window-state-get rwin)))))
+
 (defun* persp-save (&optional (persp (get-frame-persp)))
   (when persp
     (let ((window nil)
@@ -318,7 +335,7 @@ named collections of buffers and window configurations."
         (setf (persp-window-conf persp) (window-state-get window))))))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp)) (exframe (selected-frame)))
-  (loop for frame in (delete exframe (frame-list))
+  (loop for frame in (delete exframe (frame-list-without-initial))
         if (eq persp (get-frame-persp frame))
         do (return-from find-other-frame-with-persp frame))
   nil)
