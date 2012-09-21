@@ -246,14 +246,17 @@ named collections of buffers and window configurations."
         (remhash name perspectives-hash)
         (easy-menu-remove-item persp-minor-mode-menu nil name)
         (easy-menu-remove-item persp-minor-mode-menu '("kill") name)
-        (loop for frame in (frame-list-without-initial)
-              if (eq persp (get-frame-persp frame))
-              do (when (persp-names-sorted)
-                   (persp-switch (car (persp-names)) frame)))
-        (setf persp nil))))
-  (unless (persp-names)
-    (persp-switch "main")
-    (setf (persp-buffers (get-frame-persp)) (buffer-list))))
+
+        (let* ((pnames (persp-names-sorted))
+               (pname (if pnames
+                          (car pnames)
+                        "main"))
+               (oldscratch (persp-scratch-name persp)))
+          (loop for frame in (frame-list-without-initial)
+                if (eq persp (get-frame-persp frame))
+                do (persp-switch pname frame))
+        (kill-buffer oldscratch))
+        (setf persp nil)))))
 
 
 (defun persp-rename (name)
@@ -287,7 +290,8 @@ named collections of buffers and window configurations."
       name
     (let ((persp (gethash name perspectives-hash)))
       (if persp
-          (persp-activate persp frame)
+          (progn
+            (persp-activate persp frame))
         (setq persp (persp-new name))
         (persp-activate persp frame t)
         (switch-to-buffer (persp-scratch-name persp))
@@ -295,17 +299,18 @@ named collections of buffers and window configurations."
     name))
 
 (defun* persp-activate (persp &optional (frame (selected-frame)) (new nil))
-  (persp-save (get-frame-persp frame))
-  (unless new
-    (persp-save persp))
-  (let ((oldf (selected-frame)))
-    (select-frame frame)
-    (delete-other-windows)
-    (set-frame-persp persp frame)
-    (when (persp-window-conf persp)
-      (window-state-put (persp-window-conf persp) (frame-root-window frame) t))
-    (run-hooks 'persp-activated-hook)
-    (select-frame oldf)))
+  (when persp
+    (persp-save (get-frame-persp frame))
+    (unless new
+      (persp-save persp))
+    (let ((oldf (selected-frame)))
+      (select-frame frame)
+      (delete-other-windows)
+      (set-frame-persp persp frame)
+      (when (persp-window-conf persp)
+        (window-state-put (persp-window-conf persp) (frame-root-window frame) t))
+      (run-hooks 'persp-activated-hook)
+      (select-frame oldf))))
 
 
 (defun* persp-get-buffer (bufferorname &optional (persp (get-frame-persp)))
