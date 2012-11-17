@@ -140,10 +140,10 @@ named collections of buffers and window configurations."
 
 (defun frame-list-without-initial ()
   (let* ((cframe (selected-frame))
-         (nframe (next-frame))
+         (nframe (next-frame cframe))
          (ret (list cframe)))
     (while (not (eq nframe cframe))
-      (cons nframe ret)
+      (setq ret (cons nframe ret))
       (setq nframe (next-frame nframe)))
     ret))
 
@@ -290,8 +290,7 @@ named collections of buffers and window configurations."
       name
     (let ((persp (gethash name perspectives-hash)))
       (if persp
-          (progn
-            (persp-activate persp frame))
+            (persp-activate persp frame)
         (setq persp (persp-new name))
         (persp-activate persp frame t)
         (switch-to-buffer (persp-scratch-name persp))
@@ -467,15 +466,14 @@ named collections of buffers and window configurations."
         (cbuffer (current-buffer)))
     (if (or (null persp) (null buffer))
         ad-do-it
-      (if (equal (buffer-name buffer) (persp-scratch-name persp))
-          (progn
-            (message "This buffer is unkillable in persp-mode ;), instead it's content is erased")
-            (set-buffer buffer)
-            (erase-buffer)
-            (set-buffer cbuffer))
-        (persp-remove-buffer buffer persp)
-        (when (not (persp-buffer-in-other-p buffer persp))
-          ad-do-it)))))
+      (if (not (equal (buffer-name buffer) (persp-scratch-name persp)))
+          (progn (persp-remove-buffer buffer persp)
+            (unless (persp-buffer-in-other-p buffer persp)
+              ad-do-it))
+        (message "This buffer is unkillable in persp-mode ;), instead it's content is erased")
+        (set-buffer buffer)
+        (erase-buffer)
+        (set-buffer cbuffer)))))
 
 
 (provide 'persp-mode)
