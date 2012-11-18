@@ -103,8 +103,8 @@ named collections of buffers and window configurations."
       (progn
         (setf perspectives-hash (make-hash-table :test 'equal :size 10))
         (persp-add-menu)
-        ;(persp-new "main")
-        ;(setf (persp-buffers (gethash "main" perspectives-hash)) (buffer-list))
+        ;;(persp-new "main")
+        ;;(setf (persp-buffers (gethash "main" perspectives-hash)) (buffer-list))
         
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
@@ -138,6 +138,13 @@ named collections of buffers and window configurations."
     (setq perspectives-hash nil)))
 
 
+(defsubst get-buffer-or-null (b)
+  (if (null b)
+      nil
+    (if (or (bufferp b) (stringp b))
+        (get-buffer b)
+      nil)))
+
 (defun frame-list-without-initial ()
   (let* ((cframe (selected-frame))
          (nframe (next-frame cframe))
@@ -167,7 +174,7 @@ named collections of buffers and window configurations."
                               (vconcat (list str_name (lambda ()(interactive)
                                                         (persp-kill str_name)))))))
       (when (equal name "main")
-        (setf (persp-buffers (gethash "main" perspectives-hash)) (buffer-list)))
+        (setf (persp-buffers persp) (buffer-list)))
       persp)))
 
 (defun* persp-add-buffer (bufferorname &optional (persp (get-frame-persp)))
@@ -255,7 +262,7 @@ named collections of buffers and window configurations."
           (loop for frame in (frame-list-without-initial)
                 if (eq persp (get-frame-persp frame))
                 do (persp-switch pname frame))
-        (kill-buffer oldscratch))
+          (kill-buffer oldscratch))
         (setf persp nil)))))
 
 
@@ -290,7 +297,7 @@ named collections of buffers and window configurations."
       name
     (let ((persp (gethash name perspectives-hash)))
       (if persp
-            (persp-activate persp frame)
+          (persp-activate persp frame)
         (setq persp (persp-new name))
         (persp-activate persp frame t)
         (switch-to-buffer (persp-scratch-name persp))
@@ -467,14 +474,19 @@ named collections of buffers and window configurations."
     (if (or (null persp) (null buffer))
         ad-do-it
       (if (not (equal (buffer-name buffer) (persp-scratch-name persp)))
-          (progn (persp-remove-buffer buffer persp)
-            (unless (persp-buffer-in-other-p buffer persp)
-              ad-do-it))
+          (progn
+            (persp-remove-buffer buffer persp)
+            (if (not (persp-buffer-in-other-p buffer persp))
+                (if ad-do-it
+                    (setq ad-return-value t)
+                  (persp-add-buffer buffer)
+                  (switch-to-buffer cbuffer)
+                  (setq ad-return-value nil))
+              (setq ad-return-value nil)))
         (message "This buffer is unkillable in persp-mode ;), instead it's content is erased")
         (set-buffer buffer)
         (erase-buffer)
         (set-buffer cbuffer)))))
-
 
 (provide 'persp-mode)
 
