@@ -60,7 +60,7 @@
 (defvar persp-conf-dir (expand-file-name "~/.emacs.d/persp-confs")
   "Directory to/from where perspectives saved/loaded")
 
-(defvar persp-auto-save-name "persp-auto-save"
+(defvar persp-auto-save-fname "persp-auto-save"
   "name of file for ato saving perspectives on persp-mode
   deactivation or at emacs exit")
 
@@ -73,6 +73,11 @@
 (defvar persp-auto-resume t
   "if non nil persp will be restored from autosave file
     on mode activation")
+
+(when (not (fboundp 'pickel-to-file))
+  (setq persp-auto-save-opt 0))
+(when (not (fboundp 'unpickel-file))
+  (setq persp-auto-resume nil))
 
 (defvar persp-interactive-completion-function
   (if ido-mode 'ido-completing-read 'completing-read)
@@ -112,7 +117,8 @@ Run with the activated perspective active.")
 
 
 (defun persp-asave-on-exit ()
-  (persp-save-state-to-file persp-auto-save-name))
+  (when (> persp-auto-save-opt 0)
+    (persp-save-state-to-file persp-auto-save-fname)))
 
 (defun safe-persp-name (p)
   (if (null p)
@@ -156,10 +162,10 @@ named collections of buffers and window configurations."
 
         (run-hooks 'persp-mode-hook)
 	(when persp-auto-resume
-	  (persp-load-state-from-file persp-auto-save-name)))
+	  (persp-load-state-from-file persp-auto-save-fname)))
 
     (when (> persp-auto-save-opt 1)
-      (persp-save-state-to-file persp-auto-save-name))
+      (persp-save-state-to-file persp-auto-save-fname))
     
     (ad-deactivate-regexp "^persp-.*")
     (remove-hook 'after-make-frame-functions 'persp-init-frame)
@@ -562,11 +568,13 @@ named collections of buffers and window configurations."
 
 (defun persp-load-state-from-file (fname)
   (interactive "sLoad config: ")
-  (when fname
-    (if (not (file-exists-p (concat persp-conf-dir "/" fname)))
-        (message "No such config: %S" fname)
-      (let ((ph (unpickel-file (concat persp-conf-dir "/" fname))))
-        (persp-merge-hash ph)))))
+  (if (fboundp 'unpickel-file)
+      (when fname
+        (if (not (file-exists-p (concat persp-conf-dir "/" fname)))
+            (message "No such config: %S" fname)
+          (let ((ph (unpickel-file (concat persp-conf-dir "/" fname))))
+            (persp-merge-hash ph))))
+    (message "You must have pickel.el to be able to restore perspectives configuration from file.")))
 
 (defsubst persp-merge-hash (ph)
   (when ph
