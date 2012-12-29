@@ -1,27 +1,65 @@
 # Intro
-Perspectives for emacs, based on perspective-mode by Nathan Weizenbaum(http://github.com/nex3/perspective-el)
-but perspectives shared between frames + some fixes and workarounds
+Perspectives for emacs, based on perspective-mode
+by Nathan Weizenbaum(http://github.com/nex3/perspective-el).  
+But perspectives shared between frames
+\+ ability to save/restore window configurations, save/restore from/to file.  
 
-# Howto
-Put somwhere in emacs load path, then `(require 'persp-mode) (persp-mode t)`
+# Installation
+Put this file into your `load-path`,
+add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.  
 
 # Keys
-`C-x x s` create/switch to persp.  
-`C-x x r` rename persp.  
-`C-x x c` kill persp.  
-`C-x x a` add buffer to persp.  
-`C-x x i` import all buffers from other persp.  
-`C-x x k` remove buffer from persp.  
+`C-x x s` -- create/switch to perspective.  
+`C-x x r` -- rename perspective.  
+`C-x x c` -- kill perspective.  
+`C-x x a` -- add buffer to perspective.  
+`C-x x i` -- import all buffers from another perspective.  
+`C-x x k` -- remove buffer from perspective.  
 
+# Customization
+`M-x: customize-group RET persp-mode RET`  
+
+---
 
 # Save/load perspectives to/from file and auto save/resume
 
-## Dependencies:
-To be able to save/load persps, you must put my version of `pickel.el`(experimental branch) to your emacs load path. //(original https://github.com/tlh/pickel.el)  
-To be able to save/restore also persp's window configurations you need `workgroups.el`(https://github.com/tlh/workgroups.el). It's also available on melpa.  
-
 ## Interactive functions:
-`M-x: persp-save-state-to-file` and `M-x: load-state-from-file`.
+`M-x: persp-save-state-to-file` and `M-x: load-state-from-file`.  
+*Key bindings*: `C-x x w` and `C-x x l` accordingly.  
+
+## Dependencies and troubles:
+To be able to save/load from/to file, you must put my version of [`pickel.el`](https://github.com/Bad-ptr/pickel.el)
+to your emacs load path.
+To be able to save/restore window configurations you need [`workgroups.el`](https://github.com/tlh/workgroups.el).
+It's also available on melpa.  
+Also when you create new frame(with `emacsclient -c` for example)
+it's window is switching to `*scratch*` buffer. To fix this you must have emacs 24.4 or build from bzr trunk.
+Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
+(or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that:  
+replace  
+
+    (unless (or files commands)
+             (if (stringp initial-buffer-choice)
+             (find-file initial-buffer-choice)
+           	(switch-to-buffer (get-buffer-create "*scratch*")
+           		  'norecord)))
+
+by  
+
+    (unless (or files commands)
+      (let ((buf
+        	 (cond ((stringp initial-buffer-choice)
+      (find-file-noselect initial-buffer-choice))
+     ((functionp initial-buffer-choice)
+      (funcall initial-buffer-choice)))))
+    (switch-to-buffer
+     (if (buffer-live-p buf) buf (get-buffer-create "*scratch*"))
+     'norecord)))
+
+and edit `persp-set-ibc-to-f-is-supported` in `persp-mode.el`:  
+
+    (defsubst persp-set-ibc-to-f-is-supported ()
+      t)
 
 ## Variables:
 Variable `persp-conf-dir` sets the directory where to save/load perspectives. By deafault it's set to `"~/.emacs.d/persp-confs"`.  
