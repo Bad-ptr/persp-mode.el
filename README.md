@@ -29,7 +29,7 @@ add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.
 
 ## Dependencies and troubles:
 To be able to save/load from/to file, you must put my version of [`pickel.el`](https://github.com/Bad-ptr/pickel.el)
-to your emacs load path.
+(checkout `experimental` branch) to your emacs load path.
 To be able to save/restore window configurations you need [`workgroups.el`](https://github.com/tlh/workgroups.el).
 It's also available on melpa.  
 Also when you create new frame(with `emacsclient -c` for example)
