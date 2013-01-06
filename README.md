@@ -1,8 +1,6 @@
 # Intro
-Perspectives for emacs, based on perspective-mode
-by Nathan Weizenbaum(http://github.com/nex3/perspective-el).  
-But perspectives shared between frames
-\+ ability to save/restore window configurations, save/restore from/to file.  
+Perspectives for emacs, based on [perspective-mode](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
+But perspectives shared between frames \+ ability to save/restore window configurations, save/restore from/to file.  
 
 # Installation
 Put this file into your `load-path`,
@@ -24,18 +22,18 @@ add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.
 # Save/load perspectives to/from file and auto save/resume
 
 ## Interactive functions:
-`M-x: persp-save-state-to-file` and `M-x: load-state-from-file`.  
+`M-x: persp-save-state-to-file` and `M-x: persp-load-state-from-file`.  
 *Key bindings*: `C-x x w` and `C-x x l` accordingly.  
 
 ## Dependencies and troubles:
 To be able to save/load from/to file, you must put my version of [`pickel.el`](https://github.com/Bad-ptr/pickel.el)
-(checkout `experimental` branch) to your emacs load path.
+(checkout `experimental` branch) to your emacs load path.  
 To be able to save/restore window configurations you need [`workgroups.el`](https://github.com/tlh/workgroups.el).
-It's also available on melpa.  
+It's also available on [melpa](https://github.com/milkypostman/melpa).  
 Also when you create new frame(with `emacsclient -c` for example)
 it's window is switching to `*scratch*` buffer. To fix this you must have emacs 24.4 or build from bzr trunk.
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
-(or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that:  
+(or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(that works for emacs 24.3 at least):  
 replace  
 
     (unless (or files commands)
