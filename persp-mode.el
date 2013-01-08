@@ -1,12 +1,14 @@
-;;; persp-mode.el --- switch between named "perspectives" of the editor
+;;; persp-mode.el --- "perspectives" shared between frames
 
-;; Copyright 2012 Constantin Kulikov (Bad_ptr)
-;;
+;; Copyright (C) 2012 Constantin Kulikov
+
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; URL: https://github.com/Bad-ptr/persp-mode.el
 ;; Version: 0.9.1
-;; Keywords: perspectives
 ;; Package-Requires: ((workgroups "0.2.0"))
+;; Keywords: perspectives
+;; URL: https://github.com/Bad-ptr/persp-mode.el
+
+;;; License:
 
 ;; This file is not part of GNU Emacs.
 
@@ -24,14 +26,7 @@
 ;; along with this program; if not, write to the Free Software
 ;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-;;; Commentary:
-
-;; Based on perspective.el by Nathan Weizenbaum
-;; (http://github.com/nex3/perspective-el) but perspectives shared
-;; between frames + ability to save/restore window configurations,
-;; save/restore from/to file.
-
-;;; Installation:
+;;; Usage:
 
 ;; Put this file into your load-path,
 ;; add (require 'persp-mode) (persp-mode t) into your ~/.emacs.
@@ -48,6 +43,13 @@
 ;; C-x x k -- remove buffer from perspective.
 ;; C-x x w -- save perspectives to file.
 ;; C-x x l -- load perspectives from file.
+
+;;; Commentary:
+
+;; Based on perspective.el by Nathan Weizenbaum
+;; (http://github.com/nex3/perspective-el) but perspectives shared
+;; between frames + ability to save/restore perspectives to/from file.
+
 
 ;;; Code:
 
@@ -564,13 +566,14 @@ named collections of buffers and window configurations."
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame)))
   (with-selected-frame frame
-    (when (persp-window-conf persp)
-      (if (not (fboundp 'wg-restore-wconfig))
-          (window-state-put (persp-window-conf persp) (frame-root-window frame) t)
-        (wg-restore-wconfig (persp-window-conf persp))
-        (when (persp-is-ibc-as-f-supported)
-          (lexical-let ((cbuf (current-buffer)))
-            (setq initial-buffer-choice #'(lambda () cbuf))))))))
+    (if (persp-window-conf persp)
+        (if (not (fboundp 'wg-restore-wconfig))
+            (window-state-put (persp-window-conf persp) (frame-root-window frame) t)
+          (wg-restore-wconfig (persp-window-conf persp))
+          (when (persp-is-ibc-as-f-supported)
+            (lexical-let ((cbuf (current-buffer)))
+              (setq initial-buffer-choice #'(lambda () cbuf)))))
+      (switch-to-buffer (persp-get-buffer (persp-scratch-name persp) persp)))))
 
 (defsubst persp-is-ibc-as-f-supported ()
   (not (null
