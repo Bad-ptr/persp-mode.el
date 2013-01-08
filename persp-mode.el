@@ -4,8 +4,9 @@
 ;;
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
-;; Version: 0.9
+;; Version: 0.9.1
 ;; Keywords: perspectives
+;; Package-Requires: ((workgroups "0.2.0"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -34,6 +35,8 @@
 
 ;; Put this file into your load-path,
 ;; add (require 'persp-mode) (persp-mode t) into your ~/.emacs.
+;; To be able to save/restore window configurations to/from file you
+;; need workgroups.el
 
 ;;; Keys:
 
@@ -67,7 +70,7 @@
   :prefix "persp-"
   :group 'persp-mode)
 
-(defcustom persp-conf-dir (expand-file-name "~/.emacs.d/persp-confs")
+(defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs")
   "Directory to/from where perspectives saved/loaded"
   :group 'persp-mode
   :type 'directory :tag "Directory")
@@ -151,12 +154,6 @@ Run with the activated perspective active."
 
 (when (locate-library "workgroups.el")
   (require 'workgroups))
-(when (locate-library "pickel.el")
-  (require 'pickel))
-(when (not (fboundp 'pickel-to-file))
-  (setq persp-auto-save-opt 0))
-(when (not (fboundp 'unpickel-file))
-  (setq persp-auto-resume nil))
 
 (defun persp-asave-on-exit ()
   (when (> persp-auto-save-opt 0)
@@ -173,11 +170,12 @@ Run with the activated perspective active."
 When active, keeps track of multiple 'perspectives',
 named collections of buffers and window configurations."
   :require 'persp-mode
+  :keymap persp-mode-map
+  :group 'persp-mode
   :init-value nil
+  :global t
   :lighter (:eval (format "%s%.5s" "#"
                           (safe-persp-name (get-frame-persp))))
-  :global t
-  :keymap persp-mode-map
   (if persp-mode
       (progn
         (setf *persp-hash* (make-hash-table :test 'equal :size 10))
@@ -203,7 +201,7 @@ named collections of buffers and window configurations."
 
         (when persp-auto-resume
           (persp-load-state-from-file persp-auto-save-fname))
-        
+
         (run-hooks 'persp-mode-hook))
 
     (when (> persp-auto-save-opt 1)
@@ -343,10 +341,8 @@ named collections of buffers and window configurations."
     (if (member name (persp-names))
         (message "Error: There is already perspective with %S name." name)
       (let ((persp (make-persp :name name)))
-        (if (string= name "main")
-            (setf (persp-buffers persp) (buffer-list))
-          (setf (persp-buffers persp)
-                (list (get-buffer-create (persp-scratch-name persp)))))
+        (setf (persp-buffers persp)
+              (list (get-buffer-create (persp-scratch-name persp))))
         (persp-add persp)))))
 
 
@@ -356,11 +352,11 @@ named collections of buffers and window configurations."
    (list
     (let ((read-buffer-function nil))
       (read-buffer "Add buffer to perspective: "))))
-  (when persp
-    (let ((buffer (get-buffer-or-null bufferorname)))
-      (unless (or (null buffer)
-                  (not (buffer-live-p buffer))
-                  (member buffer (persp-buffers persp)))
+  (when (and persp bufferorname)
+    (let ((buffer (get-buffer bufferorname)))
+      (when (and buffer
+                 (buffer-live-p buffer)
+                 (not (member buffer (persp-buffers persp))))
         (push buffer (persp-buffers persp))))))
 
 (defun* persp-remove-buffer (buffername
@@ -493,6 +489,7 @@ named collections of buffers and window configurations."
      '((persp . nil)))
     (unless persp
       (setq persp (persp-add-new "main"))
+      (setf (persp-buffers persp) (append (persp-buffers persp) (buffer-list)))
       (setq new t))
     (persp-activate persp frame new)))
 
@@ -609,42 +606,73 @@ named collections of buffers and window configurations."
         do (persp-save-state p)))
 
 (defun persp-save-state-to-file (fname)
-  (interactive "sSave config: ")
+  (interactive "sSave to file: ")
   (when fname
-    (unless (and (file-exists-p persp-conf-dir)
-                 (file-directory-p persp-conf-dir))
-      (message "Info: Trying to create persp-conf-dir.")
-      (make-directory persp-conf-dir t))
-    (if (not (and (file-exists-p persp-conf-dir)
-                  (file-directory-p persp-conf-dir)))
-        (message
-         "Error: Can't save perspectives( persp-conf-dir not exist or not a directory %S )."
-         persp-conf-dir)
-      (if (not (fboundp 'pickel-to-file))
+    (let* ((p-save-dir (expand-file-name persp-save-dir))
+           (p-save-file (concat p-save-dir "/" fname)))
+      (unless (and (file-exists-p p-save-dir)
+                   (file-directory-p p-save-dir))
+        (message "Info: Trying to create persp-conf-dir.")
+        (make-directory p-save-dir t))
+      (if (not (and (file-exists-p p-save-dir)
+                    (file-directory-p p-save-dir)))
           (message
-           "Error: You must setup pickel.el to be able to save perspectives to file.")
+           "Error: Can't save perspectives, persp-save-dir does not exist or not a directory %S."
+           p-save-dir)
         (persp-save-all-persps-state)
-        (let ((p-hash (if (find 'workgroups features)
-                          *persp-hash*
-                        (make-hash-table :test 'equal :size 10))))
-          (unless (find 'workgroups features)
-            (loop for p in (persp-persps)
-                  do (puthash (persp-name p)
-                              (make-persp :name (persp-name p)
-                                          :buffers (persp-buffers p))
-                              p-hash)))
-          (pickel-to-file (concat persp-conf-dir "/" fname) p-hash))))))
+
+        (cl-flet ((prep-bl-fs (blist)
+                              (loop for buf in blist
+                                    collect `(def-buffer ,(buffer-name buf)
+                                               ,(buffer-file-name buf)
+                                               ,(buffer-local-value 'major-mode buf)))))
+          
+          (let ((pslist (loop for p in (persp-persps)
+                              do (persp-filter-out-bad-buffers p)
+                              and collect `(def-persp ,(persp-name p)
+                                             ,(prep-bl-fs (persp-buffers p))
+                                             (def-wconf ,(if (find 'workgroups features)
+                                                             (persp-window-conf p)
+                                                           nil))))))
+            (with-current-buffer (find-file-noselect p-save-file)
+              (erase-buffer)
+              (goto-char (point-min))
+              (insert (format "%s\n" (prin1-to-string pslist)))
+              (basic-save-buffer)
+              (kill-buffer (current-buffer)))))))))
+
 
 (defun persp-load-state-from-file (fname)
-  (interactive "sLoad config: ")
-  (if (fboundp 'unpickel-file)
-      (when fname
-        (if (not (file-exists-p (concat persp-conf-dir "/" fname)))
-            (message "No such config: %S." fname)
-          (let ((ph (unpickel-file (concat persp-conf-dir "/" fname))))
-            (persp-merge-hash ph))))
-    (message
-     "Error: You must have pickel.el to be able to restore perspectives from file.")))
+  (interactive "sLoad from file: ")
+  (when fname
+    (let ((p-save-file (concat (expand-file-name persp-save-dir)
+                               "/" fname)))
+      (if (not (file-exists-p p-save-file))
+          (message "Error: No such file: %S." p-save-file)
+        (cl-letf ((def-wconf (lambda (wc) wc))
+                  (def-buffer (lambda (name fname mode)
+                                (let ((buf (get-buffer name)))
+                                  (if (buffer-live-p buf)
+                                      (if (or (null fname) (string= fname (buffer-file-name buf)))
+                                          buf
+                                        (find-file-noselect fname))
+                                    (if fname
+                                        (find-file-noselect fname)
+                                      (with-current-buffer (get-buffer-create name)
+                                        (when (and mode (symbol-function mode))
+                                          (funcall (symbol-function mode)))
+                                        (current-buffer)))))))
+                  (def-persp (lambda (name dbufs dwc)
+                               (let ((persp (or (gethash name *persp-hash*)
+                                                (persp-add-new name))))
+                                 (loop for db in dbufs
+                                       do (persp-add-buffer (apply (symbol-value (car db)) (cdr db)) persp))
+                                 (setf (persp-window-conf persp) (apply (symbol-value (car dwc)) (cdr dwc)))))))
+          (with-current-buffer (find-file-noselect p-save-file)
+            (goto-char (point-min))
+            (loop for pd in (read (current-buffer))
+                  do (apply (symbol-value (car pd)) (cdr pd)))
+            (kill-buffer (current-buffer))))))))
 
 (defsubst persp-merge-hash (ph)
   (when ph

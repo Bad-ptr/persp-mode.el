@@ -5,6 +5,11 @@ But perspectives shared between frames \+ ability to save/restore window configu
 # Installation
 Put this file into your `load-path`,
 add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.  
+I also planing to add this package to [melpa](https://github.com/milkypostman/melpa) soon.  
+
+## Dependencies:
+To be able to save/restore window configurations from/to file you need [`workgroups.el`](https://github.com/tlh/workgroups.el).
+It's also available on [melpa](https://github.com/milkypostman/melpa) (`M-x: package-install RET workgroups RET`).  
 
 # Keys
 `C-x x s` -- create/switch to perspective.  
@@ -13,25 +18,17 @@ add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.
 `C-x x a` -- add buffer to perspective.  
 `C-x x i` -- import all buffers from another perspective.  
 `C-x x k` -- remove buffer from perspective.  
+`C-x x w` -- save perspectives to file.  
+`C-x x l` -- load perspectives from file.  
 
 # Customization
 `M-x: customize-group RET persp-mode RET`  
 
 ---
 
-# Save/load perspectives to/from file and auto save/resume
-
-## Interactive functions:
-`M-x: persp-save-state-to-file` and `M-x: persp-load-state-from-file`.  
-*Key bindings*: `C-x x w` and `C-x x l` accordingly.  
-
-## Dependencies and troubles:
-To be able to save/load from/to file, you must put my version of [`pickel.el`](https://github.com/Bad-ptr/pickel.el)
-(checkout `experimental` branch) to your emacs load path.  
-To be able to save/restore window configurations you need [`workgroups.el`](https://github.com/tlh/workgroups.el).
-It's also available on [melpa](https://github.com/milkypostman/melpa).  
-Also when you create new frame(with `emacsclient -c` for example)
-it's window is switching to `*scratch*` buffer. To fix this you must have emacs 24.4 or build from bzr trunk.
+# Troubles:
+When you create new frame(with `emacsclient -c` for example)
+it's window is switching to `*scratch*` buffer. To fix this you must have emacs version >= 24.4.
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
 (or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(that works for emacs 24.3 at least):  
 replace  
@@ -54,16 +51,7 @@ by
      (if (buffer-live-p buf) buf (get-buffer-create "*scratch*"))
      'norecord)))
 
-and edit `persp-set-ibc-to-f-is-supported` in `persp-mode.el`:  
+and edit `persp-is-ibc-as-f-supported` in `persp-mode.el`:  
 
-    (defsubst persp-set-ibc-to-f-is-supported ()
+    (defsubst persp-is-ibc-as-f-supported ()
       t)
-
-## Variables:
-Variable `persp-conf-dir` sets the directory where to save/load perspectives. By deafault it's set to `"~/.emacs.d/persp-confs"`.  
-Variable `persp-auto-save-fname` sets the file name for auto-saving/-resuming. Default value is `"persp-auto-save"`.  
-Variable `persp-auto-save-opt` (default is 2):  
-    "0 -- do not auto save  
-     1 -- save on exit and only if persp-mode active  
-     2 -- save on persp-mode deactivation or at emacs exiting(if persp-mode is active)"  
-Variable `persp-auto-resume` (default is t). If non nil persp will be restored from autosave file on mode activation.  
