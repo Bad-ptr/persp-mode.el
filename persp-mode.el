@@ -408,7 +408,7 @@ named collections of buffers and window configurations."
   (let ((frames (persp-frames-with-persp p))
         new-buf)
     (when (not (persp-buffers p))
-      (persp-add-buffer (get-buffer-create (persp-scratch-name persp)) p))
+      (persp-add-buffer (get-buffer-create (persp-scratch-name p)) p))
     (loop for frame in frames
           do (loop for window in (get-buffer-window-list oldbuf nil frame)
                    do (progn
@@ -491,7 +491,9 @@ named collections of buffers and window configurations."
      '((persp . nil)))
     (unless persp
       (setq persp (persp-add-new "main"))
-      (setf (persp-buffers persp) (append (persp-buffers persp) (buffer-list)))
+      ;;(setf (persp-buffers persp) (append (persp-buffers persp) (buffer-list)))
+      (loop for buf in (buffer-list)
+            do (persp-add-buffer buf persp))
       (setq new t))
     (persp-activate persp frame new)))
 
