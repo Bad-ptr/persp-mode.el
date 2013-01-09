@@ -136,7 +136,7 @@ Run with the activated perspective active."
 
 (defvar persp-interactive-completion-function
   (if ido-mode #'ido-completing-read #'completing-read)
-  "The function which is used by perspective.el
+  "The function which is used by persp-mode.el
  to interactivly complete user input")
 
 
@@ -172,8 +172,8 @@ Run with the activated perspective active."
 When active, keeps track of multiple 'perspectives',
 named collections of buffers and window configurations."
   :require 'persp-mode
-  :keymap persp-mode-map
   :group 'persp-mode
+  :keymap persp-mode-map
   :init-value nil
   :global t
   :lighter (:eval (format "%s%.5s" "#"
@@ -223,7 +223,7 @@ named collections of buffers and window configurations."
     (setq *persp-hash* nil)))
 
 
-;;; Advices
+;; Advices:
 
 (defadvice switch-to-buffer (after persp-add-buffer-adv)
   (when ad-return-value
@@ -258,7 +258,7 @@ named collections of buffers and window configurations."
           (erase-buffer))
         (setq ad-return-value nil)))))
 
-;;; Misc funcs
+;; Misc funcs:
 
 (defsubst get-buffer-or-null (b)
   (if (null b)
@@ -305,7 +305,7 @@ named collections of buffers and window configurations."
   (concat "*scratch* (" (persp-name p) ")"))
 
 
-
+;; Perspective funcs:
 
 (defun persp-add (persp)
   (let ((name (persp-name persp)))
@@ -505,6 +505,7 @@ named collections of buffers and window configurations."
         do (return-from find-other-frame-with-persp frame))
   nil)
 
+;; Helper funcs:
 
 (defun persp-add-menu ()
   (easy-menu-define persp-minor-mode-menu
@@ -561,7 +562,7 @@ named collections of buffers and window configurations."
                        (member (if (consp name) (car name) name) persp-names-sorted ))
                      nil)))
 
-
+;; Save/Restore funcs:
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame)))
@@ -573,7 +574,7 @@ named collections of buffers and window configurations."
           (when (persp-is-ibc-as-f-supported)
             (lexical-let ((cbuf (current-buffer)))
               (setq initial-buffer-choice #'(lambda () cbuf)))))
-      (switch-to-buffer (persp-get-buffer (persp-scratch-name persp) persp)))))
+      (switch-to-buffer (persp-scratch-name persp) ))))
 
 (defsubst persp-is-ibc-as-f-supported ()
   (not (null
