@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.1
+;; Version: 0.9.2
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -100,6 +100,12 @@
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-separate-scratches nil
+  "If non nil the '*scratch (persp-name)*' buffer will be created
+for every perspective, otherwise one '*scratch*' buffer will be
+shared."
+  :group 'persp-mode
+  :type 'boolean)
 
 (defcustom persp-mode-hook nil
   "A hook that's run after `persp-mode' has been activated."
@@ -176,7 +182,7 @@ named collections of buffers and window configurations."
   :keymap persp-mode-map
   :init-value nil
   :global t
-  :lighter (:eval (format "%s%.5s" "#"
+  :lighter (:eval (format "%s%.5s" " #"
                           (safe-persp-name (get-frame-persp))))
   (if persp-mode
       (progn
@@ -243,20 +249,19 @@ named collections of buffers and window configurations."
         (cbuffer (current-buffer)))
     (if (or (null persp) (null buffer))
         ad-do-it
-      (if (not (string= (buffer-name buffer) (persp-scratch-name persp)))
-          (progn
-            (persp-remove-buffer buffer persp)
-            (if (not (persp-buffer-in-other-p buffer persp))
-                (if ad-do-it
-                    (setq ad-return-value t)
-                  (persp-add-buffer buffer)
-                  (switch-to-buffer cbuffer)
-                  (setq ad-return-value nil))
-              (setq ad-return-value nil)))
-        (message "Error: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
-        (with-current-buffer buffer
-          (erase-buffer))
-        (setq ad-return-value nil)))))
+      (if (string= (buffer-name buffer) (persp-scratch-name persp))
+          (with-current-buffer buffer
+            (message "Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
+            (erase-buffer)
+            (setq ad-return-value nil))
+        (persp-remove-buffer buffer persp)
+        (if (persp-buffer-in-other-p buffer persp)
+            (setq ad-return-value nil)
+          (if ad-do-it
+              (setq ad-return-value t)
+            (persp-add-buffer buffer)
+            (switch-to-buffer cbuffer)
+            (setq ad-return-value nil)))))))
 
 ;; Misc funcs:
 
@@ -302,7 +307,9 @@ named collections of buffers and window configurations."
         collect frame))
 
 (defsubst* persp-scratch-name (&optional (p (get-frame-persp)))
-  (concat "*scratch* (" (persp-name p) ")"))
+  (if persp-separate-scratches
+      (concat "*scratch* (" (persp-name p) ")")
+    "*scratch*"))
 
 
 ;; Perspective funcs:
