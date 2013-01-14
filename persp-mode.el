@@ -279,9 +279,16 @@ named collections of buffers and window configurations."
 
 (defun persp-frame-list-without-initial ()
   "Return list of frames without daemon's frame."
-  (delete-if #'(lambda (f)
-                 (string= "F1" (frame-parameter f 'name)))
-             (frame-list)))
+  ;; (delete-if #'(lambda (f)
+  ;;                (string= "F1" (frame-parameter f 'name)))
+  ;;            (frame-list))
+  (let* ((cf (selected-frame))
+         (nf (next-frame cf))
+         (ret (and cf (list cf))))
+    (while (not (eq cf nf))
+      (push nf ret)
+      (setq nf (next-frame nf)))
+    ret))
 
 (defun set-frame-persp (persp &optional frame)
   (set-frame-parameter frame 'persp persp))
