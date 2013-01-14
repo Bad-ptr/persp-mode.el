@@ -3,13 +3,17 @@ Perspectives for emacs, based on [perspective-mode](http://github.com/nex3/persp
 But perspectives shared between frames \+ ability to save/restore window configurations, save/restore from/to file.  
 
 # Installation
-Put this file into your `load-path`,
-add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.  
-I also planing to add this package to [melpa](https://github.com/milkypostman/melpa) soon.  
+persp-mode is available on [melpa](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
+`M-x: package-install RET persp-mode RET`  
+Alternatively you can download persp-mode.el from github and install it with:
+`M-x: package-install-file RET 'path_to_where_you_saved_persp-mode.el' RET`  
+
+Another(oldschool;p) way:  
+Put persp-mode.el file somewhere in your emacs load-path and add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.  
 
 ## Dependencies:
-To be able to save/restore window configurations from/to file you need [`workgroups.el`](https://github.com/tlh/workgroups.el).
-It's also available on [melpa](https://github.com/milkypostman/melpa) (`M-x: package-install RET workgroups RET`).  
+Ability of saving/restoring window configurations from/to file depends on [`workgroups.el`](https://github.com/tlh/workgroups.el).  
+It's automatically installed if you install persp-mode from mepla, otherwise you must download it and put somewhere in your emacs load-path.  
 
 # Keys
 `C-x x s` -- create/switch to perspective.  
@@ -30,7 +34,7 @@ It's also available on [melpa](https://github.com/milkypostman/melpa) (`M-x: pac
 When you create new frame(with `emacsclient -c` for example)
 it's window is switching to `*scratch*` buffer. To fix this you must have emacs version >= 24.4.
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
-(or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(that works for emacs 24.3 at least):  
+(or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(this works for emacs 24.3 at least):  
 replace  
 
     (unless (or files commands)

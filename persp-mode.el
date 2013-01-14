@@ -196,8 +196,9 @@ named collections of buffers and window configurations."
 
         (setq read-buffer-function #'persp-read-buffer)
 
-        (loop for frame in (frame-list-without-initial)
-              do (persp-init-frame frame))
+        (mapc #'(lambda (f)
+                  (persp-init-frame f))
+              (frame-list-without-initial))
         
         (when (fboundp 'tabbar-mode)
           (setq tabbar-buffer-list-function
@@ -282,15 +283,21 @@ named collections of buffers and window configurations."
   (frame-parameter frame 'persp))
 
 (defun* persp-names (&optional (phash *persp-hash*))
-  (loop for name being the hash-keys of phash
-        collect name))
+  (let ((ret nil))
+    (maphash #'(lambda (k p)
+                 (push k ret))
+             *persp-hash*)
+    ret))
 
 (defsubst* persp-names-sorted (&optional (phash *persp-hash*))
   (sort (persp-names phash) 'string<))
 
 (defun* persp-persps (&optional (phash *persp-hash*))
-  (loop for p being the hash-values of phash
-        collect p))
+  (let ((ret nil))
+    (maphash #'(lambda (k p)
+                 (push p ret))
+             *persp-hash*)
+    ret))
 
 (defun persp-persps-with-buffer (buff-or-name)
   (let ((buf (get-buffer-or-null buff-or-name)))
