@@ -693,7 +693,8 @@ named collections of buffers and window configurations."
             (mapc #'(lambda (pd)
                       (apply (symbol-value (car pd)) (cdr pd)))
                   (read (current-buffer)))
-            (kill-buffer (current-buffer))))))))
+            (kill-buffer (current-buffer))))))
+    (persp-update-frames-window-confs)))
 
 (defsubst persp-merge-hash (ph)
   (when ph
