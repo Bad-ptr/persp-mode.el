@@ -1,9 +1,9 @@
-;;; persp-mode.el --- "perspectives" shared between frames
+;;; persp-mode.el --- "perspectives" shared between frames.
 
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.4
+;; Version: 0.9.5
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -26,14 +26,20 @@
 ;; along with this program; if not, write to the Free Software
 ;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-;;; Usage:
+;;; Commentary:
+
+;; Based on perspective.el by Nathan Weizenbaum
+;; (http://github.com/nex3/perspective-el) but perspectives shared
+;; between frames + ability to save/restore perspectives to/from file.
+
+;; Installation:
 
 ;; Put this file into your load-path,
 ;; add (require 'persp-mode) (persp-mode t) into your ~/.emacs.
 ;; To be able to save/restore window configurations to/from file you
 ;; need workgroups.el
 
-;;; Keys:
+;; Keys:
 
 ;; C-x x s -- create/switch to perspective.
 ;; C-x x r -- rename perspective.
@@ -43,13 +49,6 @@
 ;; C-x x k -- remove buffer from perspective.
 ;; C-x x w -- save perspectives to file.
 ;; C-x x l -- load perspectives from file.
-
-;;; Commentary:
-
-;; Based on perspective.el by Nathan Weizenbaum
-;; (http://github.com/nex3/perspective-el) but perspectives shared
-;; between frames + ability to save/restore perspectives to/from file.
-
 
 ;;; Code:
 
@@ -72,21 +71,21 @@
   :group 'persp-mode)
 
 (defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs")
-  "Directory to/from where perspectives saved/loaded"
+  "Directory to/from where perspectives saved/loaded."
   :group 'persp-mode
   :type 'directory :tag "Directory")
 
 (defcustom persp-auto-save-fname "persp-auto-save"
-  "name of file for ato saving perspectives on persp-mode
-  deactivation or at emacs exit"
+  "Name of file for ato saving perspectives on persp-mode
+  deactivation or at emacs exit."
   :group 'persp-mode
   :type '(choice (file :tag "File")))
 
 (defcustom persp-auto-save-opt 2
-  "0 -- do not auto save
-   1 -- save on exit and only if persp-mode active
-   2 -- save on persp-mode deactivation
-         or at emacs exiting(if mode is active)"
+  "This variable controls autosave functionality of persp-mode:
+0 -- do not auto save;
+1 -- save on exit and only if persp-mode active;
+2 -- save on persp-mode deactivation or at emacs exiting."
   :group 'persp-mode
   :type '(choice (integer :tag "Do not save" :value 0)
                  (integer :tag "Save on exit" :value 1)
@@ -94,8 +93,8 @@
                           :value 2)))
 
 (defcustom persp-auto-resume t
-  "if non nil persp will be restored from autosave file
-    on mode activation"
+  "If non nil perspectives will be restored from autosave file
+on mode activation."
   :group 'persp-mode
   :type 'boolean)
 
@@ -133,7 +132,7 @@ Run with the activated perspective active."
   "Keymap for perspective-mode.")
 
 (defvar persp-minor-mode-menu nil
-  "Menu for persp-mode")
+  "Menu for persp-mode.")
 
 
 (defvar *persp-hash* nil
@@ -142,23 +141,26 @@ Run with the activated perspective active."
 (defvar persp-interactive-completion-function
   (if ido-mode #'ido-completing-read #'completing-read)
   "The function which is used by persp-mode.el
- to interactivly complete user input")
+ to interactivly complete user input.")
 
 (defvar *persp-restrict-buffers-to* 0
   "Global var for control behaviour of persp-restrict-ido-buffers.
 Must be rebinded only locally.
 0 -- restrict to perspective buffers
-1 -- restrict to all buffers except that already in perspective")
+1 -- restrict to all buffers except that already in perspective.")
 
-(define-key persp-mode-map (kbd "C-x x s") 'persp-switch)
-(define-key persp-mode-map (kbd "C-x x r") 'persp-rename)
-(define-key persp-mode-map (kbd "C-x x c") 'persp-kill)
-(define-key persp-mode-map (kbd "C-x x a") 'persp-add-buffer)
-(define-key persp-mode-map (kbd "C-x x i") 'persp-import-buffers)
-(define-key persp-mode-map (kbd "C-x x k") 'persp-remove-buffer)
+(defvar persp-saved-read-buffer-function nil
+  "Save read-buffer-function to restore it on mode deactivation.")
 
-(define-key persp-mode-map (kbd "C-x x w") 'persp-save-state-to-file)
-(define-key persp-mode-map (kbd "C-x x l") 'persp-load-state-from-file)
+(define-key persp-mode-map (kbd "C-x x s") #'persp-switch)
+(define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
+(define-key persp-mode-map (kbd "C-x x c") #'persp-kill)
+(define-key persp-mode-map (kbd "C-x x a") #'persp-add-buffer)
+(define-key persp-mode-map (kbd "C-x x i") #'persp-import-buffers)
+(define-key persp-mode-map (kbd "C-x x k") #'persp-remove-buffer)
+
+(define-key persp-mode-map (kbd "C-x x w") #'persp-save-state-to-file)
+(define-key persp-mode-map (kbd "C-x x l") #'persp-load-state-from-file)
 
 
 (when (locate-library "workgroups.el")
@@ -199,10 +201,10 @@ named collections of buffers and window configurations."
         (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
         (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
+        (setq persp-saved-read-buffer-function read-buffer-function)
         (setq read-buffer-function #'persp-read-buffer)
 
-        (mapc #'(lambda (f)
-                  (persp-init-frame f))
+        (mapc #'persp-init-frame
               (persp-frame-list-without-daemon))
         
         (when (fboundp 'tabbar-mode)
@@ -210,20 +212,20 @@ named collections of buffers and window configurations."
                 #'(lambda () (persp-buffers (get-frame-persp)))))
 
         (when persp-auto-resume
-          (persp-load-state-from-file persp-auto-save-fname))
+          (persp-load-state-from-file))
 
         (run-hooks 'persp-mode-hook))
 
     (when (> persp-auto-save-opt 1)
-      (persp-save-state-to-file persp-auto-save-fname))
+      (persp-save-state-to-file))
     
-    (ad-deactivate-regexp "^persp-.*")
+    ;(ad-deactivate-regexp "^persp-.*")
     (remove-hook 'after-make-frame-functions #'persp-init-frame)
     (remove-hook 'delete-frame-functions     #'persp-delete-frame)
     (remove-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
     (remove-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
-    (setq read-buffer-function nil)
+    (setq read-buffer-function persp-saved-read-buffer-function)
     
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
@@ -235,14 +237,14 @@ named collections of buffers and window configurations."
 
 (defadvice switch-to-buffer (after persp-add-buffer-adv)
   ;; We must add buffer to some perspective if we want to display it.
-  (when ad-return-value
+  (when (and persp-mode ad-return-value)
     (let ((buf (ad-get-arg 0)))
       (when buf
         (persp-add-buffer buf)))))
 
 (defadvice display-buffer (after persp-add-buffer-adv)
   ;; We must add buffer to some perspective if we want to display it.
-  (when ad-return-value
+  (when (and persp-mode ad-return-value)
     (let ((buf (ad-get-arg 0)))
       (when buf
         (persp-add-buffer buf)))))
@@ -252,29 +254,32 @@ named collections of buffers and window configurations."
   ;; If buffer belongs to more than one perspective, just remove it from
   ;; current perspective and don't kill it. If there is no current perspective
   ;; (no current frame) remove buffer from all perspectives."
-  (let ((buffer (persp-get-buffer-or-null b))
-        (persp (get-frame-persp))
-        (cbuffer (current-buffer)))
-    (if (and persp buffer)
-        (if (string= (buffer-name buffer) (persp-scratch-name persp))
-            (with-current-buffer buffer
-              (message "Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
-              (erase-buffer)
-              (setq ad-return-value nil))
-          (persp-remove-buffer buffer persp)
-          (if (persp-buffer-in-other-p buffer persp)
-              (setq ad-return-value nil)
-            (if ad-do-it
-                (setq ad-return-value t)
-              (persp-add-buffer buffer)
-              (switch-to-buffer cbuffer)
-              (setq ad-return-value nil))))
-      (persp-remove-buffer buffer nil)
-      ad-do-it)))
+  (if persp-mode
+      (let ((buffer (persp-get-buffer-or-null b))
+            (persp (get-frame-persp))
+            (cbuffer (current-buffer)))
+        (if (and persp buffer)
+            (if (string= (buffer-name buffer) (persp-scratch-name persp))
+                (with-current-buffer buffer
+                  (message "Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
+                  (erase-buffer)
+                  (setq ad-return-value nil))
+              (persp-remove-buffer buffer persp)
+              (if (persp-buffer-in-other-p buffer persp)
+                  (setq ad-return-value nil)
+                (if ad-do-it
+                    (setq ad-return-value t)
+                  (persp-add-buffer buffer)
+                  (switch-to-buffer cbuffer)
+                  (setq ad-return-value nil))))
+          (persp-remove-buffer buffer nil)
+          ad-do-it))
+    ad-do-it))
 
 ;; Misc funcs:
 
-(defsubst persp-get-buffer-or-null (buff-or-name) ;safely return buffer or null without errors
+(defun persp-get-buffer-or-null (buff-or-name)
+  "Safely return buffer or null without errors."
   (typecase buff-or-name
     ((or string buffer)
      (let ((buf (get-buffer buff-or-name)))
@@ -334,13 +339,14 @@ named collections of buffers and window configurations."
 (defsubst* persp-revive-scratch (&optional (persp (get-frame-persp)))
   "Create and add scratch buffer to perspective.
 If persp is nil revive scratches for all perspectives."
-  (let ((ret (get-buffer-create "*scratch*")))
+  (let ((ret))
     (mapc #'(lambda (p)
-	      (setq ret (get-buffer-create (persp-scratch-name p)))
-	      (persp-add-buffer ret p))
-	  (if persp
-	      `(,persp)
-	    (persp-persps)))
+              (persp-add-buffer
+               (setq ret (get-buffer-create (persp-scratch-name p)))
+               p))
+          (if persp
+              `(,persp)
+            (persp-persps)))
     ret))
 
 ;; Perspective funcs:
@@ -494,10 +500,8 @@ Return that old buffer."
 
 (defsubst* persp-filter-out-bad-buffers (&optional (persp (get-frame-persp))) ;filter out killed buffers
   (when persp
-    (delete-if #'(lambda (b)
-                   (or (null b)
-                       (not (buffer-live-p b))))
-               (persp-buffers persp))))
+    (delete-if-not #'buffer-live-p
+                   (persp-buffers persp))))
 
 
 (defun persp-kill (name)
@@ -506,8 +510,7 @@ Return that old buffer."
     (setq name (persp-prompt (persp-name (get-frame-persp)) t)))
   (if (string= "main" name)
       (message "Error: Can't kill main perspective.")
-    (mapc #'(lambda (b)
-              (kill-buffer b))
+    (mapc #'kill-buffer
           (persp-buffers (persp-remove name)))))
 
 
@@ -593,12 +596,16 @@ Return name."
 
 
 (defun persp-restrict-ido-buffers ()
-  "Restrict the ido buffer to the current perspective if *persp-restrict-buffers-to* is 0.
-If *persp-restrict-buffers-to* is 1 restrict to all buffers except current perspective's buffers."
+  "Restrict the ido buffer to the current perspective
+if *persp-restrict-buffers-to* is 0.
+If *persp-restrict-buffers-to* is 1 restrict to all buffers
+except current perspective's buffers."
   (let ((buffer-names-sorted
-         (mapcar 'buffer-name (if (= *persp-restrict-buffers-to* 0)
-                                  (persp-buffers (get-frame-persp))
-                                (set-difference (buffer-list) (persp-buffers (get-frame-persp))))))
+         (mapcar 'buffer-name
+                 (if (= *persp-restrict-buffers-to* 0)
+                     (persp-buffers (get-frame-persp))
+                   (set-difference (buffer-list)
+                                   (persp-buffers (get-frame-persp))))))
         (indices (make-hash-table)))
     (let ((i 0))
       (dolist (elt ido-temp-list)
@@ -626,19 +633,28 @@ If *persp-restrict-buffers-to* is 1 restrict to all buffers except current persp
 
 (defun persp-complete-buffer ()
   "Complete buffer.
-If *persp-restrict-buffers-to* is 0 list buffer in perspective.
-If *persp-restrict-buffers-to* is 1 list all buffers except current perspective's buffers."
+If *persp-restrict-buffers-to* is 0 list buffers in perspective.
+If *persp-restrict-buffers-to* is 1 list all buffers
+except current perspective's buffers."
   (lexical-let ((buffer-names-sorted
-                 (mapcar 'buffer-name (if (= *persp-restrict-buffers-to* 0)
-                                          (persp-buffers (get-frame-persp))
-                                        (set-difference (buffer-list) (persp-buffers (get-frame-persp)))))))
+                 (mapcar 'buffer-name
+                         (if (= *persp-restrict-buffers-to* 0)
+                             (persp-buffers (get-frame-persp))
+                           (set-difference (buffer-list)
+                                           (persp-buffers (get-frame-persp)))))))
     (apply-partially 'completion-table-with-predicate
                      (or minibuffer-completion-table 'internal-complete-buffer)
-                     (lambda (name)
-                       (member (if (consp name) (car name) name) buffer-names-sorted ))
+                     #'(lambda (name)
+                         (member (if (consp name) (car name) name) buffer-names-sorted ))
                      nil)))
 
 ;; Save/Restore funcs:
+
+(defsubst persp-is-ibc-as-f-supported () ; if initial-buffer-choice as function is supported
+  (not (null
+        (assoc 'function
+               (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
+
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame)))
@@ -652,11 +668,6 @@ If *persp-restrict-buffers-to* is 1 list all buffers except current perspective'
     (when (persp-is-ibc-as-f-supported)
       (lexical-let ((cbuf (current-buffer)))
         (setq initial-buffer-choice #'(lambda () cbuf))))))
-
-(defsubst persp-is-ibc-as-f-supported () ; if initial-buffer-choice as function is supported
-  (not (null
-        (assoc 'function
-               (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
@@ -682,11 +693,10 @@ If *persp-restrict-buffers-to* is 1 list all buffers except current perspective'
 
 
 (defsubst persp-save-all-persps-state ()
-  (mapc #'(lambda (p)
-            (persp-save-state p))
+  (mapc #'persp-save-state
         (persp-persps)))
 
-(defun persp-save-state-to-file (fname)
+(defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname))
   (interactive "sSave to file: ")
   (when fname
     (let* ((p-save-dir (expand-file-name persp-save-dir))
@@ -723,8 +733,15 @@ If *persp-restrict-buffers-to* is 1 list all buffers except current perspective'
               (basic-save-buffer)
               (kill-buffer (current-buffer)))))))))
 
+(defsubst persp-update-frames-window-confs ()
+  (persp-preserve-frame
+   (mapc #'(lambda (f)
+             (select-frame f)
+             (delete-other-windows)
+             (persp-restore-window-conf))
+         (persp-frame-list-without-daemon))))
 
-(defun persp-load-state-from-file (fname)
+(defun* persp-load-state-from-file (&optional (fname persp-auto-save-fname))
   (interactive "sLoad from file: ")
   (when fname
     (persp-add-new "main")
@@ -736,7 +753,8 @@ If *persp-restrict-buffers-to* is 1 list all buffers except current perspective'
                   (def-buffer #'(lambda (name fname mode)
                                   (let ((buf (persp-get-buffer-or-null name)))
                                     (if (buffer-live-p buf)
-                                        (if (or (null fname) (string= fname (buffer-file-name buf)))
+                                        (if (or (null fname)
+                                                (string= fname (buffer-file-name buf)))
                                             buf
                                           (find-file-noselect fname))
                                       (if fname
@@ -749,9 +767,12 @@ If *persp-restrict-buffers-to* is 1 list all buffers except current perspective'
                                  (let ((persp (or (gethash name *persp-hash*)
                                                   (persp-add-new name))))
                                    (mapc #'(lambda (db)
-                                             (persp-add-buffer (apply (symbol-value (car db)) (cdr db)) persp))
+                                             (persp-add-buffer
+                                              (apply (symbol-value (car db)) (cdr db))
+                                              persp))
                                          dbufs)
-                                   (setf (persp-window-conf persp) (apply (symbol-value (car dwc)) (cdr dwc)))))))
+                                   (setf (persp-window-conf persp)
+                                         (apply (symbol-value (car dwc)) (cdr dwc)))))))
           (with-current-buffer (find-file-noselect p-save-file)
             (goto-char (point-min))
             (mapc #'(lambda (pd)
@@ -780,14 +801,6 @@ If *persp-restrict-buffers-to* is 1 list all buffers except current perspective'
        (let ((,c-frame (selected-frame)))
          ,@body
          (select-frame ,c-frame)))))
-
-(defsubst persp-update-frames-window-confs ()
-  (persp-preserve-frame
-   (mapc #'(lambda (f)
-             (select-frame f)
-             (delete-other-windows)
-             (persp-restore-window-conf))
-         (persp-frame-list-without-daemon))))
 
 
 (provide 'persp-mode)

@@ -1,21 +1,23 @@
-# Intro
-Perspectives for emacs, based on [perspective-mode](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
+# persp-mode
+
+## Intro
+Perspectives for emacs, based on [`perspective-mode`](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
 But perspectives shared between frames \+ ability to save/restore window configurations, save/restore from/to file.  
 
-# Installation
-persp-mode is available on [melpa](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
+## Installation
+persp-mode is available on [`melpa`](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
 `M-x: package-install RET persp-mode RET`  
-Alternatively you can download persp-mode.el from github and install it with:
+Alternatively you can download persp-mode.el from github and install it with:  
 `M-x: package-install-file RET 'path_to_where_you_saved_persp-mode.el' RET`  
 
 Another(oldschool;p) way:  
 Put persp-mode.el file somewhere in your emacs load-path and add `(require 'persp-mode) (persp-mode t)` into your ~/.emacs.  
 
-## Dependencies:
+### Dependencies:
 Ability of saving/restoring window configurations from/to file depends on [`workgroups.el`](https://github.com/tlh/workgroups.el).  
 It's automatically installed if you install persp-mode from mepla, otherwise you must download it and put somewhere in your emacs load-path.  
 
-# Keys
+## Keys
 `C-x x s` -- create/switch to perspective.  
 `C-x x r` -- rename perspective.  
 `C-x x c` -- kill perspective.  
@@ -25,12 +27,12 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 `C-x x w` -- save perspectives to file.  
 `C-x x l` -- load perspectives from file.  
 
-# Customization
+## Customization
 `M-x: customize-group RET persp-mode RET`  
 
 ---
 
-# Troubles:
+## Troubles:
 When you create new frame(with `emacsclient -c` for example)
 it's window is switching to `*scratch*` buffer. To fix this you must have emacs version >= 24.4.
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
