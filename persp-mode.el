@@ -195,8 +195,8 @@ named collections of buffers and window configurations."
   (if persp-mode
       (progn
         (setf *persp-hash* (make-hash-table :test 'equal :size 10))
-        (persp-add-new "none")
         (persp-add-menu)
+        (persp-add-new "none")
         
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
@@ -397,9 +397,13 @@ Return created perspective."
   (interactive "sName for new perspective: ")
   (if name
       (if (member name (persp-names phash))
-	  (gethash name phash)
+          (gethash name phash)
         (if (string= "none" name)
-            (puthash "none" nil phash)
+            (progn
+              (easy-menu-add-item persp-minor-mode-menu nil
+                                  (vector "none" #'(lambda () (interactive)
+                                                     (persp-switch "none"))))
+              (puthash "none" nil phash))
           (let ((persp (make-persp :name name)))
             (persp-revive-scratch persp)
             (persp-add persp phash))))
