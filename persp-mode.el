@@ -744,6 +744,13 @@ except current perspective's buffers."
               (basic-save-buffer)
               (kill-buffer (current-buffer)))))))))
 
+(defmacro persp-preserve-frame (&rest body)
+  (let ((c-frame (gensym)))
+    `(progn
+       (let ((,c-frame (selected-frame)))
+         ,@body
+         (select-frame ,c-frame)))))
+
 (defsubst persp-update-frames-window-confs ()
   (persp-preserve-frame
    (mapc #'(lambda (f)
@@ -805,14 +812,6 @@ except current perspective's buffers."
                   (persp-add pfrom)
                   (persp-update-frames-window-confs))))
           (persp-persps ph))))
-
-(defmacro persp-preserve-frame (&rest body)
-  (let ((c-frame (gensym)))
-    `(progn
-       (let ((,c-frame (selected-frame)))
-         ,@body
-         (select-frame ,c-frame)))))
-
 
 (provide 'persp-mode)
 
