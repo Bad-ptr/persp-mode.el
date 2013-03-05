@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.5
+;; Version: 0.9.6
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -127,7 +127,6 @@ Run with the activated perspective active."
 (defvar persp-minor-mode-menu nil
   "Menu for persp-mode.")
 
-
 (defvar *persp-hash* nil
   "A hash table containing perspectives")
 
@@ -144,6 +143,9 @@ Must be rebinded only locally.
 
 (defvar persp-saved-read-buffer-function nil
   "Save read-buffer-function to restore it on mode deactivation.")
+
+(defvar persp-none-wconf nil
+  "Window configuration for 'none' persp.")
 
 (define-key persp-mode-map (kbd "C-x x s") #'persp-switch)
 (define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
@@ -176,7 +178,7 @@ Must be rebinded only locally.
 (defun safe-persp-window-conf (p)
   (if p
       (persp-window-conf p)
-    nil))
+    persp-none-wconf))
 
 
 
@@ -326,6 +328,9 @@ named collections of buffers and window configurations."
                  (push p ret))
              phash)
     ret))
+
+(defun* persp-persps-with-none (&optional (phash *persp-hash*))
+  (append (list nil) (persp-persps phash)))
 
 (defun* persp-persps-with-buffer (buff-or-name &optional (phash *persp-hash*))
   (let ((buf (persp-get-buffer-or-null buff-or-name)))
@@ -556,8 +561,7 @@ Return name."
                         &optional (frame (selected-frame)) (new nil))
   (when frame
     (persp-frame-save-state frame)
-    (when (and persp (not new))
-      (persp-save-state persp))
+    (persp-save-state persp)
     (set-frame-persp persp frame)
     (persp-restore-window-conf frame persp)
     (run-hooks 'persp-activated-hook)))
@@ -578,9 +582,9 @@ Return name."
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame)))
-  (find persp (delq exframe (persp-frame-list-without-daemon))
-        :test #'(lambda (p f)
-                  (and f p (eq p (get-frame-persp f))))))
+  (search (list persp) (delq exframe (persp-frame-list-without-daemon))
+          :test #'(lambda (p f)
+                    (and f p (eq p (get-frame-persp f))))))
 
 ;; Helper funcs:
 
@@ -668,30 +672,30 @@ except current perspective's buffers."
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame)))
-  (if persp
-      (with-selected-frame frame
-        (delete-other-windows)
-        (if (persp-window-conf persp)
-            (if (not (fboundp 'wg-restore-wconfig))
-                (window-state-put (persp-window-conf persp) (frame-root-window frame) t)
-              (wg-restore-wconfig (persp-window-conf persp)))
-          (switch-to-buffer (persp-revive-scratch persp)))
-        (when (persp-is-ibc-as-f-supported)
-          (lexical-let ((cbuf (current-buffer)))
-            (setq initial-buffer-choice #'(lambda () cbuf)))))
-    (with-selected-frame frame
-        (delete-other-windows))))
+  (with-selected-frame frame
+    (delete-other-windows)
+    (let ((pwc (safe-persp-window-conf persp)))
+      (if pwc
+          (if (not (fboundp 'wg-restore-wconfig))
+              (window-state-put pwc (frame-root-window frame) t)
+            (wg-restore-wconfig pwc))
+        (switch-to-buffer (persp-revive-scratch persp))))
+    (when (persp-is-ibc-as-f-supported)
+      (lexical-let ((cbuf (current-buffer)))
+        (setq initial-buffer-choice #'(lambda () cbuf))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
-    (when (and frame persp)
-      (setf (persp-window-conf persp) (persp-window-state-get frame)))))
+    (when frame
+      (if persp
+          (setf (persp-window-conf persp) (persp-window-state-get frame))
+        (setq persp-none-wconf (persp-window-state-get frame))))))
 
 (defun* persp-save-state (&optional (persp (get-frame-persp)))
-  (when persp
-    (let ((frame (selected-frame)))
-      (unless (eq persp (get-frame-persp frame))
-        (setq frame (find-other-frame-with-persp persp)))
+  (let ((frame (selected-frame)))
+    (unless (eq persp (get-frame-persp frame))
+      (setq frame (find-other-frame-with-persp persp)))
+    (when frame
       (persp-frame-save-state frame))))
 
 (defun* persp-window-state-get (frame
@@ -705,7 +709,7 @@ except current perspective's buffers."
 
 (defsubst persp-save-all-persps-state ()
   (mapc #'persp-save-state
-        (persp-persps)))
+        (persp-persps-with-none)))
 
 (defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname))
   (interactive "sSave to file: ")
@@ -723,26 +727,23 @@ except current perspective's buffers."
            p-save-dir)
         (persp-save-all-persps-state)
 
-        (cl-flet ((prep-bl-fs (blist)
-                              (mapcar #'(lambda (b)
-                                          `(def-buffer ,(buffer-name b)
-                                             ,(buffer-file-name b)
-                                             ,(buffer-local-value 'major-mode b)))
-                                      blist)))
-          
-          (let ((pslist (mapcar #'(lambda (p)
-                                    `(def-persp ,(safe-persp-name p)
-                                       ,(prep-bl-fs (safe-persp-buffers p))
-                                       (def-wconf ,(if (find 'workgroups features)
-                                                       (safe-persp-window-conf p)
-                                                     nil))))
-                                (persp-persps))))
-            (with-current-buffer (find-file-noselect p-save-file)
-              (erase-buffer)
-              (goto-char (point-min))
-              (insert (format "%s\n" (prin1-to-string pslist)))
-              (basic-save-buffer)
-              (kill-buffer (current-buffer)))))))))
+        (let ((pslist (mapcar #'(lambda (p)
+                                  `(def-persp ,(safe-persp-name p)
+                                     ,(mapcar  #'(lambda (b)
+                                                   `(def-buffer ,(buffer-name b)
+                                                      ,(buffer-file-name b)
+                                                      ,(buffer-local-value 'major-mode b)))
+                                               (safe-persp-buffers p))
+                                     (def-wconf ,(if (find 'workgroups features)
+                                                     (safe-persp-window-conf p)
+                                                   nil))))
+                              (persp-persps-with-none))))
+          (with-current-buffer (find-file-noselect p-save-file)
+            (erase-buffer)
+            (goto-char (point-min))
+            (insert (format "%s\n" (prin1-to-string pslist)))
+            (basic-save-buffer)
+            (kill-buffer (current-buffer))))))))
 
 (defmacro persp-preserve-frame (&rest body)
   (let ((c-frame (gensym)))
@@ -766,31 +767,34 @@ except current perspective's buffers."
                                "/" fname)))
       (if (not (file-exists-p p-save-file))
           (message "Error: No such file: %S." p-save-file)
-        (cl-letf ((def-wconf #'(lambda (wc) wc))
-                  (def-buffer #'(lambda (name fname mode)
-                                  (let ((buf (persp-get-buffer-or-null name)))
-                                    (if (buffer-live-p buf)
-                                        (if (or (null fname)
-                                                (string= fname (buffer-file-name buf)))
-                                            buf
-                                          (find-file-noselect fname))
-                                      (if fname
-                                          (find-file-noselect fname)
-                                        (with-current-buffer (get-buffer-create name)
-                                          (when (and mode (symbol-function mode))
-                                            (funcall (symbol-function mode)))
-                                          (current-buffer)))))))
-                  (def-persp #'(lambda (name dbufs dwc)
-                                 (let ((persp (or (gethash name *persp-hash*)
-                                                  (persp-add-new name))))
-                                   (mapc #'(lambda (db)
-                                             (persp-add-buffer
-                                              (apply (symbol-value (car db)) (cdr db))
-                                              persp))
-                                         dbufs)
-                                   (when persp
-                                     (setf (persp-window-conf persp)
-                                           (apply (symbol-value (car dwc)) (cdr dwc))))))))
+        (let ((def-wconf #'(lambda (wc) wc))
+              (def-buffer #'(lambda (name fname mode)
+                              (let ((buf (persp-get-buffer-or-null name)))
+                                (if (buffer-live-p buf)
+                                    (if (or (null fname)
+                                            (string= fname (buffer-file-name buf)))
+                                        buf
+                                      (find-file-noselect fname))
+                                  (if fname
+                                      (find-file-noselect fname)
+                                    (with-current-buffer (get-buffer-create name)
+                                      (when (and mode (symbol-function mode))
+                                        (funcall (symbol-function mode)))
+                                      (current-buffer)))))))
+              (def-persp #'(lambda (name dbufs dwc)
+                             (let ((persp (unless (string= "none" name)
+                                            (or (gethash name *persp-hash*)
+                                                (persp-add-new name)))))
+                               (mapc #'(lambda (db)
+                                         (persp-add-buffer
+                                          (apply (symbol-value (car db)) (cdr db))
+                                          persp))
+                                     dbufs)
+                               (if persp
+                                   (setf (persp-window-conf persp)
+                                         (apply (symbol-value (car dwc)) (cdr dwc)))
+                                 (setq persp-none-wconf
+                                       (apply (symbol-value (car dwc)) (cdr dwc))))))))
           (with-current-buffer (find-file-noselect p-save-file)
             (goto-char (point-min))
             (mapc #'(lambda (pd)
