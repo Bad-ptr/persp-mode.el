@@ -151,7 +151,7 @@ Must be rebinded only locally.
 (defvar persp-none-wconf nil
   "Window configuration for 'none' persp.")
 
-(defvar persp-last-persp nil
+(defvar persp-last-persp-name "none"
   "Last perspective. New frame will be created with that perspective.")
 
 
@@ -338,11 +338,6 @@ named collections of buffers and window configurations."
                  (push p ret))
              phash)
     ret))
-
-(defun persp-exists (pe)
-  (if (search (list pe) (persp-persps))
-      pe
-    nil))
 
 (defun* persp-persps-with-buffer (buff-or-name &optional (phash *persp-hash*))
   (let ((buf (persp-get-buffer-or-null buff-or-name)))
@@ -573,14 +568,15 @@ Return name."
                         &optional (frame (selected-frame)))
   (when frame
     (persp-save-state persp frame)
-    (setq persp-last-persp persp)
+    (setq persp-last-persp-name (safe-persp-name persp))
     (set-frame-persp persp frame)
     (persp-restore-window-conf frame persp)
     (run-hooks 'persp-activated-hook)))
 
 (defun persp-init-frame (frame)
-  (let ((persp (or (persp-exists persp-last-persp)
-                   (gethash "none" *persp-hash* :+-123emptynooo))))
+  (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
+                                 persp-last-persp-name)
+                            "none") *persp-hash* :+-123emptynooo)))
     (modify-frame-parameters
      frame
      '((persp . nil)))
