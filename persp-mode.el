@@ -154,6 +154,12 @@ Must be rebinded only locally.
 (defvar persp-last-persp-name "none"
   "Last perspective. New frame will be created with that perspective.")
 
+(defvar persp-is-ibc-as-f-supported
+  (not (null
+        (assoc 'function
+               (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type)))))
+  "t if initial-buffer-choice as function is supported in your emacs,
+otherwise nil.")
 
 (define-key persp-mode-map (kbd "C-x x s") #'persp-switch)
 (define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
@@ -671,11 +677,6 @@ except current perspective's buffers."
 
 ;; Save/Restore funcs:
 
-(defsubst persp-is-ibc-as-f-supported () ; if initial-buffer-choice as function is supported
-  (not (null
-        (assoc 'function
-               (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
-
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame)))
@@ -687,13 +688,12 @@ except current perspective's buffers."
               (window-state-put pwc (frame-root-window frame) t)
             (wg-restore-wconfig pwc))
         (switch-to-buffer (persp-revive-scratch persp))))
-    (when (persp-is-ibc-as-f-supported)
+    (when persp-is-ibc-as-f-supported
       (lexical-let ((cbuf (current-buffer)))
         (setq initial-buffer-choice #'(lambda () cbuf))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
-    ;;(message "%s" frame)
     (when (and frame
                (not (and (daemonp) (string= "F1" (frame-parameter frame 'name))))
                (not (string= (concatenate 'string "emacs@" (system-name))

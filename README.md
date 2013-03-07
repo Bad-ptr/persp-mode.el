@@ -34,7 +34,7 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 
 ## Troubles:
 When you create new frame(with `emacsclient -c` for example)
-it's window is switching to `*scratch*` buffer. To fix this you must have emacs version >= 24.4.
+it's window is switching to `*scratch*` buffer. This behaviour fixed in emacs version >= 24.4.
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
 (or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(this works for emacs 24.3 at least):  
 replace  
@@ -57,7 +57,4 @@ by
      (if (buffer-live-p buf) buf (get-buffer-create "*scratch*"))
      'norecord)))
 
-and edit `persp-is-ibc-as-f-supported` in `persp-mode.el`:  
-
-    (defsubst persp-is-ibc-as-f-supported ()
-      t)
+and set variable `persp-is-ibc-as-f-supported` to `t`.
