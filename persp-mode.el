@@ -595,9 +595,9 @@ Return name."
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame)))
-  (search (list persp) (delq exframe (persp-frame-list-without-daemon))
-          :test #'(lambda (p f)
-                    (and f p (eq p (get-frame-persp f))))))
+  (find persp (delq exframe (persp-frame-list-without-daemon))
+        :test #'(lambda (p f)
+                  (and f p (eq p (get-frame-persp f))))))
 
 ;; Helper funcs:
 
