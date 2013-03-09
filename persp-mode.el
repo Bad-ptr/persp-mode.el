@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.6
+;; Version: 0.9.7
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -43,7 +43,8 @@
 
 ;; C-x x s -- create/switch to perspective.
 ;; C-x x r -- rename perspective.
-;; C-x x c -- kill perspective.
+;; C-x x c -- kill perspective
+;; (if you try to kill 'none' persp -- it'l kill all opend buffers).
 ;; C-x x a -- add buffer to perspective.
 ;; C-x x i -- import all buffers from another perspective.
 ;; C-x x k -- remove buffer from perspective.
@@ -71,7 +72,8 @@
   :group 'persp-mode)
 
 (defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs")
-  "Directory to/from where perspectives saved/loaded."
+  "Directory to/from where perspectives saved/loaded by default.
+Autosave file saved and loaded to/from this directory."
   :group 'persp-mode
   :type 'directory :tag "Directory")
 
@@ -152,7 +154,8 @@ Must be rebinded only locally.
   "Window configuration for 'none' persp.")
 
 (defvar persp-last-persp-name "none"
-  "Last perspective. New frame will be created with that perspective.")
+  "Last perspective. New frame will be created with that perspective.
+(if persp-set-last-persp-for-new-frames is t)")
 
 (defvar persp-is-ibc-as-f-supported
   (not (null
@@ -473,18 +476,16 @@ into current."
   (unless name
     (setq name (funcall persp-interactive-completion-function
                         "Import from perspective: "
-                        (delete "none"
-                         (delete (persp-name (get-frame-persp)) (persp-names-sorted))) nil)))
+                        (delete (safe-persp-name (get-frame-persp)) (persp-names-sorted)) nil)))
   (let ((persp-from (gethash name phash)))
-    (when persp-from
-      (persp-import-buffers-from persp-from persp-to))))
+    (persp-import-buffers-from persp-from persp-to)))
 
 (defun* persp-import-buffers-from (persp-from
                                    &optional (persp-to (get-frame-persp)))
-  (when (and persp-to persp-from)
+  (when persp-to
     (mapc #'(lambda (b)
               (persp-add-buffer b persp-to))
-          (persp-buffers persp-from))))
+          (safe-persp-buffers persp-from))))
 
 
 (defun* persp-get-buffer (buff-or-name
@@ -543,7 +544,8 @@ Return that old buffer."
   (interactive "sNew name: ")
   (let ((opersp (gethash newname phash)))
     (if (and (not opersp) newname)
-        (when persp
+        (if (null persp)
+            (message "Error: Can't rename 'none' perspective")
           (setf (persp-name (persp-remove (persp-name persp) phash)) newname)
           (persp-add persp phash)
           (when (eq phash *persp-hash*)
@@ -723,7 +725,7 @@ except current perspective's buffers."
         (persp-persps)))
 
 (defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname))
-  (interactive "sSave to file: ")
+  (interactive (list (read-file-name "Save perspectives to file: " persp-save-dir)))
   (when fname
     (let* ((p-save-dir (expand-file-name persp-save-dir))
            (p-save-file (concat p-save-dir "/" fname)))
@@ -773,7 +775,7 @@ except current perspective's buffers."
 
 
 (defun* persp-load-state-from-file (&optional (fname persp-auto-save-fname))
-  (interactive "sLoad from file: ")
+  (interactive (list (read-file-name "Load perspectives from file: " persp-save-dir)))
   (when fname
     (let ((p-save-file (concat (expand-file-name persp-save-dir)
                                "/" fname)))

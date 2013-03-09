@@ -20,7 +20,7 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 ## Keys
 `C-x x s` -- create/switch to perspective.  
 `C-x x r` -- rename perspective.  
-`C-x x c` -- kill perspective.  
+`C-x x c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opend buffers).  
 `C-x x a` -- add buffer to perspective.  
 `C-x x i` -- import all buffers from another perspective.  
 `C-x x k` -- remove buffer from perspective.  
