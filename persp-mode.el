@@ -371,9 +371,10 @@ named collections of buffers and window configurations."
                  (persp-frame-list-without-daemon)))
 
 
-(defsubst* persp-revive-scratch (&optional (persp (get-frame-persp)))
+(defsubst* persp-revive-scratch (&optional (persp (get-frame-persp))
+                                           (switchto persp-switch-to-added-buffer))
   "Create and add scratch buffer to perspective."
-  (persp-add-buffer (get-buffer-create "*scratch*") persp))
+  (persp-add-buffer (get-buffer-create "*scratch*") persp switchto))
 
 ;; Perspective funcs:
 
@@ -429,7 +430,7 @@ Return created perspective."
         (let ((persp (if (string= "none" name)
                          nil
                        (make-persp :name name))))
-          (persp-revive-scratch persp)
+          (persp-revive-scratch persp nil)
           (persp-add persp phash)))
     (message "Error: Can't create or switch to perspective with empty string as name.")
     nil))
@@ -504,7 +505,7 @@ or return perspective's scratch."
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (or (find buffer (safe-persp-buffers persp))
         (first (safe-persp-buffers persp))
-        (persp-revive-scratch persp))))
+        (persp-revive-scratch persp t))))
 
 
 (defun* persp-buffer-in-other-p (buff-or-name
@@ -517,7 +518,7 @@ or return perspective's scratch."
   "Switch all windows displaying that buffer to some previous buffer in perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
-    (persp-revive-scratch persp)
+    (persp-revive-scratch persp nil)
     (mapc #'(lambda (w)
               (set-window-buffer w (persp-get-buffer
                                     (first (intersection (safe-persp-buffers persp)
@@ -698,7 +699,7 @@ except current perspective's buffers."
           (if (not (fboundp 'wg-restore-wconfig))
               (window-state-put pwc (frame-root-window frame) t)
             (wg-restore-wconfig pwc))
-        (switch-to-buffer (persp-revive-scratch persp))))
+        (persp-revive-scratch persp t)))
     (when persp-is-ibc-as-f-supported
       (lexical-let ((cbuf (current-buffer)))
         (setq initial-buffer-choice #'(lambda () cbuf))))))
