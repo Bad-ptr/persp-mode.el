@@ -764,7 +764,9 @@ except current perspective's buffers."
           (with-current-buffer (find-file-noselect p-save-file)
             (erase-buffer)
             (goto-char (point-min))
-            (insert (format "%s\n" (prin1-to-string pslist)))
+            (insert (let ((print-length nil)
+                          (print-level nil))
+                     (prin1-to-string pslist)))
             (basic-save-buffer)
             (kill-buffer (current-buffer))))))))
 
