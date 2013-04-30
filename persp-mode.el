@@ -694,12 +694,20 @@ except current perspective's buffers."
                                              (persp (get-frame-persp frame)))
   (with-selected-frame frame
     (delete-other-windows)
-    (let ((pwc (safe-persp-window-conf persp)))
+    (let ((pwc (safe-persp-window-conf persp))
+          (split-width-threshold 8)
+          (split-height-threshold 8)
+          gratio)
+      (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
+        (setq gratio t)
+        (golden-ratio-mode -1))
       (if pwc
           (if (not (fboundp 'wg-restore-wconfig))
               (window-state-put pwc (frame-root-window frame) t)
             (wg-restore-wconfig pwc))
-        (persp-revive-scratch persp t)))
+        (persp-revive-scratch persp t))
+      (when gratio
+        (golden-ratio-mode t)))
     (when persp-is-ibc-as-f-supported
       (lexical-let ((cbuf (current-buffer)))
         (setq initial-buffer-choice #'(lambda () cbuf))))))
