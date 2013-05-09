@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.8
+;; Version: 0.9.9
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -68,8 +68,7 @@
 
 (defgroup persp-mode nil
   "Customization of persp-mode."
-  :prefix "persp-"
-  :group 'persp-mode)
+  :prefix "persp-")
 
 (defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs")
   "Directory to/from where perspectives saved/loaded by default.
@@ -151,7 +150,7 @@ Run with the activated perspective active."
 
 (defvar *persp-restrict-buffers-to* 0
   "Global var for control behaviour of persp-restrict-ido-buffers.
-Must be rebinded only locally.
+Must be used only for local rebinding.
 0 -- restrict to perspective buffers
 1 -- restrict to all buffers except that already in perspective.")
 
@@ -206,6 +205,11 @@ otherwise nil.")
     persp-none-wconf))
 
 
+(defmacro persp-alambda (arglist &rest body)
+  "Anaphoric lambda."
+  `(labels ((self ,arglist ,@body))
+     #'self))
+
 
 ;;;###autoload
 (define-minor-mode persp-mode
@@ -222,7 +226,7 @@ named collections of buffers and window configurations."
   (if persp-mode
       (progn
         (setf *persp-hash* (make-hash-table :test 'equal :size 10))
-        (persp-add-menu)
+        (persp-add-minor-mode-menu)
         (persp-add-new "none")
         
         (ad-activate 'switch-to-buffer)
@@ -248,7 +252,13 @@ named collections of buffers and window configurations."
                                  (tabbar-buffer-list))))))
 
         (when persp-auto-resume
-          (persp-load-state-from-file))
+          (if (persp-frame-list-without-daemon)
+              (persp-load-state-from-file)
+            (add-hook 'persp-activated-hook
+                      (persp-alambda ()
+                                     (run-at-time 3 nil #'(lambda () (persp-load-state-from-file)))
+                                     (remove-hook 'persp-activated-hook
+                                                  #'self)))))
 
         (run-hooks 'persp-mode-hook))
 
@@ -383,17 +393,9 @@ named collections of buffers and window configurations."
 If we adding to *persp-hash* add entries to mode menu.
 Return persp."
   (let ((name (safe-persp-name persp)))
-    (when name
-      (puthash name persp phash)
-      (when (eq phash *persp-hash*)
-        (lexical-let ((str_name name))
-          (easy-menu-add-item persp-minor-mode-menu nil
-                              (vector str_name #'(lambda () (interactive)
-                                                   (persp-switch str_name))))
-          (when persp
-            (easy-menu-add-item persp-minor-mode-menu '("kill")
-                                (vector str_name #'(lambda () (interactive)
-                                                     (persp-kill str_name)))))))))
+    (puthash name persp phash)
+    (when (eq phash *persp-hash*)
+      (persp-add-to-menu persp)))
   persp)
 
 (defun* persp-remove (name &optional (phash *persp-hash*))
@@ -410,8 +412,7 @@ Return removed perspective."
       (setq persp-to-switch (or (car (persp-names phash)) "none"))
 
       (when (eq phash *persp-hash*)
-        (easy-menu-remove-item persp-minor-mode-menu nil name)
-        (easy-menu-remove-item persp-minor-mode-menu '("kill") name)
+        (persp-remove-from-menu persp)
         (mapc #'(lambda (f)
                   (when (eq persp (get-frame-persp f))
                     (persp-switch persp-to-switch f)))
@@ -552,14 +553,16 @@ Return that old buffer."
 (defun* persp-rename (newname
                       &optional (persp (get-frame-persp)) (phash *persp-hash*))
   (interactive "sNew name: ")
-  (let ((opersp (gethash newname phash)))
+  (let ((opersp (gethash newname phash))
+        (old-name (persp-name persp)))
     (if (and (not opersp) newname)
         (if (null persp)
             (message "Error: Can't rename 'none' perspective")
-          (setf (persp-name (persp-remove (persp-name persp) phash)) newname)
-          (persp-add persp phash)
-          (when (eq phash *persp-hash*)
-            (persp-switch (persp-name persp))))
+          (persp-remove-from-menu persp)
+          (remhash old-name phash)
+          (setf (persp-name persp) newname)
+          (puthash newname persp phash)
+          (persp-add-to-menu persp))
       (message "Error: There's already a perspective with that name: %s." newname)))
   nil)
 
@@ -613,12 +616,28 @@ Return name."
 
 ;; Helper funcs:
 
-(defun persp-add-menu ()
+(defun persp-add-minor-mode-menu ()
   (easy-menu-define persp-minor-mode-menu
     persp-mode-map
     "Menu used when persp-mode is active"
     '("Perspectives"
       "-")))
+
+(defun persp-remove-from-menu (persp)
+  (when persp
+    (easy-menu-remove-item persp-minor-mode-menu nil (persp-name persp))
+    (easy-menu-remove-item persp-minor-mode-menu '("kill") (persp-name persp))))
+
+(defun persp-add-to-menu (persp)
+  (let ((name (safe-persp-name persp)))
+    (lexical-let ((str_name name))
+      (easy-menu-add-item persp-minor-mode-menu nil
+                          (vector str_name #'(lambda () (interactive)
+                                               (persp-switch str_name))))
+      (when persp
+        (easy-menu-add-item persp-minor-mode-menu '("kill")
+                            (vector str_name #'(lambda () (interactive)
+                                                 (persp-kill str_name))))))))
 
 (defun persp-prompt (&optional default require-match delnone)
   (funcall persp-interactive-completion-function
@@ -808,7 +827,10 @@ except current perspective's buffers."
                                     (if (or (null fname)
                                             (string= fname (buffer-file-name buf)))
                                         buf
-                                      (find-file-noselect fname))
+                                      (if (file-exists-p fname)
+                                          (find-file-noselect fname t)
+                                        (message "Warning: File %s no longer exists." fname)
+                                        (get-buffer-create (file-name-base fname))))
                                   (if fname
                                       (find-file-noselect fname)
                                     (with-current-buffer (get-buffer-create name)
