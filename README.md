@@ -2,7 +2,7 @@
 
 ## Intro
 Perspectives for emacs, based on [`perspective-mode`](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
-But perspectives shared between frames \+ ability to save/restore window configurations, save/restore from/to file.  
+But perspectives shared among frames \+ ability to save/restore from/to file.  
 
 ## Installation
 persp-mode is available on [`melpa`](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
@@ -20,7 +20,7 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 ## Keys
 `C-x x s` -- create/switch to perspective.  
 `C-x x r` -- rename perspective.  
-`C-x x c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opend buffers).  
+`C-x x c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
 `C-x x a` -- add buffer to perspective.  
 `C-x x i` -- import all buffers from another perspective.  
 `C-x x k` -- remove buffer from perspective.  

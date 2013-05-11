@@ -1,9 +1,9 @@
-;;; persp-mode.el --- "perspectives" shared between frames.
+;;; persp-mode.el --- "perspectives" + save/load + shared among frames.
 
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.9
+;; Version: 0.9.91
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -30,7 +30,7 @@
 
 ;; Based on perspective.el by Nathan Weizenbaum
 ;; (http://github.com/nex3/perspective-el) but perspectives shared
-;; between frames + ability to save/restore perspectives to/from file.
+;; among frames + ability to save/restore perspectives to/from file.
 
 ;; Installation:
 
@@ -39,36 +39,52 @@
 ;; To be able to save/restore window configurations to/from file you
 ;; need workgroups.el
 
+;; Dependencies:
+
+;; Ability to save/restore window configurations from/to file depends
+;; on workgroups.el(https://github.com/tlh/workgroups.el)
+
 ;; Keys:
 
 ;; C-x x s -- create/switch to perspective.
 ;; C-x x r -- rename perspective.
 ;; C-x x c -- kill perspective
-;; (if you try to kill 'none' persp -- it'l kill all opend buffers).
+;; (if you try to kill 'none' persp -- it'l kill all opened buffers).
 ;; C-x x a -- add buffer to perspective.
 ;; C-x x i -- import all buffers from another perspective.
 ;; C-x x k -- remove buffer from perspective.
 ;; C-x x w -- save perspectives to file.
 ;; C-x x l -- load perspectives from file.
 
+;; Customization:
+
+;; M-x: customize-group RET persp-mode RET
+
+
 ;;; Code:
+
+;; Prerequirements:
 
 (require 'cl)
 (require 'advice)
 (require 'easymenu)
 
+(when (locate-library "workgroups.el")
+  (require 'workgroups))
 
-(defstruct (perspective
-            (:conc-name persp-)
-            (:constructor make-persp))
-  (name "")
-  (buffers nil)
-  (window-conf nil))
 
+;; Customization variables:
+
+(unless
+    (find 'custom-group (symbol-plist 'session))
+  (defgroup session nil
+    "Emacs's state(opened files, buffers, windows, etc.)"
+    :group 'environment))
 
 (defgroup persp-mode nil
   "Customization of persp-mode."
-  :prefix "persp-")
+  :prefix "persp-"
+  :group 'session)
 
 (defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs")
   "Directory to/from where perspectives saved/loaded by default.
@@ -92,6 +108,11 @@ Autosave file saved and loaded to/from this directory."
                  (integer :tag "Save on exit" :value 1)
                  (integer :tag "Save on exit and persp-mode deactivation"
                           :value 2)))
+
+(defcustom persp-auto-save-num-of-backups 3
+  "How many autosave file backups to keep."
+  :group 'persp-mode
+  :type 'integer)
 
 (defcustom persp-auto-resume t
   "If non nil perspectives will be restored from autosave file
@@ -134,6 +155,9 @@ Run with the activated perspective active."
   :group 'persp-mode
   :type 'hook)
 
+
+;; Global variables:
+
 (defvar persp-mode-map (make-sparse-keymap)
   "Keymap for perspective-mode.")
 
@@ -171,19 +195,27 @@ Must be used only for local rebinding.
   "t if initial-buffer-choice as function is supported in your emacs,
 otherwise nil.")
 
+
+;; Key bindings:
+
 (define-key persp-mode-map (kbd "C-x x s") #'persp-switch)
 (define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
 (define-key persp-mode-map (kbd "C-x x c") #'persp-kill)
 (define-key persp-mode-map (kbd "C-x x a") #'persp-add-buffer)
 (define-key persp-mode-map (kbd "C-x x i") #'persp-import-buffers)
 (define-key persp-mode-map (kbd "C-x x k") #'persp-remove-buffer)
-
 (define-key persp-mode-map (kbd "C-x x w") #'persp-save-state-to-file)
 (define-key persp-mode-map (kbd "C-x x l") #'persp-load-state-from-file)
 
 
-(when (locate-library "workgroups.el")
-  (require 'workgroups))
+;; Perspective struct:
+
+(defstruct (perspective
+            (:conc-name persp-)
+            (:constructor make-persp))
+  (name "")
+  (buffers nil)
+  (window-conf nil))
 
 (defun persp-asave-on-exit ()
   (when (> persp-auto-save-opt 0)
@@ -254,11 +286,14 @@ named collections of buffers and window configurations."
         (when persp-auto-resume
           (if (persp-frame-list-without-daemon)
               (persp-load-state-from-file)
-            (add-hook 'persp-activated-hook
-                      (persp-alambda ()
-                                     (run-at-time 3 nil #'(lambda () (persp-load-state-from-file)))
-                                     (remove-hook 'persp-activated-hook
-                                                  #'self)))))
+            (lexical-let ((paso persp-auto-save-opt))
+              (setq persp-auto-save-opt 0)
+              (add-hook 'persp-activated-hook
+                        (persp-alambda ()
+                                       (run-at-time 3 nil #'(lambda ()
+                                                              (persp-load-state-from-file)
+                                                              (setq persp-auto-save-opt paso)))
+                                       (remove-hook 'persp-activated-hook #'self))))))
 
         (run-hooks 'persp-mode-hook))
 
@@ -712,11 +747,11 @@ except current perspective's buffers."
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame)))
   (with-selected-frame frame
-    (delete-other-windows)
     (let ((pwc (safe-persp-window-conf persp))
           (split-width-threshold 8)
           (split-height-threshold 8)
           gratio)
+      (delete-other-windows)
       (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
         (setq gratio t)
         (golden-ratio-mode -1))
@@ -726,10 +761,12 @@ except current perspective's buffers."
             (wg-restore-wconfig pwc))
         (persp-revive-scratch persp t))
       (when gratio
-        (golden-ratio-mode t)))
-    (when persp-is-ibc-as-f-supported
-      (lexical-let ((cbuf (current-buffer)))
-        (setq initial-buffer-choice #'(lambda () cbuf))))))
+        (golden-ratio-mode t))
+      (when persp-is-ibc-as-f-supported
+        (lexical-let ((cbuf (current-buffer)))
+          (setq initial-buffer-choice (persp-alambda ()
+                                                     (setq initial-buffer-choice nil)
+                                                     cbuf)))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
@@ -761,11 +798,32 @@ except current perspective's buffers."
   (mapc #'persp-save-state
         (persp-persps)))
 
+(defsubst persp-save-with-backups (fname)
+  (when (and (string= fname
+                      (concat (expand-file-name persp-save-dir)
+                              "/" persp-auto-save-fname))
+             (> persp-auto-save-num-of-backups 0))
+    (do ((cur persp-auto-save-num-of-backups (1- cur))
+         (prev (1- persp-auto-save-num-of-backups) (1- prev)))
+        ((> 1 cur) nil)
+      (let ((cf (concat fname (number-to-string cur)))
+            (pf (concat fname (if (> prev 0)
+                                  (number-to-string prev)
+                                ""))))
+        (when (file-exists-p pf)
+          (when (file-exists-p cf)
+            (delete-file cf))
+          (rename-file pf cf t))))
+    (when (file-exists-p fname)
+      (rename-file fname (concat fname (number-to-string 1)) t)))
+  (write-file fname nil))
+
 (defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname))
   (interactive (list (read-file-name "Save perspectives to file: " persp-save-dir)))
   (when fname
-    (let* ((p-save-dir (expand-file-name persp-save-dir))
-           (p-save-file (concat p-save-dir "/" fname)))
+    (let* ((p-save-dir (or (file-name-directory fname)
+                           (expand-file-name persp-save-dir)))
+           (p-save-file (concat p-save-dir "/" (file-name-base fname))))
       (unless (and (file-exists-p p-save-dir)
                    (file-directory-p p-save-dir))
         (message "Info: Trying to create persp-conf-dir.")
@@ -776,7 +834,6 @@ except current perspective's buffers."
            "Error: Can't save perspectives, persp-save-dir does not exist or not a directory %S."
            p-save-dir)
         (persp-save-all-persps-state)
-
         (let ((pslist (mapcar #'(lambda (p)
                                   `(def-persp ,(safe-persp-name p)
                                      ,(mapcar  #'(lambda (b)
@@ -788,14 +845,13 @@ except current perspective's buffers."
                                                      (safe-persp-window-conf p)
                                                    nil))))
                               (persp-persps))))
-          (with-current-buffer (find-file-noselect p-save-file)
+          (with-temp-buffer
             (erase-buffer)
             (goto-char (point-min))
             (insert (let ((print-length nil)
                           (print-level nil))
-                     (prin1-to-string pslist)))
-            (basic-save-buffer)
-            (kill-buffer (current-buffer))))))))
+                      (prin1-to-string pslist)))
+            (persp-save-with-backups p-save-file)))))))
 
 (defmacro persp-preserve-frame (&rest body)
   (let ((c-frame (gensym)))
@@ -816,8 +872,9 @@ except current perspective's buffers."
 (defun* persp-load-state-from-file (&optional (fname persp-auto-save-fname))
   (interactive (list (read-file-name "Load perspectives from file: " persp-save-dir)))
   (when fname
-    (let ((p-save-file (concat (expand-file-name persp-save-dir)
-                               "/" fname)))
+    (let ((p-save-file (concat (or (file-name-directory fname)
+                                   (expand-file-name persp-save-dir))
+                               "/" (file-name-base fname))))
       (if (not (file-exists-p p-save-file))
           (message "Error: No such file: %S." p-save-file)
         (let ((def-wconf #'(lambda (wc) wc))
@@ -828,12 +885,12 @@ except current perspective's buffers."
                                             (string= fname (buffer-file-name buf)))
                                         buf
                                       (if (file-exists-p fname)
-                                          (find-file-noselect fname t)
+                                          (find-file-noselect fname)
                                         (message "Warning: File %s no longer exists." fname)
                                         (get-buffer-create name)))
                                   (if fname
                                       (if (file-exists-p fname)
-                                          (find-file-noselect fname t)
+                                          (find-file-noselect fname)
                                         (message "Warning: File %s no longer exists." fname)
                                         (get-buffer-create name))
                                     (with-current-buffer (get-buffer-create name)
