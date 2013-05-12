@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.91
+;; Version: 0.9.92
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -93,8 +93,8 @@ Autosave file saved and loaded to/from this directory."
   :type 'directory :tag "Directory")
 
 (defcustom persp-auto-save-fname "persp-auto-save"
-  "Name of file for ato saving perspectives on persp-mode
-  deactivation or at emacs exit."
+  "Name of file for auto save/load perspectives on persp-mode
+deactivation or at emacs exit."
   :group 'persp-mode
   :type '(choice (file :tag "File")))
 
@@ -127,27 +127,27 @@ otherwise with last activated perspective."
   :type 'boolean)
 
 (defcustom persp-switch-to-added-buffer t
-  "If t focused window will be switched to buffer, that you added to perspective,
-otherwise buffet will be added silently."
+  "If t then after you add a buffer to the perspective the currently selected
+ window will be switched to that buffer."
   :group 'persp-mode
   :type 'boolean)
 
 (defcustom persp-mode-hook nil
   "A hook that's run after `persp-mode' has been activated."
-  :group 'perps-mode
-  :type 'hook)
-
-(defcustom persp-created-hook nil
-  "A hook that's run after a perspective has been created.
-Run with the newly created perspective as `persp-curr'."
   :group 'persp-mode
   :type 'hook)
 
-(defcustom persp-killed-hook nil
-  "A hook that's run just before a perspective is destroyed.
-Run with the perspective to be destroyed as `persp-curr'."
+(defcustom persp-created-functions nil
+  "A list of functions that's run after a perspective has been created.
+It's single argument is created persp."
   :group 'persp-mode
-  :type 'hook)
+  :type '(list function))
+
+(defcustom persp-before-kill-functions nil
+  "A list of functions that's run just before a perspective is destroyed.
+It's single argument is persp that will be killed."
+  :group 'persp-mode
+  :type '(list function))
 
 (defcustom persp-activated-hook nil
   "A hook that's run after a perspective has been activated.
@@ -239,9 +239,16 @@ otherwise nil.")
 
 (defmacro persp-alambda (arglist &rest body)
   "Anaphoric lambda."
+  (declare (indent 1))
   `(labels ((self ,arglist ,@body))
      #'self))
 
+(defmacro persp-hook-once (hook arglist &rest body)
+  "Hook that autoremove after it first run."
+  (declare (indent 1))
+  `(add-hook ,hook (persp-alambda ,arglist
+                     ,@body
+                     (remove-hook ,hook #'self))))
 
 ;;;###autoload
 (define-minor-mode persp-mode
@@ -265,7 +272,7 @@ named collections of buffers and window configurations."
         (ad-activate 'display-buffer)
         (ad-activate 'kill-buffer)
         
-        (add-hook 'after-make-frame-functions #'persp-init-frame)
+        (add-hook 'after-make-frame-functions #'persp-init-new-frame)
         (add-hook 'delete-frame-functions     #'persp-delete-frame)
         (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
         (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
@@ -288,12 +295,11 @@ named collections of buffers and window configurations."
               (persp-load-state-from-file)
             (lexical-let ((paso persp-auto-save-opt))
               (setq persp-auto-save-opt 0)
-              (add-hook 'persp-activated-hook
-                        (persp-alambda ()
-                                       (run-at-time 3 nil #'(lambda ()
-                                                              (persp-load-state-from-file)
-                                                              (setq persp-auto-save-opt paso)))
-                                       (remove-hook 'persp-activated-hook #'self))))))
+              (persp-hook-once 'persp-activated-hook ()
+                               (run-at-time 3 nil
+                                            #'(lambda ()
+                                                (persp-load-state-from-file)
+                                                (setq persp-auto-save-opt paso)))))))
 
         (run-hooks 'persp-mode-hook))
 
@@ -301,7 +307,7 @@ named collections of buffers and window configurations."
       (persp-save-state-to-file))
     
     ;;(ad-deactivate-regexp "^persp-.*")
-    (remove-hook 'after-make-frame-functions #'persp-init-frame)
+    (remove-hook 'after-make-frame-functions #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions     #'persp-delete-frame)
     (remove-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
     (remove-hook 'kill-emacs-hook            #'persp-asave-on-exit)
@@ -467,7 +473,8 @@ Return created perspective."
                          nil
                        (make-persp :name name))))
           (persp-revive-scratch persp nil)
-          (persp-add persp phash)))
+          (persp-add persp phash)
+          (run-hook-with-args 'persp-created-functions persp)))
     (message "Error: Can't create or switch to perspective with empty string as name.")
     nil))
 
@@ -580,6 +587,7 @@ Return that old buffer."
           (cpersp (get-frame-persp)))
       (unless (eq persp :+-123emptynooo)
         (persp-switch name)
+        (run-hook-with-args 'persp-before-kill-functions persp)
         (mapc #'kill-buffer (safe-persp-buffers persp))
         (persp-switch (safe-persp-name cpersp))
         (persp-remove name)))))
@@ -621,15 +629,17 @@ Return name."
   name)
 
 (defun* persp-activate (persp
-                        &optional (frame (selected-frame)))
+                        &optional (frame (selected-frame)) new-frame)
   (when frame
     (persp-save-state persp frame)
     (setq persp-last-persp-name (safe-persp-name persp))
     (set-frame-persp persp frame)
-    (persp-restore-window-conf frame persp)
+    (persp-restore-window-conf frame persp new-frame)
     (run-hooks 'persp-activated-hook)))
 
-(defun persp-init-frame (frame)
+(defun persp-init-new-frame (frame)
+  (persp-init-frame frame t))
+(defun* persp-init-frame (frame &optional new-frame)
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
                                  persp-last-persp-name)
                             "none") *persp-hash* :+-123emptynooo)))
@@ -638,7 +648,7 @@ Return name."
      '((persp . nil)))
     (when (eq persp :+-123emptynooo)
       (setq persp (persp-add-new "none")))
-    (persp-activate persp frame)))
+    (persp-activate persp frame new-frame)))
 
 (defun persp-delete-frame (frame)
   (persp-frame-save-state frame))
@@ -745,7 +755,8 @@ except current perspective's buffers."
 
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
-                                             (persp (get-frame-persp frame)))
+                                             (persp (get-frame-persp frame))
+                                             new-frame)
   (with-selected-frame frame
     (let ((pwc (safe-persp-window-conf persp))
           (split-width-threshold 8)
@@ -762,11 +773,11 @@ except current perspective's buffers."
         (persp-revive-scratch persp t))
       (when gratio
         (golden-ratio-mode t))
-      (when persp-is-ibc-as-f-supported
+      (when (and new-frame persp-is-ibc-as-f-supported)
         (lexical-let ((cbuf (current-buffer)))
-          (setq initial-buffer-choice (persp-alambda ()
-                                                     (setq initial-buffer-choice nil)
-                                                     cbuf)))))))
+          (setq initial-buffer-choice #'(lambda ()
+                                          (setq initial-buffer-choice nil)
+                                          cbuf)))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
