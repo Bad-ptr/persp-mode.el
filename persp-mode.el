@@ -473,8 +473,8 @@ Return created perspective."
                          nil
                        (make-persp :name name))))
           (persp-revive-scratch persp nil)
-          (persp-add persp phash)
-          (run-hook-with-args 'persp-created-functions persp)))
+          (run-hook-with-args 'persp-created-functions persp)
+          (persp-add persp phash)))
     (message "Error: Can't create or switch to perspective with empty string as name.")
     nil))
 
