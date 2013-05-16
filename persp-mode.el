@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.92
+;; Version: 0.9.93
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -250,6 +250,7 @@ otherwise nil.")
                      ,@body
                      (remove-hook ,hook #'self))))
 
+
 ;;;###autoload
 (define-minor-mode persp-mode
   "Toggle perspective mode.
@@ -274,6 +275,7 @@ named collections of buffers and window configurations."
         
         (add-hook 'after-make-frame-functions #'persp-init-new-frame)
         (add-hook 'delete-frame-functions     #'persp-delete-frame)
+        (add-hook 'server-switch-hook         #'persp-server-switch)
         (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
         (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
@@ -309,6 +311,7 @@ named collections of buffers and window configurations."
     ;;(ad-deactivate-regexp "^persp-.*")
     (remove-hook 'after-make-frame-functions #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions     #'persp-delete-frame)
+    (remove-hook 'server-switch-hook         #'persp-server-switch)
     (remove-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
     (remove-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
@@ -362,6 +365,7 @@ named collections of buffers and window configurations."
                 (switch-to-buffer cbuffer)
                 (setq ad-return-value nil))))))
     ad-do-it))
+
 
 ;; Misc funcs:
 
@@ -427,6 +431,7 @@ named collections of buffers and window configurations."
   "Create and add scratch buffer to perspective."
   (persp-add-buffer (get-buffer-create "*scratch*") persp switchto))
 
+
 ;; Perspective funcs:
 
 (defun* persp-add (persp &optional (phash *persp-hash*))
@@ -459,7 +464,6 @@ Return removed perspective."
                     (persp-switch persp-to-switch f)))
               (persp-frame-list-without-daemon))))
     persp))
-
 
 (defun* persp-add-new (name &optional (phash *persp-hash*))
   "Create new perspective with given name. Add it to phash.
@@ -550,11 +554,9 @@ or return perspective's scratch."
         (first (safe-persp-buffers persp))
         (persp-revive-scratch persp t))))
 
-
 (defun* persp-buffer-in-other-p (buff-or-name
                                  &optional (persp (get-frame-persp)) (phash *persp-hash*))
   (persp-persps-with-buffer-except-none buff-or-name persp phash))
-
 
 (defun* switchto-prev-buf-in-persp (old-buff-or-name
                                     &optional (persp (get-frame-persp)))
@@ -576,7 +578,6 @@ Return that old buffer."
     (delete-if-not #'buffer-live-p
                    (persp-buffers persp))))
 
-
 (defun persp-kill (name)
   (interactive "i")
   (unless name
@@ -591,7 +592,6 @@ Return that old buffer."
         (mapc #'kill-buffer (safe-persp-buffers persp))
         (persp-switch (safe-persp-name cpersp))
         (persp-remove name)))))
-
 
 (defun* persp-rename (newname
                       &optional (persp (get-frame-persp)) (phash *persp-hash*))
@@ -651,13 +651,22 @@ Return name."
     (persp-activate persp frame new-frame)))
 
 (defun persp-delete-frame (frame)
-  (persp-frame-save-state frame))
+  (persp-frame-save-state frame)
+  (when persp-is-ibc-as-f-supported
+    (setq initial-buffer-choice nil)))
+
+(defun persp-server-switch ()
+  (when persp-is-ibc-as-f-supported
+    (lexical-let ((cbuf (current-buffer)))
+      (setq initial-buffer-choice
+            #'(lambda () (setq initial-buffer-choice nil) cbuf)))))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame)))
   (find persp (delq exframe (persp-frame-list-without-daemon))
         :test #'(lambda (p f)
                   (and f p (eq p (get-frame-persp f))))))
+
 
 ;; Helper funcs:
 
@@ -693,7 +702,6 @@ Return name."
                (delete "none" (persp-names-sorted))
              (persp-names-sorted))
            nil require-match nil nil default))
-
 
 (defun persp-restrict-ido-buffers ()
   "Restrict the ido buffer to the current perspective
@@ -751,8 +759,8 @@ except current perspective's buffers."
                          (member (if (consp name) (car name) name) buffer-names-sorted ))
                      nil)))
 
-;; Save/Restore funcs:
 
+;; Save/Restore funcs:
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
@@ -773,11 +781,13 @@ except current perspective's buffers."
         (persp-revive-scratch persp t))
       (when gratio
         (golden-ratio-mode t))
-      (when (and new-frame persp-is-ibc-as-f-supported)
-        (lexical-let ((cbuf (current-buffer)))
-          (setq initial-buffer-choice #'(lambda ()
-                                          (setq initial-buffer-choice nil)
-                                          cbuf)))))))
+      (when persp-is-ibc-as-f-supported
+        (if new-frame
+            (lexical-let ((cbuf (current-buffer)))
+              (setq initial-buffer-choice
+                    #'(lambda () (setq initial-buffer-choice nil) cbuf)))
+          (when (functionp initial-buffer-choice)
+            (switch-to-buffer (funcall initial-buffer-choice))))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
@@ -803,7 +813,6 @@ except current perspective's buffers."
         (with-selected-frame frame
           (wg-make-wconfig))
       (window-state-get rwin))))
-
 
 (defsubst persp-save-all-persps-state ()
   (mapc #'persp-save-state
@@ -879,7 +888,6 @@ except current perspective's buffers."
              (persp-restore-window-conf))
          (persp-frame-list-without-daemon))))
 
-
 (defun* persp-load-state-from-file (&optional (fname persp-auto-save-fname))
   (interactive (list (read-file-name "Load perspectives from file: " persp-save-dir)))
   (when fname
@@ -929,7 +937,7 @@ except current perspective's buffers."
             (kill-buffer (current-buffer))))))
     (persp-update-frames-window-confs)))
 
-(provide 'persp-mode)
 
+(provide 'persp-mode)
 
 ;;; persp-mode.el ends here
