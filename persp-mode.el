@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.93
+;; Version: 0.9.94
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -353,7 +353,7 @@ named collections of buffers and window configurations."
             ad-do-it
           (if (string= (buffer-name buffer) "*scratch*")
               (with-current-buffer buffer
-                (message "Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
+                (message "[persp-mode] Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
                 (erase-buffer)
                 (setq ad-return-value nil))
             (persp-remove-buffer buffer persp t)
@@ -453,7 +453,7 @@ Return removed perspective."
         (persp-to-switch "none"))
     (persp-save-state persp)
     (if (null persp)
-        (message "Error: Can't remove 'none' perspective")
+        (message "[persp-mode] Error: Can't remove 'none' perspective")
       (remhash name phash)
       (setq persp-to-switch (or (car (persp-names phash)) "none"))
 
@@ -479,7 +479,7 @@ Return created perspective."
           (persp-revive-scratch persp nil)
           (run-hook-with-args 'persp-created-functions persp)
           (persp-add persp phash)))
-    (message "Error: Can't create or switch to perspective with empty string as name.")
+    (message "[persp-mode] Error: Can't create or switch to perspective with empty string as name.")
     nil))
 
 (defun* persp-contain-buffer-p (buff-or-name
@@ -541,7 +541,7 @@ into current."
       (mapc #'(lambda (b)
                 (persp-add-buffer b persp-to))
             (safe-persp-buffers persp-from))
-    (message "Error: Can't import buffers to 'none' perspective.")))
+    (message "[persp-mode] Error: Can't import buffers to 'none' perspective.")))
 
 
 (defun* persp-get-buffer (buff-or-name
@@ -600,13 +600,13 @@ Return that old buffer."
         (old-name (persp-name persp)))
     (if (and (not opersp) newname)
         (if (null persp)
-            (message "Error: Can't rename 'none' perspective")
+            (message "[persp-mode] Error: Can't rename 'none' perspective")
           (persp-remove-from-menu persp)
           (remhash old-name phash)
           (setf (persp-name persp) newname)
           (puthash newname persp phash)
           (persp-add-to-menu persp))
-      (message "Error: There's already a perspective with that name: %s." newname)))
+      (message "[persp-mode] Error: There's already a perspective with that name: %s." newname)))
   nil)
 
 (defun* persp-switch (name
@@ -846,12 +846,12 @@ except current perspective's buffers."
            (p-save-file (concat p-save-dir "/" (file-name-base fname))))
       (unless (and (file-exists-p p-save-dir)
                    (file-directory-p p-save-dir))
-        (message "Info: Trying to create persp-conf-dir.")
+        (message "[persp-mode] Info: Trying to create persp-conf-dir.")
         (make-directory p-save-dir t))
       (if (not (and (file-exists-p p-save-dir)
                     (file-directory-p p-save-dir)))
           (message
-           "Error: Can't save perspectives, persp-save-dir does not exist or not a directory %S."
+           "[persp-mode] Error: Can't save perspectives, persp-save-dir does not exist or not a directory %S."
            p-save-dir)
         (persp-save-all-persps-state)
         (let ((pslist (mapcar #'(lambda (p)
@@ -895,7 +895,7 @@ except current perspective's buffers."
                                    (expand-file-name persp-save-dir))
                                "/" (file-name-base fname))))
       (if (not (file-exists-p p-save-file))
-          (message "Error: No such file: %S." p-save-file)
+          (message "[persp-mode] Error: No such file: %S." p-save-file)
         (let ((def-wconf #'(lambda (wc) wc))
               (def-buffer #'(lambda (name fname mode)
                               (let ((buf (persp-get-buffer-or-null name)))
@@ -905,30 +905,40 @@ except current perspective's buffers."
                                         buf
                                       (if (file-exists-p fname)
                                           (find-file-noselect fname)
-                                        (message "Warning: File %s no longer exists." fname)
+                                        (message "[persp-mode] Warning: File %s no longer exists." fname)
                                         (get-buffer-create name)))
                                   (if fname
                                       (if (file-exists-p fname)
                                           (find-file-noselect fname)
-                                        (message "Warning: File %s no longer exists." fname)
+                                        (message "[persp-mode] Warning: File %s no longer exists." fname)
                                         (get-buffer-create name))
                                     (with-current-buffer (get-buffer-create name)
-                                      (when (and mode (symbol-function mode))
+                                      (when (and mode (symbolp mode) (symbol-function mode))
                                         (funcall (symbol-function mode)))
                                       (current-buffer)))))))
               (def-persp #'(lambda (name dbufs dwc)
-                             (let ((persp (or (gethash name *persp-hash*)
-                                              (persp-add-new name))))
-                               (mapc #'(lambda (db)
-                                         (persp-add-buffer
-                                          (apply (symbol-value (car db)) (cdr db))
-                                          persp nil))
-                                     dbufs)
-                               (if persp
-                                   (setf (persp-window-conf persp)
-                                         (apply (symbol-value (car dwc)) (cdr dwc)))
-                                 (setq persp-none-wconf
-                                       (apply (symbol-value (car dwc)) (cdr dwc))))))))
+                             (macrolet ((car-as-fun-cdr-as-args (lst n-args &rest body)
+                                                                (let ((kar (gensym)))
+                                                                  `(let* ((,kar (car-safe ,lst))
+                                                                          (args (cdr-safe ,lst))
+                                                                          (fun (symbol-value ,kar)))
+                                                                     (when (and fun (= (length args) ,n-args)
+                                                                                (functionp fun))
+                                                                       ,@body)))))
+                               (let ((persp (or (gethash name *persp-hash*)
+                                                (persp-add-new name))))
+                                 (mapc #'(lambda (db)
+                                           (car-as-fun-cdr-as-args db 3
+                                                                   (persp-add-buffer (apply fun args)
+                                                                                     persp nil)))
+                                       dbufs)
+                                 (if persp
+                                     (car-as-fun-cdr-as-args dwc 1
+                                                             (setf (persp-window-conf persp)
+                                                                   (apply fun args)))
+                                   (car-as-fun-cdr-as-args dwc 1
+                                                           (setq persp-none-wconf
+                                                                 (apply fun args)))))))))
           (with-current-buffer (find-file-noselect p-save-file)
             (goto-char (point-min))
             (mapc #'(lambda (pd)
