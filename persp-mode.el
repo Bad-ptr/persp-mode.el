@@ -184,6 +184,9 @@ Must be used only for local rebinding.
 (defvar persp-none-wconf nil
   "Window configuration for 'none' persp.")
 
+(defvar persp-none-parameters nil
+  "Parameters of 'none' persp.")
+
 (defvar persp-last-persp-name "none"
   "Last perspective. New frame will be created with that perspective.
 (if persp-set-last-persp-for-new-frames is t)")
@@ -215,11 +218,8 @@ otherwise nil.")
             (:constructor make-persp))
   (name "")
   (buffers nil)
-  (window-conf nil))
-
-(defun persp-asave-on-exit ()
-  (when (> persp-auto-save-opt 0)
-    (persp-save-state-to-file persp-auto-save-fname)))
+  (window-conf nil)
+  (parameters nil))
 
 (defun safe-persp-name (p)
   (if p
@@ -236,6 +236,39 @@ otherwise nil.")
       (persp-window-conf p)
     persp-none-wconf))
 
+(defun safe-persp-parameters (p)
+  (if p
+      (persp-parameters p)
+    persp-none-parameters))
+
+(defun* modify-persp-parameters (alist &optional (persp (get-frame-persp)))
+  (loop for (name . value) in alist
+        do (set-persp-parameter name value persp)))
+
+(defun* set-persp-parameter (param-name value
+                                        &optional (persp (get-frame-persp)))
+  (delete-persp-parameter param-name persp)
+  (when (and (not (null param-name)) (symbolp param-name))
+    (if persp
+        (setf (persp-parameters persp)
+              (acons param-name value (persp-parameters persp)))
+      (setq persp-none-parameters
+            (acons param-name value persp-none-parameters)))))
+
+(defun* persp-parameter (param-name &optional (persp (get-frame-persp)))
+  (if persp
+      (cdr-safe (assoc param-name (persp-parameters persp)))
+    (cdr-safe (assoc param-name persp-none-parameters))))
+
+(defun* delete-persp-parameter (param-name &optional (persp (get-frame-persp)))
+  (when (and (not (null param-name)) (symbolp param-name))
+    (if persp
+        (setf (persp-parameters persp)
+              (delete (assoc param-name (persp-parameters persp))
+                      (persp-parameters persp)))
+      (setq persp-none-parameters
+            (delete (assoc param-name persp-none-parameters)
+                    persp-none-parameters)))))
 
 (defmacro persp-alambda (arglist &rest body)
   "Anaphoric lambda."
@@ -250,6 +283,9 @@ otherwise nil.")
                      ,@body
                      (remove-hook ,hook #'self))))
 
+(defun persp-asave-on-exit ()
+  (when (> persp-auto-save-opt 0)
+    (persp-save-state-to-file persp-auto-save-fname)))
 
 ;;;###autoload
 (define-minor-mode persp-mode
@@ -841,7 +877,15 @@ except current perspective's buffers."
            p-save-dir)
         (persp-save-all-persps-state)
         (let ((pslist (mapcar #'(lambda (p)
-                                  `(def-persp ,(safe-persp-name p)
+                                  (let ((sparams
+                                         (remove-if #'(lambda (param)
+                                                        (and (not (stringp param))
+                                                             (string-match-p "#<.*?>" (prin1-to-string param))
+                                                             (message "[persp-mode] Info: parameter %S of perspective %s can't be saved."
+                                                                      param (safe-persp-name p))
+                                                             t))
+                                                    (safe-persp-parameters p))))
+                                   `(def-persp ,(safe-persp-name p)
                                      ,(mapcar  #'(lambda (b)
                                                    `(def-buffer ,(buffer-name b)
                                                       ,(buffer-file-name b)
@@ -849,7 +893,8 @@ except current perspective's buffers."
                                                (safe-persp-buffers p))
                                      (def-wconf ,(if (find 'workgroups features)
                                                      (safe-persp-window-conf p)
-                                                   nil))))
+                                                   nil))
+                                     (def-params ,sparams))))
                               (persp-persps))))
           (with-temp-buffer
             (erase-buffer)
@@ -882,7 +927,8 @@ except current perspective's buffers."
                                "/" (file-name-base fname))))
       (if (not (file-exists-p p-save-file))
           (message "[persp-mode] Error: No such file: %S." p-save-file)
-        (let ((def-wconf #'(lambda (wc) wc))
+        (let ((def-params #'(lambda (params) params))
+              (def-wconf #'(lambda (wc) wc))
               (def-buffer #'(lambda (name fname mode)
                               (let ((buf (persp-get-buffer-or-null name)))
                                 (if (buffer-live-p buf)
@@ -902,7 +948,7 @@ except current perspective's buffers."
                                       (when (and mode (symbolp mode) (symbol-function mode))
                                         (funcall (symbol-function mode)))
                                       (current-buffer)))))))
-              (def-persp #'(lambda (name dbufs dwc)
+              (def-persp #'(lambda (name dbufs dwc &optional dparams)
                              (macrolet ((car-as-fun-cdr-as-args (lst n-args &rest body)
                                                                 (let ((kar (gensym)))
                                                                   `(let* ((,kar (car-safe ,lst))
@@ -924,7 +970,10 @@ except current perspective's buffers."
                                                                    (apply fun args)))
                                    (car-as-fun-cdr-as-args dwc 1
                                                            (setq persp-none-wconf
-                                                                 (apply fun args)))))))))
+                                                                 (apply fun args))))
+                                 (modify-persp-parameters (car-as-fun-cdr-as-args dparams 1
+                                                                                  (apply fun args))
+                                                          persp))))))
           (with-current-buffer (find-file-noselect p-save-file)
             (goto-char (point-min))
             (mapc #'(lambda (pd)
