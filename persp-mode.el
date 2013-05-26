@@ -271,13 +271,13 @@ named collections of buffers and window configurations."
         
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
-        (ad-activate 'kill-buffer)
         
-        (add-hook 'after-make-frame-functions #'persp-init-new-frame)
-        (add-hook 'delete-frame-functions     #'persp-delete-frame)
-        (add-hook 'server-switch-hook         #'persp-server-switch)
-        (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
-        (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
+        (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
+        (add-hook 'delete-frame-functions      #'persp-delete-frame)
+        (add-hook 'server-switch-hook          #'persp-server-switch)
+        (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+        (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query)
+        (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
         (setq persp-saved-read-buffer-function read-buffer-function)
         (setq read-buffer-function #'persp-read-buffer)
@@ -309,11 +309,12 @@ named collections of buffers and window configurations."
       (persp-save-state-to-file))
     
     ;;(ad-deactivate-regexp "^persp-.*")
-    (remove-hook 'after-make-frame-functions #'persp-init-new-frame)
-    (remove-hook 'delete-frame-functions     #'persp-delete-frame)
-    (remove-hook 'server-switch-hook         #'persp-server-switch)
-    (remove-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
-    (remove-hook 'kill-emacs-hook            #'persp-asave-on-exit)
+    (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
+    (remove-hook 'delete-frame-functions      #'persp-delete-frame)
+    (remove-hook 'server-switch-hook          #'persp-server-switch)
+    (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+    (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query)
+    (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
     (setq read-buffer-function persp-saved-read-buffer-function)
     
@@ -339,33 +340,18 @@ named collections of buffers and window configurations."
       (when buf
         (persp-add-buffer buf (get-frame-persp) nil)))))
 
-(defadvice kill-buffer (around persp-kill-buffer (&optional b) )
-  ;; We must remove buffer from perspective before killing it.
-  ;; If buffer belongs to more than one perspective, just remove it from
-  ;; current perspective and don't kill it. If there is no current perspective
-  ;; (no current frame) remove buffer from all perspectives."
-  (if persp-mode
-      (let ((buffer (persp-get-buffer-or-null b))
-            (persp (get-frame-persp))
-            (cbuffer (current-buffer)))
-        (if (or (null buffer)
-                (not (memq buffer (safe-persp-buffers persp))))
-            ad-do-it
-          (if (string= (buffer-name buffer) "*scratch*")
-              (with-current-buffer buffer
-                (message "[persp-mode] Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
-                (erase-buffer)
-                (setq ad-return-value nil))
-            (persp-remove-buffer buffer persp t)
-            (if (persp-buffer-in-other-p buffer persp)
-                (setq ad-return-value nil)
-              (if ad-do-it
-                  (setq ad-return-value t)
-                (persp-add-buffer buffer persp)
-                (switch-to-buffer cbuffer)
-                (setq ad-return-value nil))))))
-    ad-do-it))
-
+(defun persp-kill-buffer-query ()
+  (let ((buffer (current-buffer))
+        (persp (get-frame-persp)))
+    (if (string= (buffer-name buffer) "*scratch*")
+        (progn
+          (message "[persp-mode] Info: This buffer is unkillable in persp-mode, instead content of this buffer is erased.")
+          (erase-buffer)
+          nil)
+      (persp-remove-buffer buffer persp t)
+      (if (persp-buffer-in-other-p buffer persp)
+          nil
+        t))))
 
 ;; Misc funcs:
 
