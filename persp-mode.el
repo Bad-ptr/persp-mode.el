@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.95
+;; Version: 0.9.96
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -523,9 +523,8 @@ with empty string as name.")
                           &optional (persp (get-frame-persp))
                           (switchorno persp-switch-to-added-buffer))
   (interactive
-   (list
-    (let ((*persp-restrict-buffers-to* 1))
-      (read-buffer "Add buffer to perspective: "))))
+   (list (let ((*persp-restrict-buffers-to* 1))
+           (read-buffer "Add buffer to perspective: "))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
                (null (persp-contain-buffer-p buffer persp)))
@@ -993,10 +992,7 @@ does not exist or not a directory %S."
                       (find-file-noselect fname)
                     (when fname
                       (message "[persp-mode] Warning: File %s no longer exists." fname))
-                    (with-current-buffer (get-buffer-create name)
-                      (when (and mode (symbolp mode) (symbol-function mode))
-                        (funcall (symbol-function mode)))
-                      (current-buffer))))))))
+                    (get-buffer-create name)))))))
     (mapcar #'(lambda (db) (persp-car-as-fun-cdr-as-args db 3))
             savelist)))
 
