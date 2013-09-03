@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.96
+;; Version: 0.9.97
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -393,7 +393,7 @@ named collections of buffers and window configurations."
 instead content of this buffer is erased.")
           (erase-buffer)
           nil)
-      (persp-remove-buffer buffer persp t)
+      (persp-remove-buffer buffer persp t t)
       (if (persp-buffer-in-other-p buffer persp)
           nil
         t))))
@@ -534,7 +534,7 @@ with empty string as name.")
     buffer))
 
 (defun* persp-remove-buffer (buff-or-name
-                             &optional (persp (get-frame-persp)) noask-to-remall)
+                             &optional (persp (get-frame-persp)) noask-to-remall noswitch)
   "Remove buffer from perspective. Switch all windows displaying that buffer
 to another one. If persp is nil -- remove buffer from all perspectives.
 Return removed buffer."
@@ -552,7 +552,9 @@ Return removed buffer."
                 (persp-persps-with-buffer-except-none buffer))
           buffer)
       (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
-      (switchto-prev-buf-in-persp buffer persp))))
+      (if noswitch
+          buffer
+        (switchto-prev-buf-in-persp buffer persp)))))
 
 (defun* persp-import-buffers
     (name
