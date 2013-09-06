@@ -1,7 +1,7 @@
 # persp-mode
 
 ## Intro
-Perspectives for emacs, based on [`perspective-mode`](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
+Perspectives for emacs, based on [`perspective-el`](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
 But perspectives shared among frames \+ ability to save/restore from/to file.  
 
 ## Installation
@@ -34,7 +34,7 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 
 ## Troubles:
 When you create new frame(with `emacsclient -c` for example)
-it's window is switching to `*scratch*` buffer. This behaviour fixed in emacs version >= 24.4.
+the selected window of created frame is switching to `*scratch*` buffer. This behaviour fixed in emacs version >= 24.4(also if you build emacs from trunk).
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
 (or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(this works for emacs 24.3 at least):  
 replace  

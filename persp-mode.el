@@ -314,12 +314,12 @@ named collections of buffers and window configurations."
         
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
+        (ad-activate 'kill-buffer)
         
         (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
         (add-hook 'delete-frame-functions      #'persp-delete-frame)
         (add-hook 'server-switch-hook          #'persp-server-switch)
         (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-        (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query)
         (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
         (setq persp-saved-read-buffer-function read-buffer-function)
@@ -357,7 +357,6 @@ named collections of buffers and window configurations."
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
     (remove-hook 'server-switch-hook          #'persp-server-switch)
     (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-    (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query)
     (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
     (setq read-buffer-function persp-saved-read-buffer-function)
@@ -384,19 +383,33 @@ named collections of buffers and window configurations."
       (when buf
         (persp-add-buffer buf (get-frame-persp) nil)))))
 
-(defun persp-kill-buffer-query ()
-  (let ((buffer (current-buffer))
-        (persp (get-frame-persp)))
-    (if (string= (buffer-name buffer) "*scratch*")
-        (progn
-          (message "[persp-mode] Info: This buffer is unkillable in persp-mode, \
+(defadvice kill-buffer (around persp-kill-buffer (&optional b) )
+  ;; We must remove buffer from perspective before killing it.
+  ;; If buffer belongs to more than one perspective, just remove it from
+  ;; current perspective and don't kill it. If there is no current perspective
+  ;; (or no current frame) remove buffer from all perspectives." 
+  (if persp-mode
+      (let ((buffer (or (persp-get-buffer-or-null b)
+                        (current-buffer)))
+            (persp (get-frame-persp)))
+        (if buffer
+            (if (string= (buffer-name buffer) "*scratch*")
+                (with-current-buffer buffer
+                  (message "[persp-mode] Info: This buffer is unkillable in persp-mode, \
 instead content of this buffer is erased.")
-          (erase-buffer)
-          nil)
-      (persp-remove-buffer buffer persp t t)
-      (if (persp-buffer-in-other-p buffer persp)
-          nil
-        t))))
+                  (erase-buffer)
+                  (setq ad-return-value nil))
+              (persp-remove-buffer buffer persp t)
+              (if (persp-buffer-in-other-p buffer persp)
+                  (setq ad-return-value nil)
+                (if ad-do-it
+                    (setq ad-return-value t)
+                  (persp-add-buffer buffer persp)
+                  (switch-to-buffer buffer)
+                  (setq ad-return-value nil))))
+          ad-do-it))
+    ad-do-it))
+
 
 ;; Misc funcs:
 
@@ -450,7 +463,7 @@ instead content of this buffer is erased.")
       (delete-if-not #'(lambda (p)
                          (when p
                            (memq buf (persp-buffers p))))
-                     (delq persp (persp-persps phash))))))
+                     (delq persp (delq nil (persp-persps phash)))))))
 
 (defun* persp-frames-with-persp (&optional (persp (get-frame-persp)))
   (delete-if-not #'(lambda (f)
@@ -551,10 +564,13 @@ Return removed buffer."
                     (persp-remove-buffer buffer p))
                 (persp-persps-with-buffer-except-none buffer))
           buffer)
-      (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
-      (if noswitch
-          buffer
-        (switchto-prev-buf-in-persp buffer persp)))))
+      (if (memq buffer (persp-buffers persp))
+          (progn
+            (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
+            (if noswitch
+                buffer
+              (switchto-prev-buf-in-persp buffer persp)))
+        nil))))
 
 (defun* persp-import-buffers
     (name
@@ -597,7 +613,8 @@ or return perspective's scratch."
 
 (defun* switchto-prev-buf-in-persp (old-buff-or-name
                                     &optional (persp (get-frame-persp)))
-  "Switch all windows displaying that buffer to some previous buffer in perspective.
+  "Switch all windows displaying that buffer in all frames with perspective
+to some previous buffer in perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
     (persp-revive-scratch persp nil)
