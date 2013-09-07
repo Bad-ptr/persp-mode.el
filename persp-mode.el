@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.97
+;; Version: 0.9.98
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -399,14 +399,24 @@ named collections of buffers and window configurations."
 instead content of this buffer is erased.")
                   (erase-buffer)
                   (setq ad-return-value nil))
-              (persp-remove-buffer buffer persp t)
-              (if (persp-buffer-in-other-p buffer persp)
-                  (setq ad-return-value nil)
-                (if ad-do-it
-                    (setq ad-return-value t)
-                  (persp-add-buffer buffer persp)
-                  (switch-to-buffer buffer)
-                  (setq ad-return-value nil))))
+              (let ((persps (persp-persps-with-buffer-except-none buffer persp))
+                    (windows (get-buffer-window-list buffer 0 t)))
+                (persp-remove-buffer buffer persp t)
+                (if (and persp persps)
+                    (setq ad-return-value nil)
+                  (if ad-do-it
+                      (setq ad-return-value t)
+                    (mapc #'(lambda (p)
+                              (persp-add-buffer buffer p nil))
+                          (cons persp persps))
+                    (mapc #'(lambda (w)
+                              (set-window-buffer w buffer))
+                          (if persp
+                              windows
+                            (delete-if #'(lambda (w)
+                                           (eq persp (get-frame-persp (window-frame w))))
+                                       windows)))
+                    (setq ad-return-value nil)))))
           ad-do-it))
     ad-do-it))
 
@@ -425,11 +435,10 @@ instead content of this buffer is erased.")
 (defun persp-frame-list-without-daemon ()
   "Return list of frames without daemon's frame."
   (if (daemonp)
-      (delete-if #'(lambda (f)
-                     (or (string= "F1" (frame-parameter f 'name))
-                         (string= (concatenate 'string "emacs@" (system-name))
-                                  (frame-parameter f 'name))))
-                 (frame-list))
+      (filtered-frame-list #'(lambda (f)
+                               (not (or (string= "F1" (frame-parameter f 'name))
+                                        (string= (concatenate 'string "emacs@" (system-name))
+                                                 (frame-parameter f 'name))))))
     (frame-list)))
 
 (defun set-frame-persp (persp &optional frame)
