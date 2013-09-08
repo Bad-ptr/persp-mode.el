@@ -411,11 +411,7 @@ instead content of this buffer is erased.")
                           (cons persp persps))
                     (mapc #'(lambda (w)
                               (set-window-buffer w buffer))
-                          (if persp
-                              windows
-                            (delete-if #'(lambda (w)
-                                           (eq persp (get-frame-persp (window-frame w))))
-                                       windows)))
+                          windows)
                     (setq ad-return-value nil)))))
           ad-do-it))
     ad-do-it))
