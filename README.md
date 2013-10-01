@@ -7,7 +7,7 @@ But perspectives shared among frames \+ ability to save/restore from/to file.
 ## Installation
 persp-mode is available on [`melpa`](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
 `M-x: package-install RET persp-mode RET`  
-Alternatively you can download persp-mode.el from github and install it with:  
+Alternatively you can download persp-mode.el from [`github`](https://github.com/Bad-ptr/persp-mode.el) and install it with:  
 `M-x: package-install-file RET 'path_to_where_you_saved_persp-mode.el' RET`  
 
 Another(oldschool;p) way:  
@@ -22,6 +22,7 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 `C-x x r` -- rename perspective.  
 `C-x x c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
 `C-x x a` -- add buffer to perspective.  
+`C-x x t` -- switch to buffer without adding it to current perspective.  
 `C-x x i` -- import all buffers from another perspective.  
 `C-x x k` -- remove buffer from perspective.  
 `C-x x w` -- save perspectives to file.  

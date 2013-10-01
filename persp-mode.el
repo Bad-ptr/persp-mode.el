@@ -1,9 +1,9 @@
-;;; persp-mode.el --- "perspectives" + save/load + shared among frames.
+;;; persp-mode.el --- "perspectives" + save/load + shared among frames - bugs.
 
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.98
+;; Version: 0.9.99
 ;; Package-Requires: ((workgroups "0.2.0"))
 ;; Keywords: perspectives
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -30,7 +30,10 @@
 
 ;; Based on perspective.el by Nathan Weizenbaum
 ;; (http://github.com/nex3/perspective-el) but perspectives shared
-;; among frames + ability to save/restore perspectives to/from file.
+;; among frames + ability to save/restore perspectives to/from file
+;; and it less buggy(as for me).
+;;
+;; Home: https://github.com/Bad-ptr/persp-mode.el
 
 ;; Installation:
 
@@ -51,6 +54,7 @@
 ;; C-x x c -- kill perspective
 ;; (if you try to kill 'none' persp -- it'l kill all opened buffers).
 ;; C-x x a -- add buffer to perspective.
+;; C-x x t -- switch to buffer without adding it to current perspective.
 ;; C-x x i -- import all buffers from another perspective.
 ;; C-x x k -- remove buffer from perspective.
 ;; C-x x w -- save perspectives to file.
@@ -199,6 +203,9 @@ Must be used only for local rebinding.
   "t if initial-buffer-choice as function is supported in your emacs,
 otherwise nil.")
 
+(defvar *persp-add-on-switch-or-display* t
+  "If not nil then add buffer to persp on switch-to-buffer and display-buffer.")
+
 
 ;; Key bindings:
 
@@ -206,6 +213,7 @@ otherwise nil.")
 (define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
 (define-key persp-mode-map (kbd "C-x x c") #'persp-kill)
 (define-key persp-mode-map (kbd "C-x x a") #'persp-add-buffer)
+(define-key persp-mode-map (kbd "C-x x t") #'persp-temporary-display-buffer)
 (define-key persp-mode-map (kbd "C-x x i") #'persp-import-buffers)
 (define-key persp-mode-map (kbd "C-x x k") #'persp-remove-buffer)
 (define-key persp-mode-map (kbd "C-x x w") #'persp-save-state-to-file)
@@ -371,14 +379,16 @@ named collections of buffers and window configurations."
 
 (defadvice switch-to-buffer (after persp-add-buffer-adv)
   ;; We must add buffer to some perspective if we want to display it.
-  (when (and persp-mode ad-return-value)
+  (when (and *persp-add-on-switch-or-display*
+             persp-mode ad-return-value)
     (let ((buf (ad-get-arg 0)))
       (when buf
         (persp-add-buffer buf (get-frame-persp) nil)))))
 
 (defadvice display-buffer (after persp-add-buffer-adv)
   ;; We must add buffer to some perspective if we want to display it.
-  (when (and persp-mode ad-return-value)
+  (when (and *persp-add-on-switch-or-display*
+             persp-mode ad-return-value)
     (let ((buf (ad-get-arg 0)))
       (when buf
         (persp-add-buffer buf (get-frame-persp) nil)))))
@@ -550,6 +560,14 @@ with empty string as name.")
     (when (and buffer switchorno)
       (switch-to-buffer buffer))
     buffer))
+
+(defun* persp-temporary-display-buffer (buff-or-name)
+  (interactive (list
+                (let ((*persp-restrict-buffers-to* 1))
+                  (read-buffer "Temporary display buffer(not add to current persp): "))))
+  (let ((buffer (persp-get-buffer-or-null buff-or-name))
+        (*persp-add-on-switch-or-display* nil))
+    (switch-to-buffer buffer t)))
 
 (defun* persp-remove-buffer (buff-or-name
                              &optional (persp (get-frame-persp)) noask-to-remall noswitch)
