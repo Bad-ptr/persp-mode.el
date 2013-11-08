@@ -343,6 +343,9 @@ named collections of buffers and window configurations."
                                    (persp-buffers p)
                                  (tabbar-buffer-list))))))
 
+        (when (fboundp 'iswitchb-mode)
+          (add-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
+
         (when persp-auto-resume
           (if (persp-frame-list-without-daemon)
               (persp-load-state-from-file)
@@ -371,6 +374,8 @@ named collections of buffers and window configurations."
     
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
+    (when (fboundp 'iswitchb-mode)
+      (remove-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
 
     (setq *persp-hash* nil)))
 
@@ -785,6 +790,14 @@ Return name."
              (persp-names-sorted))
            nil require-match nil nil default))
 
+
+(defun persp-iswitchb-filter-buflist ()
+  (when (get-frame-persp)
+    (setq iswitchb-temp-buflist
+          (case *persp-restrict-buffers-to*
+            (0 (setq iswitchb-temp-buflist (persp-buffers (get-frame-persp))))
+            (1 (setq iswitchb-temp-buflist (set-difference (buffer-list) (persp-buffers (get-frame-persp)))))))))
+
 (defun persp-restrict-ido-buffers ()
   "Restrict the ido buffer to the current perspective
 if *persp-restrict-buffers-to* is 0.
@@ -811,16 +824,18 @@ except current perspective's buffers."
                           &optional def require-match)
   (if ido-mode
       (ido-read-buffer prompt def require-match)
-    (let ((read-buffer-function nil))
-      (let ((rb-completion-table (persp-complete-buffer))
-            (persp-read-buffer-hook
-             #'(lambda ()
-                 (setq minibuffer-completion-table rb-completion-table))))
-        (unwind-protect
-            (progn
-              (add-hook 'minibuffer-setup-hook persp-read-buffer-hook t)
-              (read-buffer prompt def require-match))
-          (remove-hook 'minibuffer-setup-hook persp-read-buffer-hook))))))
+    (if iswitchb-mode
+        (iswitchb-read-buffer prompt def require-match)
+      (let ((read-buffer-function nil))
+        (let ((rb-completion-table (persp-complete-buffer))
+              (persp-read-buffer-hook
+               #'(lambda ()
+                   (setq minibuffer-completion-table rb-completion-table))))
+          (unwind-protect
+              (progn
+                (add-hook 'minibuffer-setup-hook persp-read-buffer-hook t)
+                (read-buffer prompt def require-match))
+            (remove-hook 'minibuffer-setup-hook persp-read-buffer-hook)))))))
 
 (defun persp-complete-buffer ()
   "Complete buffer.
@@ -859,9 +874,10 @@ except current perspective's buffers."
         (setq gratio t)
         (golden-ratio-mode -1))
       (if pwc
-          (if (not (fboundp 'wg-restore-wconfig))
-              (window-state-put pwc (frame-root-window frame) t)
-            (wg-restore-wconfig pwc))
+          (let ((*persp-add-on-switch-or-display* nil))
+            (if (not (fboundp 'wg-restore-wconfig))
+                (window-state-put pwc (frame-root-window frame) t)
+              (wg-restore-wconfig pwc)))
         (persp-revive-scratch persp t))
       (when gratio
         (golden-ratio-mode t))
