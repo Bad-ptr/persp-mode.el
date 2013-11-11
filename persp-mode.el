@@ -718,11 +718,14 @@ Return name."
 (defun* persp-activate (persp
                         &optional (frame (selected-frame)) new-frame)
   (when frame
-    (persp-save-state persp frame)
-    (setq persp-last-persp-name (safe-persp-name persp))
-    (set-frame-persp persp frame)
-    (persp-restore-window-conf frame persp new-frame)
-    (run-hooks 'persp-activated-hook)))
+    (let ((ignore-wconf (frame-parameter frame 'persp-ignore-wconf)))
+      (unless ignore-wconf
+        (persp-save-state persp frame))
+      (setq persp-last-persp-name (safe-persp-name persp))
+      (set-frame-persp persp frame)
+      (unless ignore-wconf
+        (persp-restore-window-conf frame persp new-frame))
+      (run-hooks 'persp-activated-hook))))
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame frame t))
@@ -738,9 +741,10 @@ Return name."
     (persp-activate persp frame new-frame)))
 
 (defun persp-delete-frame (frame)
-  (persp-frame-save-state frame)
-  (when persp-is-ibc-as-f-supported
-    (setq initial-buffer-choice nil)))
+  (unless (frame-parameter frame 'persp-ignore-wconf)
+    (persp-frame-save-state frame)
+    (when persp-is-ibc-as-f-supported
+      (setq initial-buffer-choice nil))))
 
 (defun persp-server-switch ()
   (when persp-is-ibc-as-f-supported
