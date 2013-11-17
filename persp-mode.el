@@ -708,16 +708,17 @@ Return that old buffer."
   (let ((opersp (gethash newname phash))
         (old-name (safe-persp-name persp)))
     (if (and (not opersp) newname)
-        (if (null persp)
-            (set-default 'persp-none-name newname)
+        (progn
           (persp-remove-from-menu persp)
           (remhash old-name phash)
-          (setf (persp-name persp) newname)
+          (if persp
+              (setf (persp-name persp) newname)
+            (set-default 'persp-none-name newname))
           (puthash newname persp phash)
           (persp-add-to-menu persp))
       (message "[persp-mode] Error: There's already a perspective with \
-that name: %s." newname)))
-  nil)
+that name: %s." newname)
+      nil)))
 
 (defun* persp-switch (name
                       &optional (frame (selected-frame)))
@@ -789,8 +790,8 @@ Return name."
       "-")))
 
 (defun persp-remove-from-menu (persp)
+  (easy-menu-remove-item persp-minor-mode-menu nil (safe-persp-name persp))
   (when persp
-    (easy-menu-remove-item persp-minor-mode-menu nil (persp-name persp))
     (easy-menu-remove-item persp-minor-mode-menu '("kill") (persp-name persp))))
 
 (defun persp-add-to-menu (persp)
