@@ -141,6 +141,15 @@ otherwise with last activated perspective."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-filter-save-buffers-functions
+  (list #'(lambda (b)
+            (string-prefix-p " " (buffer-name b)))
+        #'(lambda (b)
+            (string-prefix-p "*" (buffer-name b))))
+  "If one of this functions returns t - buffer will not be saved."
+  :group 'persp-mode
+  :type '(list function))
+
 (defcustom persp-mode-hook nil
   "A hook that's run after `persp-mode' has been activated."
   :group 'persp-mode
@@ -956,7 +965,10 @@ except current perspective's buffers."
                  ,(buffer-file-name b)
                  ,(buffer-local-value 'major-mode b)))
           (delete-if #'(lambda (b)
-                         (string-prefix-p " " (buffer-name b)))
+                         (loop for f-p in persp-filter-save-buffers-functions
+                               when (funcall f-p b)
+                               return t
+                               end))
                      (safe-persp-buffers persp))))
 
 (defun persp-window-conf-to-savelist (persp)
