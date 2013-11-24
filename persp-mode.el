@@ -752,14 +752,11 @@ Return name."
 (defun* persp-activate (persp
                         &optional (frame (selected-frame)) new-frame)
   (when frame
-    (let ((ignore-wconf (frame-parameter frame 'persp-ignore-wconf)))
-      (unless ignore-wconf
-        (persp-save-state persp frame))
-      (setq persp-last-persp-name (safe-persp-name persp))
-      (set-frame-persp persp frame)
-      (unless ignore-wconf
-        (persp-restore-window-conf frame persp new-frame))
-      (run-hooks 'persp-activated-hook))))
+    (persp-save-state persp frame)
+    (setq persp-last-persp-name (safe-persp-name persp))
+    (set-frame-persp persp frame)
+    (persp-restore-window-conf frame persp new-frame)
+    (run-hooks 'persp-activated-hook)))
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame frame t))
@@ -787,10 +784,14 @@ Return name."
             #'(lambda () (setq initial-buffer-choice nil) cbuf)))))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
-                                               (exframe (selected-frame)))
+                                               (exframe (selected-frame))
+                                               (for-save nil))
   (find persp (delq exframe (persp-frame-list-without-daemon))
         :test #'(lambda (p f)
-                  (and f p (eq p (get-frame-persp f))))))
+                  (and f p (if for-save
+                               (not (frame-parameter frame 'persp-ignore-wconf))
+                             t)
+                       (eq p (get-frame-persp f))))))
 
 
 ;; Helper funcs:
@@ -902,37 +903,39 @@ except current perspective's buffers."
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
                                              new-frame)
-  (with-selected-frame frame
-    (let ((pwc (safe-persp-window-conf persp))
-          (split-width-threshold 8)
-          (split-height-threshold 8)
-          gratio)
-      (delete-other-windows)
-      (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
-        (setq gratio t)
-        (golden-ratio-mode -1))
-      (if pwc
-          (let ((*persp-add-on-switch-or-display* nil))
-            (if (not (fboundp 'wg-restore-wconfig))
-                (window-state-put pwc (frame-root-window frame) t)
-              (wg-restore-wconfig pwc)))
-        (persp-revive-scratch persp t))
-      (when gratio
-        (golden-ratio-mode t))
-      (when persp-is-ibc-as-f-supported
-        (if new-frame
-            (lexical-let ((cbuf (current-buffer)))
-              (setq initial-buffer-choice
-                    #'(lambda () (setq initial-buffer-choice nil) cbuf)))
-          (when (functionp initial-buffer-choice)
-            (switch-to-buffer (funcall initial-buffer-choice))))))))
+  (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
+    (with-selected-frame frame
+      (let ((pwc (safe-persp-window-conf persp))
+            (split-width-threshold 8)
+            (split-height-threshold 8)
+            gratio)
+        (delete-other-windows)
+        (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
+          (setq gratio t)
+          (golden-ratio-mode -1))
+        (if pwc
+            (let ((*persp-add-on-switch-or-display* nil))
+              (if (not (fboundp 'wg-restore-wconfig))
+                  (window-state-put pwc (frame-root-window frame) t)
+                (wg-restore-wconfig pwc)))
+          (persp-revive-scratch persp t))
+        (when gratio
+          (golden-ratio-mode t))
+        (when persp-is-ibc-as-f-supported
+          (if new-frame
+              (lexical-let ((cbuf (current-buffer)))
+                (setq initial-buffer-choice
+                      #'(lambda () (setq initial-buffer-choice nil) cbuf)))
+            (when (functionp initial-buffer-choice)
+              (switch-to-buffer (funcall initial-buffer-choice)))))))))
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
     (when (and frame
                (not (and (daemonp) (string= "F1" (frame-parameter frame 'name))))
-               (not (string= (concatenate 'string "emacs@" (system-name))
-                             (frame-parameter frame 'name))))
+               (not (and (daemonp) (string= (concatenate 'string "emacs@" (system-name))
+                                            (frame-parameter frame 'name))))
+               (not (frame-parameter frame 'persp-ignore-wconf)))
       (if persp
           (setf (persp-window-conf persp) (persp-window-state-get frame))
         (setq persp-nil-wconf (persp-window-state-get frame))))))
@@ -940,7 +943,7 @@ except current perspective's buffers."
 (defun* persp-save-state (&optional (persp (get-frame-persp)) exfr)
   (let ((frame (selected-frame)))
     (unless (eq persp (get-frame-persp frame))
-      (setq frame (find-other-frame-with-persp persp exfr)))
+      (setq frame (find-other-frame-with-persp persp exfr t)))
     (when frame
       (persp-frame-save-state frame))))
 
