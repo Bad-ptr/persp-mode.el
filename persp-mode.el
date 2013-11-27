@@ -334,11 +334,11 @@ named collections of buffers and window configurations."
         (setf *persp-hash* (make-hash-table :test 'equal :size 10))
         (persp-add-minor-mode-menu)
         (persp-add-new persp-nil-name)
-        
+
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
         (ad-activate 'kill-buffer)
-        
+
         (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
         (add-hook 'delete-frame-functions      #'persp-delete-frame)
         (add-hook 'server-switch-hook          #'persp-server-switch)
@@ -350,7 +350,7 @@ named collections of buffers and window configurations."
 
         (mapc #'persp-init-frame
               (persp-frame-list-without-daemon))
-        
+
         (when (fboundp 'tabbar-mode)
           (setq tabbar-buffer-list-function
                 #'(lambda () (let ((p (get-frame-persp)))
@@ -379,7 +379,7 @@ named collections of buffers and window configurations."
       (persp-save-state-to-file))
 
     (customize-save-variable 'persp-nil-name persp-nil-name)
-    
+
     ;;(ad-deactivate-regexp "^persp-.*")
     (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
@@ -388,7 +388,7 @@ named collections of buffers and window configurations."
     (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
     (setq read-buffer-function persp-saved-read-buffer-function)
-    
+
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
     (when (fboundp 'iswitchb-mode)
@@ -460,13 +460,13 @@ instead content of this buffer is erased.")
             buf)))
     (otherwise nil)))
 
+(defsubst persp-is-frame-daemons-frame (f)
+  (and (daemonp) (eq f terminal-frame)))
+
 (defun persp-frame-list-without-daemon ()
   "Return list of frames without daemon's frame."
   (if (daemonp)
-      (filtered-frame-list #'(lambda (f)
-                               (not (or (string= "F1" (frame-parameter f 'name))
-                                        (string= (concatenate 'string "emacs@" (system-name))
-                                                 (frame-parameter f 'name))))))
+      (filtered-frame-list #'(lambda (f) (not (persp-is-frame-daemons-frame f))))
     (frame-list)))
 
 (defun set-frame-persp (persp &optional frame)
@@ -481,6 +481,10 @@ instead content of this buffer is erased.")
                  (push k ret))
              phash)
     ret))
+
+(defun* persp-get-by-name (name &optional (phash *persp-hash*) (defolt nil))
+  (gethash name phash defolt))
+
 
 (defsubst* persp-names-sorted (&optional (phash *persp-hash*))
   (sort (persp-names phash) 'string<))
@@ -535,7 +539,7 @@ Return removed perspective."
   (interactive "i")
   (unless name
     (setq name (persp-prompt nil t t)))
-  (let ((persp (gethash name phash))
+  (let ((persp (persp-get-by-name name phash))
         (persp-to-switch persp-nil-name))
     (persp-save-state persp)
     (if (null persp)
@@ -557,7 +561,7 @@ Return created perspective."
   (interactive "sName for new perspective: ")
   (if (and name (not (string= "" name)))
       (if (member name (persp-names phash))
-          (gethash name phash)
+          (persp-get-by-name name phash)
         (let ((persp (if (string= persp-nil-name name)
                          nil
                        (make-persp :name name))))
@@ -632,7 +636,7 @@ into current."
                         "Import from perspective: "
                         (delete (safe-persp-name (get-frame-persp))
                                 (persp-names-sorted)) nil)))
-  (let ((persp-from (gethash name phash)))
+  (let ((persp-from (persp-get-by-name name phash)))
     (persp-import-buffers-from persp-from persp-to)))
 
 (defun* persp-import-buffers-from (persp-from
@@ -689,7 +693,7 @@ Return that old buffer."
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill 'nil' perspective\
 (It'l kill all buffers)?"))
-    (let ((persp (gethash name *persp-hash* :+-123emptynooo))
+    (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
           (cpersp (get-frame-persp)))
       (unless (eq persp :+-123emptynooo)
         (persp-switch name)
@@ -837,6 +841,7 @@ Return name."
             (0 (setq iswitchb-temp-buflist (persp-buffers (get-frame-persp))))
             (1 (setq iswitchb-temp-buflist (set-difference (buffer-list) (persp-buffers (get-frame-persp)))))))))
 
+
 (defun persp-restrict-ido-buffers ()
   "Restrict the ido buffer to the current perspective
 if *persp-restrict-buffers-to* is 0.
@@ -932,9 +937,7 @@ except current perspective's buffers."
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
     (when (and frame
-               (not (and (daemonp) (string= "F1" (frame-parameter frame 'name))))
-               (not (and (daemonp) (string= (concatenate 'string "emacs@" (system-name))
-                                            (frame-parameter frame 'name))))
+               (not (persp-is-frame-daemons-frame frame))
                (not (frame-parameter frame 'persp-ignore-wconf)))
       (if persp
           (setf (persp-window-conf persp) (persp-window-state-get frame))
