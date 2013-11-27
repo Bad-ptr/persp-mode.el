@@ -330,11 +330,24 @@ named collections of buffers and window configurations."
   :lighter (:eval (format "%s%.5s" " #"
                           (safe-persp-name (get-frame-persp))))
   (if persp-mode
-      (progn
+      (if (or noninteractive
+              (and (daemonp)
+                   (null (cdr (frame-list)))
+                   (eq (selected-frame) terminal-frame)))
+          (progn
+            (persp-hook-once
+                'after-make-frame-functions (frame)
+                (run-at-time 3 nil
+                             #'(lambda () (persp-mode))))
+            (setq persp-mode nil))
+
         (setf *persp-hash* (make-hash-table :test 'equal :size 10))
         (persp-add-minor-mode-menu)
         (persp-add-new persp-nil-name)
 
+        (ad-enable-advice 'switch-to-buffer 'after  'persp-add-buffer-adv)
+        (ad-enable-advice 'display-buffer   'after  'persp-add-buffer-adv)
+        (ad-enable-advice 'kill-buffer      'around 'persp-kill-buffer-adv)
         (ad-activate 'switch-to-buffer)
         (ad-activate 'display-buffer)
         (ad-activate 'kill-buffer)
@@ -362,16 +375,7 @@ named collections of buffers and window configurations."
           (add-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
 
         (when persp-auto-resume
-          (if (persp-frame-list-without-daemon)
-              (persp-load-state-from-file)
-            (lexical-let ((paso persp-auto-save-opt))
-              (setq persp-auto-save-opt 0)
-              (persp-hook-once
-                  'persp-activated-hook ()
-                  (run-at-time 3 nil
-                               #'(lambda ()
-                                   (persp-load-state-from-file)
-                                   (setq persp-auto-save-opt paso)))))))
+          (persp-load-state-from-file))
 
         (run-hooks 'persp-mode-hook))
 
@@ -380,7 +384,11 @@ named collections of buffers and window configurations."
 
     (customize-save-variable 'persp-nil-name persp-nil-name)
 
+    (ad-disable-advice 'switch-to-buffer 'after  'persp-add-buffer-adv)
+    (ad-disable-advice 'display-buffer   'after  'persp-add-buffer-adv)
+    (ad-disable-advice 'kill-buffer      'around 'persp-kill-buffer-adv)
     ;;(ad-deactivate-regexp "^persp-.*")
+
     (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
     (remove-hook 'server-switch-hook          #'persp-server-switch)
@@ -415,7 +423,7 @@ named collections of buffers and window configurations."
       (when buf
         (persp-add-buffer buf (get-frame-persp) nil)))))
 
-(defadvice kill-buffer (around persp-kill-buffer (&optional b) )
+(defadvice kill-buffer (around persp-kill-buffer-adv (&optional b) )
   ;; We must remove buffer from perspective before killing it.
   ;; If buffer belongs to more than one perspective, just remove it from
   ;; current perspective and don't kill it. If there is no current perspective
