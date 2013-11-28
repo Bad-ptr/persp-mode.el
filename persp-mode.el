@@ -345,12 +345,12 @@ named collections of buffers and window configurations."
         (persp-add-minor-mode-menu)
         (persp-add-new persp-nil-name)
 
-        (ad-enable-advice 'switch-to-buffer 'after  'persp-add-buffer-adv)
-        (ad-enable-advice 'display-buffer   'after  'persp-add-buffer-adv)
-        (ad-enable-advice 'kill-buffer      'around 'persp-kill-buffer-adv)
-        (ad-activate 'switch-to-buffer)
-        (ad-activate 'display-buffer)
-        (ad-activate 'kill-buffer)
+        (ad-enable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
+        (ad-enable-advice #'display-buffer   'after  'persp-add-buffer-adv)
+        (ad-enable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
+        (ad-activate #'switch-to-buffer)
+        (ad-activate #'display-buffer)
+        (ad-activate #'kill-buffer)
 
         (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
         (add-hook 'delete-frame-functions      #'persp-delete-frame)
@@ -384,9 +384,9 @@ named collections of buffers and window configurations."
 
     (customize-save-variable 'persp-nil-name persp-nil-name)
 
-    (ad-disable-advice 'switch-to-buffer 'after  'persp-add-buffer-adv)
-    (ad-disable-advice 'display-buffer   'after  'persp-add-buffer-adv)
-    (ad-disable-advice 'kill-buffer      'around 'persp-kill-buffer-adv)
+    (ad-disable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
+    (ad-disable-advice #'display-buffer   'after  'persp-add-buffer-adv)
+    (ad-disable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
     ;;(ad-deactivate-regexp "^persp-.*")
 
     (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
@@ -843,25 +843,26 @@ Return name."
 
 
 (defun persp-iswitchb-filter-buflist ()
+  "Support for iswitchb-mode."
   (when (get-frame-persp)
     (setq iswitchb-temp-buflist
           (case *persp-restrict-buffers-to*
-            (0 (setq iswitchb-temp-buflist (persp-buffers (get-frame-persp))))
-            (1 (setq iswitchb-temp-buflist (set-difference (buffer-list) (persp-buffers (get-frame-persp)))))))))
+            (0 (setq iswitchb-temp-buflist
+                     (persp-buffers (get-frame-persp))))
+            (1 (setq iswitchb-temp-buflist
+                     (set-difference (buffer-list)
+                                     (persp-buffers (get-frame-persp)))))))))
 
 
 (defun persp-restrict-ido-buffers ()
-  "Restrict the ido buffer to the current perspective
-if *persp-restrict-buffers-to* is 0.
-If *persp-restrict-buffers-to* is 1 restrict to all buffers
-except current perspective's buffers."
+  "Support for ido-mode."
   (when (get-frame-persp)
     (let ((buffer-names-sorted
-           (mapcar 'buffer-name
-                   (if (= *persp-restrict-buffers-to* 0)
-                       (persp-buffers (get-frame-persp))
-                     (set-difference (buffer-list)
-                                     (persp-buffers (get-frame-persp))))))
+           (mapcar #'buffer-name
+                   (case *persp-restrict-buffers-to*
+                     (0 (persp-buffers (get-frame-persp)))
+                     (1 (set-difference (buffer-list)
+                                        (persp-buffers (get-frame-persp)))))))
           (indices (make-hash-table)))
       (let ((i 0))
         (dolist (elt ido-temp-list)
@@ -874,34 +875,30 @@ except current perspective's buffers."
 
 (defun persp-read-buffer (prompt
                           &optional def require-match)
-  (if ido-mode
-      (ido-read-buffer prompt def require-match)
-    (if iswitchb-mode
-        (iswitchb-read-buffer prompt def require-match)
-      (let ((read-buffer-function nil))
-        (let ((rb-completion-table (persp-complete-buffer))
-              (persp-read-buffer-hook
-               #'(lambda ()
-                   (setq minibuffer-completion-table rb-completion-table))))
-          (unwind-protect
-              (progn
-                (add-hook 'minibuffer-setup-hook persp-read-buffer-hook t)
-                (read-buffer prompt def require-match))
-            (remove-hook 'minibuffer-setup-hook persp-read-buffer-hook)))))))
+  "Support for standard read-buffer."
+  (cond
+   (ido-mode (ido-read-buffer prompt def require-match))
+   (iswitchb-mode (iswitchb-read-buffer prompt def require-match))
+   (t
+    (let* ((read-buffer-function nil)
+           (rb-completion-table (persp-complete-buffer))
+           (persp-read-buffer-hook
+            #'(lambda () (setq minibuffer-completion-table rb-completion-table))))
+      (unwind-protect
+          (progn
+            (add-hook 'minibuffer-setup-hook persp-read-buffer-hook t)
+            (read-buffer prompt def require-match))
+        (remove-hook 'minibuffer-setup-hook persp-read-buffer-hook))))))
 
 (defun persp-complete-buffer ()
-  "Complete buffer.
-If *persp-restrict-buffers-to* is 0 list buffers in perspective.
-If *persp-restrict-buffers-to* is 1 list all buffers
-except current perspective's buffers."
+  "Complete buffer."
   (lexical-let ((buffer-names-sorted
                  (if (get-frame-persp)
                      (mapcar #'buffer-name
-                             (if (= *persp-restrict-buffers-to* 0)
-                                 (persp-buffers (get-frame-persp))
-                               (set-difference
-                                (buffer-list)
-                                (persp-buffers (get-frame-persp)))))
+                             (case *persp-restrict-buffers-to*
+                               (0 (persp-buffers (get-frame-persp)))
+                               (1 (set-difference (buffer-list)
+                                                  (persp-buffers (get-frame-persp))))))
                    (mapcar #'buffer-name (buffer-list)))))
     (apply-partially 'completion-table-with-predicate
                      (or minibuffer-completion-table 'internal-complete-buffer)
