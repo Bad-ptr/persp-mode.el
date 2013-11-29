@@ -88,7 +88,8 @@
 (defgroup persp-mode nil
   "Customization of persp-mode."
   :prefix "persp-"
-  :group 'session)
+  :group 'session
+  :link '(url-link :tag "Github page" "https://github.com/Bad-ptr/persp-mode.el"))
 
 (defcustom persp-nil-name "none"
   "Name for nil perspective."
@@ -105,7 +106,7 @@ Autosave file saved and loaded to/from this directory."
   "Name of file for auto save/load perspectives on persp-mode
 deactivation or at emacs exit."
   :group 'persp-mode
-  :type '(choice (file :tag "File")))
+  :type 'string :tag "File")
 
 (defcustom persp-auto-save-opt 2
   "This variable controls autosave functionality of persp-mode:
@@ -148,7 +149,7 @@ otherwise with last activated perspective."
             (string-prefix-p "*" (buffer-name b))))
   "If one of this functions returns t - buffer will not be saved."
   :group 'persp-mode
-  :type '(list function))
+  :type '(repeat (function :tag "Function")))
 
 (defcustom persp-mode-hook nil
   "A hook that's run after `persp-mode' has been activated."
@@ -159,13 +160,13 @@ otherwise with last activated perspective."
   "A list of functions that's run after a perspective has been created.
 It's single argument is created persp."
   :group 'persp-mode
-  :type '(list function))
+  :type '(repeat (function :tag "Function")))
 
 (defcustom persp-before-kill-functions nil
   "A list of functions that's run just before a perspective is destroyed.
 It's single argument is persp that will be killed."
   :group 'persp-mode
-  :type '(list function))
+  :type '(repeat (function :tag "Function")))
 
 (defcustom persp-activated-hook nil
   "A hook that's run after a perspective has been activated.
@@ -186,7 +187,9 @@ Run with the activated perspective active."
   "A hash table containing perspectives")
 
 (defvar persp-interactive-completion-function
-  (if ido-mode #'ido-completing-read #'completing-read)
+  (cond (ido-mode      #'ido-completing-read)
+        (iswitchb-mode #'persp-iswitchb-completing-read)
+        (t             #'completing-read))
   "The function which is used by persp-mode.el
  to interactivly complete user input.")
 
@@ -546,7 +549,9 @@ Switch all frames with that perspective to another one.
 Return removed perspective."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil t t)))
+    (setq name (persp-prompt
+                (and (eq phash *persp-hash*) (safe-persp-name (get-frame-persp)))
+                t t)))
   (let ((persp (persp-get-by-name name phash))
         (persp-to-switch persp-nil-name))
     (persp-save-state persp)
@@ -697,7 +702,7 @@ Return that old buffer."
 (defun persp-kill (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil t)))
+    (setq name (persp-prompt (safe-persp-name (get-frame-persp)) t)))
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill 'nil' perspective\
 (It'l kill all buffers)?"))
@@ -713,7 +718,7 @@ Return that old buffer."
 (defun persp-kill-without-buffers (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil t)))
+    (setq name (persp-prompt (safe-persp-name (get-frame-persp)) t)))
   (when (not (string= name persp-nil-name))
     (let ((persp (gethash name *persp-hash* :+-123emptynooo))
           (cpersp (get-frame-persp)))
@@ -801,7 +806,7 @@ Return name."
   (find persp (delq exframe (persp-frame-list-without-daemon))
         :test #'(lambda (p f)
                   (and f p (if for-save
-                               (not (frame-parameter frame 'persp-ignore-wconf))
+                               (not (frame-parameter f 'persp-ignore-wconf))
                              t)
                        (eq p (get-frame-persp f))))))
 
@@ -841,6 +846,15 @@ Return name."
              (persp-names-sorted))
            nil require-match nil nil default))
 
+
+(defun persp-iswitchb-completing-read (prompt choices
+                                              &optional predicate require-match
+                                              initial-input hist def inherit-input-method)
+  "Support for iswitchb-mode."
+  (let ((iswitchb-make-buflist-hook
+         #'(lambda ()
+             (setq iswitchb-temp-buflist choices))))
+    (iswitchb-read-buffer prompt def require-match initial-input nil)))
 
 (defun persp-iswitchb-filter-buflist ()
   "Support for iswitchb-mode."

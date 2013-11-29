@@ -5,7 +5,7 @@ Perspectives for emacs, based on [`perspective-el`](http://github.com/nex3/persp
 But perspectives shared among frames \+ ability to save/restore from/to file.  
 
 ## Installation
-persp-mode is available on [`melpa`](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
+persp-mode is available from [`melpa`](https://github.com/milkypostman/melpa). So if you use this repo installation is easy:  
 `M-x: package-install RET persp-mode RET`  
 Alternatively you can download persp-mode.el from [`github`](https://github.com/Bad-ptr/persp-mode.el) and install it with:  
 `M-x: package-install-file RET 'path_to_where_you_saved_persp-mode.el' RET`  
@@ -46,7 +46,7 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 
 ## Troubles:
 When you create new frame(with `emacsclient -c` for example)
-the selected window of created frame is switching to `*scratch*` buffer. This behaviour fixed in emacs version >= 24.4(also if you build emacs from trunk).
+the selected window of created frame is switching to `*scratch*` buffer. This behaviour fixed in emacs version >= 24.4(and in current emacs trunk).
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
 (or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(this works for emacs 24.3 at least):  
 replace  
