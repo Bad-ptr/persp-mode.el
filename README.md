@@ -31,6 +31,17 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 ## Customization
 `M-x: customize-group RET persp-mode RET`  
 
+
+## Interaction with side packages
+
+### Speedbar
+```lisp
+(add-to-list 'speedbar-frame-parameters (cons 'persp-ignore-wconf t))
+```
+
+### Ibuffer
+[gist](https://gist.github.com/Bad-ptr/7644606)
+
 ---
 
 ## Troubles:
@@ -39,23 +50,25 @@ the selected window of created frame is switching to `*scratch*` buffer. This be
 Alternatively you can save `server.el` from `/usr/share/emacs/${your_emacs_version_number}/lisp/`
 (or from source tree, or from somewhere else) to directory in your `load-path` and edit it like that(this works for emacs 24.3 at least):  
 replace  
-
-    (unless (or files commands)
-             (if (stringp initial-buffer-choice)
-             (find-file initial-buffer-choice)
-           	(switch-to-buffer (get-buffer-create "*scratch*")
-           		  'norecord)))
+```lisp
+(unless (or files commands)
+  (if (stringp initial-buffer-choice)
+      (find-file initial-buffer-choice)
+    (switch-to-buffer (get-buffer-create "*scratch*")
+                      'norecord)))
+```
 
 by  
 
-    (unless (or files commands)
-      (let ((buf
-        	 (cond ((stringp initial-buffer-choice)
-      (find-file-noselect initial-buffer-choice))
-     ((functionp initial-buffer-choice)
-      (funcall initial-buffer-choice)))))
+```lisp
+(unless (or files commands)
+  (let ((buf
+         (cond ((stringp initial-buffer-choice)
+                (find-file-noselect initial-buffer-choice))
+               ((functionp initial-buffer-choice)
+                (funcall initial-buffer-choice)))))
     (switch-to-buffer
      (if (buffer-live-p buf) buf (get-buffer-create "*scratch*"))
      'norecord)))
-
+```
 and set variable `persp-is-ibc-as-f-supported` to `t`.
