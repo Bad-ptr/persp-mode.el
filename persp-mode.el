@@ -325,11 +325,11 @@ otherwise nil.")
   "Toggle perspective mode.
 When active, keeps track of multiple 'perspectives',
 named collections of buffers and window configurations."
-  :require 'persp-mode
-  :group 'persp-mode
-  :keymap persp-mode-map
+  :require    'persp-mode
+  :group      'persp-mode
+  :keymap     persp-mode-map
   :init-value nil
-  :global t
+  :global     t
   :lighter (:eval (format "%s%.5s" " #"
                           (safe-persp-name (get-frame-persp))))
   (if persp-mode
@@ -338,13 +338,11 @@ named collections of buffers and window configurations."
                    (null (cdr (frame-list)))
                    (eq (selected-frame) terminal-frame)))
           (progn
-            (persp-hook-once
-                'after-make-frame-functions (frame)
-                (run-at-time 3 nil
-                             #'(lambda () (persp-mode))))
+            (persp-hook-once 'after-make-frame-functions (frame)
+                             (persp-mode))
             (setq persp-mode nil))
 
-        (setf *persp-hash* (make-hash-table :test 'equal :size 10))
+        (setq *persp-hash* (make-hash-table :test 'equal :size 10))
         (persp-add-minor-mode-menu)
         (persp-add-new persp-nil-name)
 
@@ -369,18 +367,13 @@ named collections of buffers and window configurations."
 
         (when (fboundp 'tabbar-mode)
           (setq tabbar-buffer-list-function
-                #'(lambda () (let ((p (get-frame-persp)))
-                               (if p
-                                   (persp-buffers p)
-                                 (tabbar-buffer-list))))))
+                #'(lambda () (safe-persp-buffers (get-frame-persp)))))
 
         (when (fboundp 'iswitchb-mode)
           (add-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
 
         (when persp-auto-resume
-          (persp-load-state-from-file))
-
-        (run-hooks 'persp-mode-hook))
+          (run-at-time 3 nil #'(lambda () (persp-load-state-from-file)))))
 
     (when (> persp-auto-save-opt 1)
       (persp-save-state-to-file))
@@ -1042,10 +1035,11 @@ of perspective %s can't be saved."
       (rename-file fname (concat fname (number-to-string 1)) t)))
   (write-file fname nil))
 
-(defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname))
+(defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname)
+                                            (phash *persp-hash*))
   (interactive (list (read-file-name "Save perspectives to file: "
                                      persp-save-dir)))
-  (when fname
+  (when (and fname phash)
     (let* ((p-save-dir (or (file-name-directory fname)
                            (expand-file-name persp-save-dir)))
            (p-save-file (concat p-save-dir "/" (file-name-base fname))))
@@ -1065,7 +1059,7 @@ does not exist or not a directory %S."
           (goto-char (point-min))
           (insert (let ((print-length nil)
                         (print-level nil))
-                    (prin1-to-string (persps-to-savelist *persp-hash*))))
+                    (prin1-to-string (persps-to-savelist phash))))
           (persp-save-with-backups p-save-file))))))
 
 
@@ -1109,14 +1103,19 @@ does not exist or not a directory %S."
                             (string= fname (buffer-file-name buf)))
                         buf
                       (if (file-exists-p fname)
-                          (find-file-noselect fname)
+                          (setq buf (find-file-noselect fname))
                         (message "[persp-mode] Warning: File %s no longer exists." fname)
-                        buf))
+                        (setq buf nil)))
                   (if (and fname (file-exists-p fname))
-                      (find-file-noselect fname)
+                      (setq buf (find-file-noselect fname))
                     (when fname
                       (message "[persp-mode] Warning: File %s no longer exists." fname))
-                    (get-buffer-create name)))))))
+                    (setq buf (get-buffer-create name))))
+                (when (buffer-live-p buf)
+                  (with-current-buffer buf
+                    (typecase mode
+                      (function (funcall mode)))))
+                buf))))
     (mapcar #'(lambda (db) (persp-car-as-fun-cdr-as-args db 3))
             savelist)))
 
