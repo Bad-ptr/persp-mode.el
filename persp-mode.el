@@ -37,10 +37,22 @@
 
 ;; Installation:
 
-;; Put this file into your load-path,
-;; add (require 'persp-mode) (persp-mode t) into your ~/.emacs.
-;; To be able to save/restore window configurations to/from file you
-;; need workgroups.el
+;; From MELPA: M-x package-install RET persp-mode RET
+;; From file: M-x package-install-file RET 'path to this file' RET
+;; Or put this file into your load-path.
+
+;; Configuration:
+
+;; When installed through package-install:
+;; (with-eval-after-load "persp-mode-autoloads"
+;;   (setq wg-morph-on nil) ;; switch off animation of restoring window configuration
+;;   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
+
+;; When installed without generating autoloads file:
+;; (with-eval-after-load "persp-mode"
+;;   (setq wg-morph-on nil)
+;;   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
+;; (require 'persp-mode)
 
 ;; Dependencies:
 
@@ -199,7 +211,7 @@ Must be used only for local rebinding.
 0 -- restrict to perspective buffers
 1 -- restrict to all buffers except that already in perspective.")
 
-(defvar persp-saved-read-buffer-function nil
+(defvar persp-saved-read-buffer-function #'read-buffer-function
   "Save read-buffer-function to restore it on mode deactivation.")
 
 (defvar persp-nil-wconf nil
@@ -353,14 +365,14 @@ named collections of buffers and window configurations."
         (ad-activate #'display-buffer)
         (ad-activate #'kill-buffer)
 
-        (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
-        (add-hook 'delete-frame-functions      #'persp-delete-frame)
-        (add-hook 'server-switch-hook          #'persp-server-switch)
-        (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-        (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+        (add-hook 'after-make-frame-functions #'persp-init-new-frame)
+        (add-hook 'delete-frame-functions     #'persp-delete-frame)
+        (add-hook 'server-switch-hook         #'persp-server-switch)
+        (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
+        (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
-        (setq persp-saved-read-buffer-function read-buffer-function)
-        (setq read-buffer-function #'persp-read-buffer)
+        (setq persp-saved-read-buffer-function #'read-buffer-function)
+        (setq read-buffer-function             #'persp-read-buffer)
 
         (mapc #'persp-init-frame
               (persp-frame-list-without-daemon))
@@ -385,13 +397,13 @@ named collections of buffers and window configurations."
     (ad-disable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
     ;;(ad-deactivate-regexp "^persp-.*")
 
-    (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
-    (remove-hook 'delete-frame-functions      #'persp-delete-frame)
-    (remove-hook 'server-switch-hook          #'persp-server-switch)
-    (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-    (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+    (remove-hook 'after-make-frame-functions #'persp-init-new-frame)
+    (remove-hook 'delete-frame-functions     #'persp-delete-frame)
+    (remove-hook 'server-switch-hook         #'persp-server-switch)
+    (remove-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
+    (remove-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
-    (setq read-buffer-function persp-saved-read-buffer-function)
+    (setq read-buffer-function #'persp-saved-read-buffer-function)
 
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
@@ -436,10 +448,13 @@ instead content of this buffer is erased.")
                   (erase-buffer)
                   (setq ad-return-value nil))
               (let ((persps (persp-persps-with-buffer-except-nil buffer persp))
-                    (windows (get-buffer-window-list buffer 0 t)))
+                    (windows (get-buffer-window-list buffer 0 t))
+                    (pbcontain (memq buffer (safe-persp-buffers persp))))
                 (persp-remove-buffer buffer persp t)
-                (if (and persp persps)
+                (if (and persp persps pbcontain)
                     (setq ad-return-value nil)
+                  (unless (or (not persp) pbcontain)
+                    (persp-remove-buffer buffer nil t))
                   (if ad-do-it
                       (setq ad-return-value t)
                     (mapc #'(lambda (p)
@@ -774,9 +789,7 @@ Return name."
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
                                  persp-last-persp-name)
                             persp-nil-name) *persp-hash* :+-123emptynooo)))
-    (modify-frame-parameters
-     frame
-     '((persp . nil)))
+    (modify-frame-parameters frame '((persp . nil)))
     (when (eq persp :+-123emptynooo)
       (setq persp (persp-add-new persp-nil-name)))
     (persp-activate persp frame new-frame)))
@@ -920,31 +933,35 @@ Return name."
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
                                              new-frame)
+  (sit-for 0)
   (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
-    (with-selected-frame frame
-      (let ((pwc (safe-persp-window-conf persp))
-            (split-width-threshold 8)
-            (split-height-threshold 8)
-            gratio)
-        (delete-other-windows)
-        (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
-          (setq gratio t)
-          (golden-ratio-mode -1))
-        (if pwc
-            (let ((*persp-add-on-switch-or-display* nil))
-              (if (not (fboundp 'wg-restore-wconfig))
-                  (window-state-put pwc (frame-root-window frame) t)
-                (wg-restore-wconfig pwc)))
-          (persp-revive-scratch persp t))
+    (let ((gratio))
+      (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
+        (setq gratio t)
+        (golden-ratio)
+        (golden-ratio-mode -1))
+      (unwind-protect
+          (with-selected-frame frame
+            (let ((pwc (safe-persp-window-conf persp))
+                  (split-width-threshold 0)
+                  (split-height-threshold 0))
+              (if pwc
+                  (let ((*persp-add-on-switch-or-display* nil))
+                    (delete-other-windows)
+                    (if (not (fboundp 'wg-restore-wconfig))
+                        (window-state-put pwc (frame-root-window frame) t)
+                      (wg-restore-wconfig pwc)))
+                (persp-revive-scratch persp t))
+              (when persp-is-ibc-as-f-supported
+                (if new-frame
+                    (lexical-let ((cbuf (current-buffer)))
+                      (setq initial-buffer-choice
+                            #'(lambda () (setq initial-buffer-choice nil) cbuf)))
+                  (when (functionp initial-buffer-choice)
+                    (switch-to-buffer (funcall initial-buffer-choice)))))))
         (when gratio
-          (golden-ratio-mode t))
-        (when persp-is-ibc-as-f-supported
-          (if new-frame
-              (lexical-let ((cbuf (current-buffer)))
-                (setq initial-buffer-choice
-                      #'(lambda () (setq initial-buffer-choice nil) cbuf)))
-            (when (functionp initial-buffer-choice)
-              (switch-to-buffer (funcall initial-buffer-choice)))))))))
+          (golden-ratio-mode 1))))))
+
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
   (let ((persp (get-frame-persp frame)))
@@ -1075,9 +1092,7 @@ does not exist or not a directory %S."
 (defsubst persp-update-frames-window-confs ()
   (persp-preserve-frame
    (mapc #'(lambda (f)
-             (select-frame f)
-             (delete-other-windows)
-             (persp-restore-window-conf))
+             (persp-restore-window-conf f))
          (persp-frame-list-without-daemon))))
 
 (defmacro persp-car-as-fun-cdr-as-args (lst n-args &rest body)
@@ -1114,7 +1129,8 @@ does not exist or not a directory %S."
                 (when (buffer-live-p buf)
                   (with-current-buffer buf
                     (typecase mode
-                      (function (funcall mode)))))
+                      (function (unless (eq major-mode mode)
+                                  (funcall mode))))))
                 buf))))
     (mapcar #'(lambda (db) (persp-car-as-fun-cdr-as-args db 3))
             savelist)))
@@ -1146,8 +1162,7 @@ does not exist or not a directory %S."
     (persp-car-as-fun-cdr-as-args savelist (>= . 3))))
 
 (defun persps-from-savelist (savelist phash)
-  (mapc #'(lambda (pd) (persp-from-savelist pd phash))
-        savelist))
+  (mapc #'(lambda (pd) (persp-from-savelist pd phash)) savelist))
 
 (defun* persp-load-state-from-file (&optional (fname persp-auto-save-fname))
   (interactive (list (read-file-name "Load perspectives from file: "
