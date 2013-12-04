@@ -933,8 +933,9 @@ Return name."
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
                                              new-frame)
-  (sit-for 0)
   (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
+    (when new-frame
+      (sit-for 0))
     (let ((gratio))
       (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
         (setq gratio t)
@@ -1129,7 +1130,8 @@ does not exist or not a directory %S."
                 (when (buffer-live-p buf)
                   (with-current-buffer buf
                     (typecase mode
-                      (function (unless (eq major-mode mode)
+                      (function (when (and (not (eq major-mode mode))
+                                           (not (eq major-mode 'not-loaded-yet)))
                                   (funcall mode))))))
                 buf))))
     (mapcar #'(lambda (db) (persp-car-as-fun-cdr-as-args db 3))
