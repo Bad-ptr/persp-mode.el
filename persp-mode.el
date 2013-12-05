@@ -87,7 +87,8 @@
 
 (when (locate-library "workgroups.el")
   (require 'workgroups))
-
+(unless (boundp 'iswitchb-mode)
+  (setq iswitchb-mode nil))
 
 ;; Customization variables:
 
@@ -155,10 +156,8 @@ otherwise with last activated perspective."
   :type 'boolean)
 
 (defcustom persp-filter-save-buffers-functions
-  (list #'(lambda (b)
-            (string-prefix-p " " (buffer-name b)))
-        #'(lambda (b)
-            (string-prefix-p "*" (buffer-name b))))
+  (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
+        #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
   "If one of this functions returns t - buffer will not be saved."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
@@ -260,23 +259,19 @@ otherwise nil.")
   (parameters nil))
 
 (defun safe-persp-name (p)
-  (if p
-      (persp-name p)
+  (if p (persp-name p)
     persp-nil-name))
 
 (defun safe-persp-buffers (p)
-  (if p
-      (persp-buffers p)
+  (if p (persp-buffers p)
     (buffer-list)))
 
 (defun safe-persp-window-conf (p)
-  (if p
-      (persp-window-conf p)
+  (if p (persp-window-conf p)
     persp-nil-wconf))
 
 (defun safe-persp-parameters (p)
-  (if p
-      (persp-parameters p)
+  (if p (persp-parameters p)
     persp-nil-parameters))
 
 (defun* modify-persp-parameters (alist &optional (persp (get-frame-persp)))
@@ -351,7 +346,7 @@ named collections of buffers and window configurations."
                    (eq (selected-frame) terminal-frame)))
           (progn
             (persp-hook-once 'after-make-frame-functions (frame)
-                             (persp-mode))
+                             (persp-mode 1))
             (setq persp-mode nil))
 
         (setq *persp-hash* (make-hash-table :test 'equal :size 10))
@@ -374,8 +369,7 @@ named collections of buffers and window configurations."
         (setq persp-saved-read-buffer-function #'read-buffer-function)
         (setq read-buffer-function             #'persp-read-buffer)
 
-        (mapc #'persp-init-frame
-              (persp-frame-list-without-daemon))
+        (mapc #'persp-init-frame (persp-frame-list-without-daemon))
 
         (when (fboundp 'tabbar-mode)
           (setq tabbar-buffer-list-function
@@ -387,8 +381,7 @@ named collections of buffers and window configurations."
         (when persp-auto-resume
           (run-at-time 3 nil #'(lambda () (persp-load-state-from-file)))))
 
-    (when (> persp-auto-save-opt 1)
-      (persp-save-state-to-file))
+    (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
 
     (customize-save-variable 'persp-nil-name persp-nil-name)
 
@@ -663,8 +656,7 @@ into current."
 (defun* persp-import-buffers-from (persp-from
                                    &optional (persp-to (get-frame-persp)))
   (if persp-to
-      (mapc #'(lambda (b)
-                (persp-add-buffer b persp-to))
+      (mapc #'(lambda (b) (persp-add-buffer b persp-to))
             (safe-persp-buffers persp-from))
     (message "[persp-mode] Error: Can't import buffers to 'nil' perspective. Cause it already contains all buffers.")))
 
@@ -704,8 +696,7 @@ Return that old buffer."
 (defsubst* persp-filter-out-bad-buffers (&optional (persp (get-frame-persp)))
   ;; filter out killed buffers
   (when persp
-    (delete-if-not #'buffer-live-p
-                   (persp-buffers persp))))
+    (delete-if-not #'buffer-live-p (persp-buffers persp))))
 
 (defun persp-kill (name)
   (interactive "i")
@@ -777,7 +768,8 @@ Return name."
 (defun* persp-activate (persp
                         &optional (frame (selected-frame)) new-frame)
   (when frame
-    (persp-save-state persp frame)
+    (when new-frame
+      (persp-save-state persp frame))
     (setq persp-last-persp-name (safe-persp-name persp))
     (set-frame-persp persp frame)
     (persp-restore-window-conf frame persp new-frame)
@@ -808,13 +800,15 @@ Return name."
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
-                                               (for-save nil))
-  (find persp (delq exframe (persp-frame-list-without-daemon))
-        :test #'(lambda (p f)
-                  (and f p (if for-save
-                               (not (frame-parameter f 'persp-ignore-wconf))
-                             t)
-                       (eq p (get-frame-persp f))))))
+                                               for-save)
+  (let* ((flist (delq exframe (persp-frame-list-without-daemon)))
+         (pos (position persp flist
+                        :test #'(lambda (p f)
+                                  (if for-save
+                                      (not (frame-parameter f 'persp-ignore-wconf))
+                                    t)
+                                  (and f (eq p (get-frame-persp f)))))))
+    (and pos (elt flist pos))))
 
 
 ;; Helper funcs:
@@ -858,8 +852,7 @@ Return name."
                                               initial-input hist def inherit-input-method)
   "Support for iswitchb-mode."
   (let ((iswitchb-make-buflist-hook
-         #'(lambda ()
-             (setq iswitchb-temp-buflist choices))))
+         #'(lambda () (setq iswitchb-temp-buflist choices))))
     (iswitchb-read-buffer prompt def require-match initial-input nil)))
 
 (defun persp-iswitchb-filter-buflist ()
@@ -934,8 +927,7 @@ Return name."
                                              (persp (get-frame-persp frame))
                                              new-frame)
   (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
-    (when new-frame
-      (sit-for 0))
+    (when new-frame (sit-for 0))
     (let ((gratio))
       (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
         (setq gratio t)
@@ -960,8 +952,7 @@ Return name."
                             #'(lambda () (setq initial-buffer-choice nil) cbuf)))
                   (when (functionp initial-buffer-choice)
                     (switch-to-buffer (funcall initial-buffer-choice)))))))
-        (when gratio
-          (golden-ratio-mode 1))))))
+        (when gratio (golden-ratio-mode 1))))))
 
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)))
@@ -975,22 +966,20 @@ Return name."
 
 (defun* persp-save-state (&optional (persp (get-frame-persp)) exfr)
   (let ((frame (selected-frame)))
-    (unless (eq persp (get-frame-persp frame))
+    (when (eq frame exfr) (setq frame nil))
+    (unless (and frame (eq persp (get-frame-persp frame)))
       (setq frame (find-other-frame-with-persp persp exfr t)))
-    (when frame
-      (persp-frame-save-state frame))))
+    (when frame (persp-frame-save-state frame))))
 
 (defun* persp-window-state-get (frame
                                 &optional (rwin (frame-root-window frame)))
   (when frame
     (if (fboundp 'wg-make-wconfig)
-        (with-selected-frame frame
-          (wg-make-wconfig))
+        (with-selected-frame frame (wg-make-wconfig))
       (window-state-get rwin))))
 
 (defsubst persp-save-all-persps-state ()
-  (mapc #'persp-save-state
-        (persp-persps)))
+  (mapc #'persp-save-state (persp-persps)))
 
 
 ;; Save funcs
@@ -1092,8 +1081,7 @@ does not exist or not a directory %S."
 
 (defsubst persp-update-frames-window-confs ()
   (persp-preserve-frame
-   (mapc #'(lambda (f)
-             (persp-restore-window-conf f))
+   (mapc #'(lambda (f) (persp-restore-window-conf f))
          (persp-frame-list-without-daemon))))
 
 (defmacro persp-car-as-fun-cdr-as-args (lst n-args &rest body)
