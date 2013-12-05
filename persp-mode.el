@@ -927,7 +927,7 @@ Return name."
                                              (persp (get-frame-persp frame))
                                              new-frame)
   (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
-    (when new-frame (sit-for 0))
+    (when new-frame (sit-for 0.01))
     (let ((gratio))
       (when (and (fboundp 'golden-ratio-mode) golden-ratio-mode)
         (setq gratio t)
