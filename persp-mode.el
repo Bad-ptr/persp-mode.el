@@ -155,6 +155,9 @@ otherwise with last activated perspective."
   :group 'persp-mode
   :type 'boolean)
 
+(defvar persp-add-on-switch-or-display nil
+  "If not nil then add buffer to persp on switch-to-buffer and display-buffer.")
+
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
         #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
@@ -202,22 +205,22 @@ Run with the activated perspective active."
         (iswitchb-mode #'persp-iswitchb-completing-read)
         (t             #'completing-read))
   "The function which is used by persp-mode.el
- to interactivly complete user input.")
+to interactivly complete user input.")
 
 (defvar *persp-restrict-buffers-to* 0
-  "Global var for control behaviour of persp-restrict-ido-buffers.
-Must be used only for local rebinding.
-0 -- restrict to perspective buffers
-1 -- restrict to all buffers except that already in perspective.")
+  "Global var for control behaviour of persp-buffer-list-restricted
+(Must be used only for local rebinding):
+0 -- restrict to perspective buffers;
+1 -- restrict to buffers that not in current perspective.")
 
 (defvar persp-saved-read-buffer-function #'read-buffer-function
   "Save read-buffer-function to restore it on mode deactivation.")
 
 (defvar persp-nil-wconf nil
-  "Window configuration for 'nil' persp.")
+  "Window configuration for `nil' persp.")
 
 (defvar persp-nil-parameters nil
-  "Parameters of 'nil' persp.")
+  "Parameters of `nil' persp.")
 
 (defvar persp-last-persp-name persp-nil-name
   "Last perspective. New frame will be created with that perspective.
@@ -231,8 +234,6 @@ Must be used only for local rebinding.
   "t if initial-buffer-choice as function is supported in your emacs,
 otherwise nil.")
 
-(defvar *persp-add-on-switch-or-display* t
-  "If not nil then add buffer to persp on switch-to-buffer and display-buffer.")
 
 
 ;; Key bindings:
@@ -241,7 +242,7 @@ otherwise nil.")
 (define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
 (define-key persp-mode-map (kbd "C-x x c") #'persp-kill)
 (define-key persp-mode-map (kbd "C-x x a") #'persp-add-buffer)
-(define-key persp-mode-map (kbd "C-x x t") #'persp-temporary-display-buffer)
+(define-key persp-mode-map (kbd "C-x x t") #'persp-temporarily-display-buffer)
 (define-key persp-mode-map (kbd "C-x x i") #'persp-import-buffers)
 (define-key persp-mode-map (kbd "C-x x k") #'persp-remove-buffer)
 (define-key persp-mode-map (kbd "C-x x w") #'persp-save-state-to-file)
@@ -410,7 +411,7 @@ named collections of buffers and window configurations."
 
 (defadvice switch-to-buffer (after persp-add-buffer-adv)
   ;; We must add buffer to some perspective if we want to display it.
-  (when (and *persp-add-on-switch-or-display*
+  (when (and persp-add-on-switch-or-display
              persp-mode ad-return-value)
     (let ((buf (ad-get-arg 0)))
       (when buf
@@ -418,7 +419,7 @@ named collections of buffers and window configurations."
 
 (defadvice display-buffer (after persp-add-buffer-adv)
   ;; We must add buffer to some perspective if we want to display it.
-  (when (and *persp-add-on-switch-or-display*
+  (when (and persp-add-on-switch-or-display
              persp-mode ad-return-value)
     (let ((buf (ad-get-arg 0)))
       (when buf
@@ -428,7 +429,7 @@ named collections of buffers and window configurations."
   ;; We must remove buffer from perspective before killing it.
   ;; If buffer belongs to more than one perspective, just remove it from
   ;; current perspective and don't kill it. If there is no current perspective
-  ;; (or no current frame) remove buffer from all perspectives." 
+  ;; (or no current frame) remove buffer from all perspectives."
   (if persp-mode
       (let ((buffer (or (persp-get-buffer-or-null b)
                         (current-buffer)))
@@ -452,7 +453,9 @@ instead content of this buffer is erased.")
                       (setq ad-return-value t)
                     (mapc #'(lambda (p)
                               (persp-add-buffer buffer p nil))
-                          (cons persp persps))
+                          (if pbcontain
+                              (cons persp persps)
+                            persps))
                     (mapc #'(lambda (w)
                               (set-window-buffer w buffer))
                           windows)
@@ -494,12 +497,12 @@ instead content of this buffer is erased.")
              phash)
     ret))
 
-(defun* persp-get-by-name (name &optional (phash *persp-hash*) (defolt nil))
-  (gethash name phash defolt))
+(defun* persp-get-by-name (name &optional (phash *persp-hash*) default)
+  (gethash name phash default))
 
 
 (defsubst* persp-names-sorted (&optional (phash *persp-hash*))
-  (sort (persp-names phash) 'string<))
+  (sort (persp-names phash) #'string<))
 
 (defun* persp-persps (&optional (phash *persp-hash*))
   (let ((ret nil))
@@ -522,7 +525,6 @@ instead content of this buffer is erased.")
   (delete-if-not #'(lambda (f)
                      (eq persp (get-frame-persp f)))
                  (persp-frame-list-without-daemon)))
-
 
 (defsubst* persp-revive-scratch
     (&optional (persp (get-frame-persp))
@@ -604,13 +606,15 @@ with empty string as name.")
       (switch-to-buffer buffer))
     buffer))
 
-(defun* persp-temporary-display-buffer (buff-or-name)
+(defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1))
-                  (read-buffer "Temporary display buffer(not add to current persp): "))))
+                  (read-buffer "Temporarily display buffer, not adding it to current persp: "
+                               (current-buffer)))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name))
-        (*persp-add-on-switch-or-display* nil))
-    (switch-to-buffer buffer t)))
+        (persp-add-on-switch-or-display nil))
+    (when buffer
+      (switch-to-buffer buffer t))))
 
 (defun* persp-remove-buffer (buff-or-name
                              &optional (persp (get-frame-persp)) noask-to-remall noswitch)
@@ -682,7 +686,6 @@ or return perspective's scratch."
 to some previous buffer in perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
-    (persp-revive-scratch persp nil)
     (mapc #'(lambda (w)
               (set-window-buffer
                w (persp-get-buffer
@@ -847,6 +850,11 @@ Return name."
            nil require-match nil nil default))
 
 
+(defun* persp-buffer-list-restricted (&optional (option *persp-restrict-buffers-to*))
+  (case option
+    (0 (safe-persp-buffers (get-frame-persp)))
+    (1 (set-difference (buffer-list) (safe-persp-buffers (get-frame-persp))))))
+
 (defun persp-iswitchb-completing-read (prompt choices
                                               &optional predicate require-match
                                               initial-input hist def inherit-input-method)
@@ -858,24 +866,14 @@ Return name."
 (defun persp-iswitchb-filter-buflist ()
   "Support for iswitchb-mode."
   (when (get-frame-persp)
-    (setq iswitchb-temp-buflist
-          (case *persp-restrict-buffers-to*
-            (0 (setq iswitchb-temp-buflist
-                     (persp-buffers (get-frame-persp))))
-            (1 (setq iswitchb-temp-buflist
-                     (set-difference (buffer-list)
-                                     (persp-buffers (get-frame-persp)))))))))
+    (setq iswitchb-temp-buflist (persp-buffer-list-restricted))))
 
 
 (defun persp-restrict-ido-buffers ()
   "Support for ido-mode."
   (when (get-frame-persp)
     (let ((buffer-names-sorted
-           (mapcar #'buffer-name
-                   (case *persp-restrict-buffers-to*
-                     (0 (persp-buffers (get-frame-persp)))
-                     (1 (set-difference (buffer-list)
-                                        (persp-buffers (get-frame-persp)))))))
+           (mapcar #'buffer-name (persp-buffer-list-restricted)))
           (indices (make-hash-table)))
       (let ((i 0))
         (dolist (elt ido-temp-list)
@@ -906,14 +904,8 @@ Return name."
 (defun persp-complete-buffer ()
   "Complete buffer."
   (lexical-let ((buffer-names-sorted
-                 (if (get-frame-persp)
-                     (mapcar #'buffer-name
-                             (case *persp-restrict-buffers-to*
-                               (0 (persp-buffers (get-frame-persp)))
-                               (1 (set-difference (buffer-list)
-                                                  (persp-buffers (get-frame-persp))))))
-                   (mapcar #'buffer-name (buffer-list)))))
-    (apply-partially 'completion-table-with-predicate
+                 (mapcar #'buffer-name (persp-buffer-list-restricted))))
+    (apply-partially #'completion-table-with-predicate
                      (or minibuffer-completion-table 'internal-complete-buffer)
                      #'(lambda (name)
                          (member (if (consp name) (car name) name)
@@ -939,12 +931,12 @@ Return name."
                   (split-width-threshold 0)
                   (split-height-threshold 0))
               (if pwc
-                  (let ((*persp-add-on-switch-or-display* nil))
+                  (let ((persp-add-on-switch-or-display nil))
                     (delete-other-windows)
                     (if (not (fboundp 'wg-restore-wconfig))
                         (window-state-put pwc (frame-root-window frame) t)
                       (wg-restore-wconfig pwc)))
-                (persp-revive-scratch persp t))
+                (persp-revive-scratch persp nil))
               (when persp-is-ibc-as-f-supported
                 (if new-frame
                     (lexical-let ((cbuf (current-buffer)))
