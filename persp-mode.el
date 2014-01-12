@@ -155,8 +155,16 @@ otherwise with last activated perspective."
   :group 'persp-mode
   :type 'boolean)
 
-(defvar persp-add-on-switch-or-display nil
-  "If not nil then add buffer to persp on switch-to-buffer and display-buffer.")
+(defcustom persp-add-on-switch-or-display nil
+  "If not nil then add buffer to persp on switch-to-buffer and display-buffer.
+This variable and switch/display-buffer advices will be removed in next version."
+  :group 'persp-mode
+  :type 'boolean)
+
+(defcustom persp-add-buffer-on-find-file t
+  "If t -- add buffer with opened file to current perspective."
+  :group 'persp-mode
+  :type 'boolean)
 
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
@@ -361,6 +369,7 @@ named collections of buffers and window configurations."
         (ad-activate #'display-buffer)
         (ad-activate #'kill-buffer)
 
+        (add-hook 'find-file-hook             #'persp-add-or-not-on-find-file)
         (add-hook 'after-make-frame-functions #'persp-init-new-frame)
         (add-hook 'delete-frame-functions     #'persp-delete-frame)
         (add-hook 'server-switch-hook         #'persp-server-switch)
@@ -391,6 +400,7 @@ named collections of buffers and window configurations."
     (ad-disable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
     ;;(ad-deactivate-regexp "^persp-.*")
 
+    (remove-hook 'find-file-hook             #'persp-add-or-not-on-find-file)
     (remove-hook 'after-make-frame-functions #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions     #'persp-delete-frame)
     (remove-hook 'server-switch-hook         #'persp-server-switch)
@@ -448,7 +458,7 @@ instead content of this buffer is erased.")
                 (if (and persp persps pbcontain)
                     (setq ad-return-value nil)
                   (unless (or (not persp) pbcontain)
-                    (persp-remove-buffer buffer nil t))
+                    (persp-remove-buffer buffer nil t t))
                   (if ad-do-it
                       (setq ad-return-value t)
                     (mapc #'(lambda (p)
@@ -463,6 +473,9 @@ instead content of this buffer is erased.")
           ad-do-it))
     ad-do-it))
 
+(defun persp-add-or-not-on-find-file ()
+  (when persp-add-buffer-on-find-file
+    (persp-add-buffer (current-buffer))))
 
 ;; Misc funcs:
 
@@ -597,7 +610,7 @@ with empty string as name.")
                           (switchorno persp-switch-to-added-buffer))
   (interactive
    (list (let ((*persp-restrict-buffers-to* 1))
-           (read-buffer "Add buffer to perspective: "))))
+           (read-buffer "Add buffer to perspective: " (current-buffer)))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
                (null (persp-contain-buffer-p buffer persp)))
@@ -609,8 +622,7 @@ with empty string as name.")
 (defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1))
-                  (read-buffer "Temporarily display buffer, not adding it to current persp: "
-                               (current-buffer)))))
+                  (read-buffer "Temporarily display buffer, not adding it to current persp: "))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name))
         (persp-add-on-switch-or-display nil))
     (when buffer
@@ -623,7 +635,7 @@ to another one. If persp is nil -- remove buffer from all perspectives.
 Return removed buffer."
   (interactive
    (list
-    (read-buffer "Remove buffer from perspective: ")))
+    (read-buffer "Remove buffer from perspective: " (current-buffer))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (buffer-live-p buffer)
       (bury-buffer buffer))    
@@ -689,8 +701,10 @@ Return that old buffer."
     (mapc #'(lambda (w)
               (set-window-buffer
                w (persp-get-buffer
-                  (first (intersection (safe-persp-buffers persp)
-                                       (window-prev-buffers w))) persp)))
+                  (car-safe
+                   (first (intersection (window-prev-buffers w)
+                                        (safe-persp-buffers persp)
+                                        :test #'(lambda (a b) (eq (car a) b))))) persp)))
           (delete-if-not #'(lambda (w)
                              (eq (get-frame-persp (window-frame w)) persp))
                          (get-buffer-window-list old-buf nil t)))
@@ -1091,7 +1105,8 @@ does not exist or not a directory %S."
               'result))))))
 
 (defun persp-buffers-from-savelist (savelist)
-  (let ((def-buffer
+  (let ((persp-add-buffer-on-find-file nil)
+        (def-buffer
           #'(lambda (name fname mode)
               (let ((buf (persp-get-buffer-or-null name)))
                 (if (buffer-live-p buf)
