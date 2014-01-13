@@ -619,6 +619,21 @@ with empty string as name.")
       (switch-to-buffer buffer))
     buffer))
 
+(defun* persp-add-buffers-by-regexp (regexp &optional (persp (get-frame-persp)))
+  (interactive "sRegexp: ")
+  (when persp
+    (let (buflist)
+      (mapc #'(lambda (b)
+                (when (string-match-p regexp (buffer-name b))
+                  (push (buffer-name b) buflist)))
+            (buffer-list))
+      (when (and buflist
+                 (y-or-n-p (format "Add these buffers:\n %s ?\n"
+                                   (mapconcat 'identity buflist "\n"))))
+        (mapc #'(lambda (b)
+                  (persp-add-buffer b persp nil))
+              buflist)))))
+
 (defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1))
@@ -653,6 +668,21 @@ Return removed buffer."
                 buffer
               (switchto-prev-buf-in-persp buffer persp)))
         nil))))
+
+(defun* persp-remove-buffers-by-regexp (regexp &optional (persp (get-frame-persp)))
+  (interactive "sRegexp: ")
+  (when persp
+    (let (buflist)
+      (mapc #'(lambda (b)
+                (when (string-match-p regexp (buffer-name b))
+                  (push (buffer-name b) buflist)))
+            (persp-buffers persp))
+      (when (and buflist
+                 (y-or-n-p (format "Remove these buffers:\n %s ?\n"
+                                   (mapconcat 'identity buflist "\n"))))
+        (mapc #'(lambda (b)
+                  (persp-remove-buffer b persp))
+              buflist)))))
 
 (defun* persp-import-buffers
     (name
@@ -701,10 +731,17 @@ Return that old buffer."
     (mapc #'(lambda (w)
               (set-window-buffer
                w (persp-get-buffer
-                  (car-safe
-                   (first (intersection (window-prev-buffers w)
-                                        (safe-persp-buffers persp)
-                                        :test #'(lambda (a b) (eq (car a) b))))) persp)))
+                  (let* ((buffers (intersection (window-prev-buffers w)
+                                                (safe-persp-buffers persp)
+                                                ;;:test #'(lambda (a b) (eq (car a) b))
+                                                :key #'(lambda (b) (typecase b
+                                                                     (cons (car b))
+                                                                     (t b)))))
+                         (buf (first buffers)))
+                    (typecase buf
+                      (cons (car buf))
+                      (t (or buf (persp-revive-scratch persp)))))
+                  persp)))
           (delete-if-not #'(lambda (w)
                              (eq (get-frame-persp (window-frame w)) persp))
                          (get-buffer-window-list old-buf nil t)))
