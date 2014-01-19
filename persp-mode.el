@@ -155,6 +155,12 @@ otherwise with last activated perspective."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-when-kill-switch-to-buffer-in-perspective nil
+  "If t -- then after buffer is killed window switched to some previous buffer
+in current perspective, otherwise let emacs deside what buffer to switch to."
+  :group 'persp-mode
+  :type 'boolean)
+
 (defcustom persp-add-on-switch-or-display nil
   "If not nil then add buffer to persp on switch-to-buffer and display-buffer.
 This variable and switch/display-buffer advices will be removed in next version."
@@ -477,6 +483,7 @@ instead content of this buffer is erased.")
   (when persp-add-buffer-on-find-file
     (persp-add-buffer (current-buffer))))
 
+
 ;; Misc funcs:
 
 (defun persp-get-buffer-or-null (buff-or-name)
@@ -544,6 +551,34 @@ instead content of this buffer is erased.")
                (switchto persp-switch-to-added-buffer))
   "Create and add scratch buffer to perspective."
   (persp-add-buffer (get-buffer-create "*scratch*") persp switchto))
+
+
+(defun* persp-do-buffer-list-by-regexp (&key func regexp blist noask
+                                             (rest-args nil rest-args-p))
+  (interactive)
+  (unless func
+    (let ((fs (completing-read "What function to apply: " obarray 'functionp t)))
+      (when (and fs (not (string= fs "")))
+        (setq func (read fs)))))
+  (when func
+    (unless regexp
+      (setq regexp (read-regexp "Regexp: ")))
+    (when regexp
+      (unless blist
+        (setq blist (eval (read--expression "Buffer list expression: " "nil"))))
+      (when blist
+        (unless rest-args-p
+          (setq rest-args (read--expression "Rest arguments: " "nil")))
+        (let (reslist)
+          (mapc #'(lambda (b)
+                    (when (string-match-p regexp (buffer-name b))
+                      (push (buffer-name b) reslist)))
+                blist)
+          (when (and reslist
+                     (or noask (y-or-n-p (format "Do %s on these buffers:\n%s?\n"
+                                                 func
+                                                 (mapconcat 'identity reslist "\n")))))
+            (mapc #'(lambda (b) (apply func b rest-args)) reslist)))))))
 
 
 ;; Perspective funcs:
@@ -619,20 +654,12 @@ with empty string as name.")
       (switch-to-buffer buffer))
     buffer))
 
-(defun* persp-add-buffers-by-regexp (regexp &optional (persp (get-frame-persp)))
-  (interactive "sRegexp: ")
+(defun* persp-add-buffers-by-regexp (&optional regexp (persp (get-frame-persp)))
+  (interactive)
   (when persp
-    (let (buflist)
-      (mapc #'(lambda (b)
-                (when (string-match-p regexp (buffer-name b))
-                  (push (buffer-name b) buflist)))
-            (buffer-list))
-      (when (and buflist
-                 (y-or-n-p (format "Add these buffers:\n %s ?\n"
-                                   (mapconcat 'identity buflist "\n"))))
-        (mapc #'(lambda (b)
-                  (persp-add-buffer b persp nil))
-              buflist)))))
+    (persp-do-buffer-list-by-regexp
+     :regexp regexp :func 'persp-add-buffer :rest-args (list persp nil)
+     :blist (persp-buffer-list-restricted 1))))
 
 (defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
@@ -666,23 +693,14 @@ Return removed buffer."
             (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
             (if noswitch
                 buffer
-              (switchto-prev-buf-in-persp buffer persp)))
+              (persp-switchto-prev-buf buffer persp)))
         nil))))
 
-(defun* persp-remove-buffers-by-regexp (regexp &optional (persp (get-frame-persp)))
-  (interactive "sRegexp: ")
+(defun* persp-remove-buffers-by-regexp (&optional regexp (persp (get-frame-persp)))
+  (interactive)
   (when persp
-    (let (buflist)
-      (mapc #'(lambda (b)
-                (when (string-match-p regexp (buffer-name b))
-                  (push (buffer-name b) buflist)))
-            (persp-buffers persp))
-      (when (and buflist
-                 (y-or-n-p (format "Remove these buffers:\n %s ?\n"
-                                   (mapconcat 'identity buflist "\n"))))
-        (mapc #'(lambda (b)
-                  (persp-remove-buffer b persp))
-              buflist)))))
+    (persp-do-buffer-list-by-regexp :regexp regexp :func 'persp-remove-buffer
+                                    :blist (persp-buffers persp) :rest-args (list persp))))
 
 (defun* persp-import-buffers
     (name
@@ -722,29 +740,25 @@ or return perspective's scratch."
      &optional (persp (get-frame-persp)) (phash *persp-hash*))
   (persp-persps-with-buffer-except-nil buff-or-name persp phash))
 
-(defun* switchto-prev-buf-in-persp (old-buff-or-name
-                                    &optional (persp (get-frame-persp)))
+(defun* persp-switchto-prev-buf (old-buff-or-name
+                                 &optional (persp (get-frame-persp)))
   "Switch all windows displaying that buffer in all frames with perspective
 to some previous buffer in perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
-    (mapc #'(lambda (w)
-              (set-window-buffer
-               w (persp-get-buffer
-                  (let* ((buffers (intersection (window-prev-buffers w)
-                                                (safe-persp-buffers persp)
-                                                ;;:test #'(lambda (a b) (eq (car a) b))
-                                                :key #'(lambda (b) (typecase b
-                                                                     (cons (car b))
-                                                                     (t b)))))
-                         (buf (first buffers)))
-                    (typecase buf
-                      (cons (car buf))
-                      (t (or buf (persp-revive-scratch persp)))))
-                  persp)))
-          (delete-if-not #'(lambda (w)
-                             (eq (get-frame-persp (window-frame w)) persp))
-                         (get-buffer-window-list old-buf nil t)))
+    (when persp-when-kill-switch-to-buffer-in-perspective
+      (mapc #'(lambda (w)
+                (set-window-buffer
+                 w (persp-get-buffer
+                    (let* ((buffers (delete-if-not #'(lambda (bc)
+                                                       (find (car bc) (safe-persp-buffers persp)))
+                                                   (window-prev-buffers w)))
+                           (buf (and buffers (car (first buffers)))))
+                      buf)
+                    persp)))
+            (delete-if-not #'(lambda (w)
+                               (eq (get-frame-persp (window-frame w)) persp))
+                           (get-buffer-window-list old-buf nil t))))
     old-buf))
 
 (defsubst* persp-filter-out-bad-buffers (&optional (persp (get-frame-persp)))
