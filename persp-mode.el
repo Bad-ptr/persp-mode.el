@@ -109,11 +109,11 @@
   :group 'persp-mode
   :type 'string)
 
-(defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs")
+(defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs/")
   "Directory to/from where perspectives saved/loaded by default.
 Autosave file saved and loaded to/from this directory."
   :group 'persp-mode
-  :type 'directory :tag "Directory")
+  :type 'directory)
 
 (defcustom persp-auto-save-fname "persp-auto-save"
   "Name of file for auto save/load perspectives on persp-mode
@@ -335,7 +335,6 @@ otherwise nil.")
                      (remove-hook ,hook #'self))))
 
 (defun persp-asave-on-exit ()
-  (customize-save-variable 'persp-nil-name persp-nil-name)
   (when (> persp-auto-save-opt 0)
     (persp-save-state-to-file persp-auto-save-fname)))
 
@@ -398,8 +397,6 @@ named collections of buffers and window configurations."
           (run-at-time 3 nil #'(lambda () (persp-load-state-from-file)))))
 
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
-
-    (customize-save-variable 'persp-nil-name persp-nil-name)
 
     (ad-disable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
     (ad-disable-advice #'display-buffer   'after  'persp-add-buffer-adv)
@@ -525,7 +522,7 @@ instead content of this buffer is erased.")
   (sort (persp-names phash) #'string<))
 
 (defun* persp-persps (&optional (phash *persp-hash*) &optional names-regexp)
-  (let ((ret nil))
+  (let (ret)
     (maphash #'(lambda (k p)
                  (if names-regexp
                      (when (string-match-p names-regexp k)
@@ -774,7 +771,7 @@ Return that old buffer."
     (setq name (persp-prompt (safe-persp-name (get-frame-persp)) t)))
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill 'nil' perspective\
-(It'l kill all buffers)?"))
+(It'll kill all buffers)?"))
     (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
           (cpersp (get-frame-persp)))
       (unless (eq persp :+-123emptynooo)
@@ -808,7 +805,8 @@ Return that old buffer."
           (remhash old-name phash)
           (if persp
               (setf (persp-name persp) newname)
-            (set-default 'persp-nil-name newname))
+            (message "[persp-mode] Info: You can't rename nil persp, use \
+M-x: customize-variable RET persp-nil-name RET"))
           (puthash newname persp phash)
           (persp-add-to-menu persp))
       (message "[persp-mode] Error: There's already a perspective with \
@@ -1084,7 +1082,7 @@ of perspective %s can't be saved."
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
                       (concat (expand-file-name persp-save-dir)
-                              "/" persp-auto-save-fname))
+                              persp-auto-save-fname))
              (> persp-auto-save-num-of-backups 0))
     (do ((cur persp-auto-save-num-of-backups (1- cur))
          (prev (1- persp-auto-save-num-of-backups) (1- prev)))
@@ -1108,7 +1106,7 @@ of perspective %s can't be saved."
   (when (and fname phash)
     (let* ((p-save-dir (or (file-name-directory fname)
                            (expand-file-name persp-save-dir)))
-           (p-save-file (concat p-save-dir "/" (file-name-base fname))))
+           (p-save-file (concat p-save-dir (file-name-base fname))))
       (unless (and (file-exists-p p-save-dir)
                    (file-directory-p p-save-dir))
         (message "[persp-mode] Info: Trying to create persp-conf-dir.")
@@ -1117,8 +1115,7 @@ of perspective %s can't be saved."
                     (file-directory-p p-save-dir)))
           (message
            "[persp-mode] Error: Can't save perspectives, persp-save-dir \
-does not exist or not a directory %S."
-           p-save-dir)
+does not exist or not a directory %S." p-save-dir)
         (persp-save-all-persps-state)
         (with-temp-buffer
           (erase-buffer)
@@ -1134,12 +1131,12 @@ does not exist or not a directory %S."
   (interactive (list (read-file-name "Save subset of perspectives to file: "
                                      persp-save-dir)))
   (unless names
-    (setq names (split-string (read-string (format "What perspectives to save(%s): "
+    (setq names (split-string (read-string (format "What perspectives to save%s: "
                                                    (persp-names phash)))
                               " " t)))
   (when names
     (unless keep-others
-      (setq keep-others (if (yes-or-no-p "Keep other perspectives in file?")
+      (setq keep-others (if (and (file-exists-p fname) (yes-or-no-p "Keep other perspectives in file?"))
                             'yes
                           'no)))
     (let ((temphash (make-hash-table :test 'equal :size 10)))
@@ -1244,7 +1241,7 @@ does not exist or not a directory %S."
   (when fname
     (let ((p-save-file (concat (or (file-name-directory fname)
                                    (expand-file-name persp-save-dir))
-                               "/" (file-name-base fname))))
+                               (file-name-base fname))))
       (if (not (file-exists-p p-save-file))
           (message "[persp-mode] Error: No such file: %S." p-save-file)
         (with-current-buffer (find-file-noselect p-save-file)
@@ -1279,7 +1276,7 @@ does not exist or not a directory %S."
   (unless names
     (let* ((p-save-file (concat (or (file-name-directory fname)
                                     (expand-file-name persp-save-dir))
-                                "/" (file-name-base fname)))
+                                (file-name-base fname)))
            (available-names (persp-list-persp-names-in-file p-save-file)))
       (setq names (split-string (read-string (format "What perspectives to load(%s): "
                                                      (mapconcat 'identity available-names " ")))
