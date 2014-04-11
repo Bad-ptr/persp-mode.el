@@ -143,11 +143,10 @@ in `persp-file' parameter."
   :group 'persp-mode
   :type 'integer)
 
-(defcustom persp-auto-resume t
-  "If non nil perspectives will be restored from autosave file
-on mode activation."
+(defcustom persp-auto-resume-time 3
+  "Delay time in seconds before loading from autosave. If <= 0 -- do not autoresume."
   :group 'persp-mode
-  :type 'boolean)
+  :type 'float)
 
 (defcustom persp-set-last-persp-for-new-frames t
   "If nil new frames will be created with 'nil' perspective,
@@ -400,8 +399,8 @@ named collections of buffers and window configurations."
         (when (fboundp 'iswitchb-mode)
           (add-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
 
-        (when persp-auto-resume
-          (run-at-time 3 nil #'(lambda () (persp-load-state-from-file)))))
+        (when (> persp-auto-resume-time 0)
+          (run-at-time persp-auto-resume-time nil #'(lambda () (persp-load-state-from-file)))))
 
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
 
