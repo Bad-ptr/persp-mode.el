@@ -25,6 +25,7 @@ You can do it with: `(setq wg-morph-on nil)`.
   (setq wg-morph-on nil) ;; switch off animation of restoring window configuration
   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 ```
+
 #### When installing without generation of autoloads  
 ```lisp
 (with-eval-after-load "persp-mode"
@@ -32,6 +33,15 @@ You can do it with: `(setq wg-morph-on nil)`.
   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 (require 'persp-mode)
 ```
+
+On emacs <= 24.3 with-eval-after-load not defined. Here is how to fix it -- add this to your .emacs(or another init file that loads before persp-mode):  
+```lisp
+(unless (fboundp 'with-eval-after-load)
+  (defmacro with-eval-after-load (file &rest body)
+	(declare (indent 1) (debug t))
+	`(eval-after-load ,file '(progn ,@body))))
+```
+
 
 ### Dependencies  
 Ability of saving/restoring window configurations from/to file depends on [`workgroups.el`](https://github.com/tlh/workgroups.el).  
@@ -92,27 +102,3 @@ by
      'norecord)))
 ```
 and set variable `persp-is-ibc-as-f-supported` to `t`.  
-
-
-Or you can edit persp-mode.el. Find `defun* persp-activate`, replace  
-```lisp
-(persp-restore-window-conf frame persp new-frame)
-```
-with something like that:  
-```lisp
-(lexical-let ((frm frame)
-              (prsp persp)
-              (n-frm new-frame))
-    (run-at-time 0.1 nil
-       #'(lambda () (persp-restore-window-conf frm prsp n-frm))))
-```
-Then find `defun* persp-restore-window-conf` And remove this part:  
-```lisp
-(when persp-is-ibc-as-f-supported
-                (if new-frame
-                    (lexical-let ((cbuf (current-buffer)))
-                      (setq initial-buffer-choice
-                            #'(lambda () (setq initial-buffer-choice nil) cbuf)))
-                  (when (functionp initial-buffer-choice)
-                    (switch-to-buffer (funcall initial-buffer-choice)))))
-```

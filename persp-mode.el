@@ -586,8 +586,10 @@ instead content of this buffer is erased.")
 (defsubst* persp-names-sorted (&optional (phash *persp-hash*))
   (sort (persp-names phash) #'string<))
 
-(defsubst persp-regexp-variants (variants)
-  (concat "\\`\\(" (mapconcat 'identity variants "\\|") "\\)\\'"))
+(defsubst persp-regexp-variants (variants &optional begin end)
+  (unless begin (setq begin "\\`"))
+  (unless end (setq end "\\'"))
+  (concat begin "\\(" (mapconcat 'identity variants "\\|") "\\)" end))
 
 (defun persp-group-by (keyf lst)
   (let (result)
@@ -1225,11 +1227,16 @@ does not exist or not a directory %S." p-save-dir)
     (unless keep-others
       (setq keep-others (if (and (file-exists-p fname) (yes-or-no-p "Keep other perspectives in file?"))
                             'yes 'no)))
-    (let ((temphash (make-hash-table :test 'equal :size 10)))
+    (let ((temphash (make-hash-table :test 'equal :size 10))
+		  bufferlist-pre bufferlist-diff)
       (when (or (eq keep-others 'yes) (eq keep-others t))
-        (persp-load-state-from-file fname temphash))
+		(setq bufferlist-pre (buffer-list))
+        (persp-load-state-from-file fname temphash (persp-regexp-variants names "[^" "]"))
+		(setq bufferlist-diff (delete-if #'(lambda (b) (memq b bufferlist-pre))
+										 (buffer-list))))
       (mapc #'(lambda (pn) (persp-add (persp-get-by-name pn phash) temphash)) names)
-      (persp-save-state-to-file fname temphash))))
+      (persp-save-state-to-file fname temphash)
+	  (mapc #'kill-buffer bufferlist-diff))))
 
 ;; Load funcs
 
