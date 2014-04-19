@@ -34,12 +34,12 @@ You can do it with: `(setq wg-morph-on nil)`.
 (require 'persp-mode)
 ```
 
-On emacs <= 24.3 with-eval-after-load not defined. Here is how to fix it -- add this to your .emacs(or another init file that loads before persp-mode):  
+On emacs <= 24.3 `with-eval-after-load` not defined. Here is how to fix it -- add this to your .emacs(or another init file that loads before persp-mode):  
 ```lisp
 (unless (fboundp 'with-eval-after-load)
   (defmacro with-eval-after-load (file &rest body)
-	(declare (indent 1) (debug t))
-	`(eval-after-load ,file '(progn ,@body))))
+    (declare (indent 1) (debug t))
+    `(eval-after-load ,file '(progn ,@body))))
 ```
 
 
@@ -69,8 +69,29 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 (add-to-list 'speedbar-frame-parameters (cons 'persp-ignore-wconf t))
 ```
 
-### Ibuffer  
+### Buffer lists
+
+#### Universal
+This must work for most buffer listing commands that use buffer-list function.
+
+##### bs-show  
+```lisp
+(global-set-key (kbd "C-x b") #'(lambda (arg)
+                                  (interactive "P")
+                                  (with-persp-buffer-list () (bs-show arg))))
+```
+
+
+#### Ibuffer specific  
 [gist](https://gist.github.com/Bad-ptr/7644606)
+
+The [Universal](#universal) method must work with Ibuffer too:
+
+```lisp
+(global-set-key (kbd "C-x b") #'(lambda (arg)
+                                  (interactive "P")
+                                  (with-persp-buffer-list () (ibuffer))))
+```
 
 ---
 
