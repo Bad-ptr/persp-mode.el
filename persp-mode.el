@@ -164,7 +164,7 @@ then delete all windows and show *scratch* buffer."
   :group 'persp-mode
   :type 'boolean)
 
-(defcustom persp-when-kill-switch-to-buffer-in-perspective nil
+(defcustom persp-when-kill-switch-to-buffer-in-perspective t
   "If t -- then after buffer is killed window switched to some previous buffer
 in current perspective, otherwise let emacs deside what buffer to switch to."
   :group 'persp-mode

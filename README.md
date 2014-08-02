@@ -58,6 +58,9 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 `C-x x w` -- save perspectives to file.  
 `C-x x l` -- load perspectives from file.  
 
+If you kill buffer with `C-x k` it will be killed only if it belongs to one perspective, otherwise it's just removed from current perspective.  
+But if you kill buffer from 'none'(nil or main) perspective -- it will be removed from all perspectives and then killed.  
+
 ## Customization  
 `M-x: customize-group RET persp-mode RET`  
 
@@ -72,7 +75,10 @@ It's automatically installed if you install persp-mode from mepla, otherwise you
 ### Buffer lists
 
 #### Universal
-This must work for most buffer listing commands that use buffer-list function.
+This must work for most buffer listing commands that use buffer-list function, just wrap 'your function' in `with-persp-buffer-list`:  
+```lisp
+(with-persp-buffer-list () (your-function))
+```
 
 ##### bs-show  
 ```lisp
@@ -81,17 +87,16 @@ This must work for most buffer listing commands that use buffer-list function.
                                   (with-persp-buffer-list () (bs-show arg))))
 ```
 
-
-#### Ibuffer specific  
-[gist](https://gist.github.com/Bad-ptr/7644606)
-
-The [Universal](#universal) method must work with Ibuffer too:
-
+##### ibuffer  
 ```lisp
 (global-set-key (kbd "C-x b") #'(lambda (arg)
                                   (interactive "P")
                                   (with-persp-buffer-list () (ibuffer))))
 ```
+
+#### Ibuffer specific  
+[gist](https://gist.github.com/Bad-ptr/7644606)
+
 
 ---
 
