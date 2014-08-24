@@ -107,6 +107,31 @@
   :group 'persp-mode
   :type 'string)
 
+(defface persp-face-lighter-buffer-not-in-persp
+  '((t :inherit error))
+  "Face for ligher when current buffer is not in perspective."
+  :group 'persp-mode)
+(defface persp-face-lighter-nil-persp
+  '((t :inherit bold-italic))
+  "Face for lighter when current perspective is nil."
+  :group 'persp-mode)
+(defface persp-face-lighter-default
+  '((t :inherit italic))
+  "Default face for lighter.")
+
+(defcustom persp-lighter
+  '(:eval (format (propertize " #%.5s"
+                              'face (let ((persp (get-frame-persp)))
+                                      (if persp
+                                          (if (persp-contain-buffer-p (current-buffer) persp)
+                                              'persp-face-lighter-default
+                                            'persp-face-lighter-buffer-not-in-persp)
+                                        'persp-face-lighter-nil-persp)))
+                  (safe-persp-name (get-frame-persp))))
+  "Defines how persp-mode show itself in modeline."
+  :group 'persp-mode
+  :type 'list)
+
 (defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs/")
   "Directory to/from where perspectives saved/loaded by default.
 Autosave file saved and loaded to/from this directory."
@@ -446,8 +471,7 @@ named collections of buffers and window configurations."
   :keymap     persp-mode-map
   :init-value nil
   :global     t
-  :lighter (:eval (format "%s%.5s" " #"
-                          (safe-persp-name (get-frame-persp))))
+  :lighter    (:eval persp-lighter)
   (if persp-mode
       (if (or noninteractive
               (and (daemonp)
