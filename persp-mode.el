@@ -132,7 +132,7 @@
   :group 'persp-mode
   :type 'list)
 
-(defcustom persp-save-dir (expand-file-name "~/.emacs.d/persp-confs/")
+(defcustom persp-save-dir (expand-file-name "persp-confs/" user-emacs-directory)
   "Directory to/from where perspectives saved/loaded by default.
 Autosave file saved and loaded to/from this directory."
   :group 'persp-mode
