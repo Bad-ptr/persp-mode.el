@@ -291,7 +291,14 @@ second -- root window(default to root window of first argument)."
         (setq frame (selected-frame)))
       (when frame
         (if persp-use-workgroups
-            (with-selected-frame frame (wg-restore-wconfig pwc))
+            (with-selected-frame frame
+              (flet ((wg-switch-to-window-buffer (win)
+                       "Switch to a buffer determined from WIN's fname and bname.
+Return the buffer if it was found, nil otherwise."
+                       (wg-abind win (fname bname)
+                         (cond ((wg-awhen (get-buffer bname) (switch-to-buffer it)))
+                               (t (switch-to-buffer wg-default-buffer) nil)))))
+                (wg-restore-wconfig pwc)))
           (unless rwin
             (setq rwin (frame-root-window frame)))
           (when rwin
@@ -641,6 +648,7 @@ instead content of this buffer is erased.")
 (defsubst persp-regexp-variants (variants &optional begin end)
   (unless begin (setq begin "\\`"))
   (unless end (setq end "\\'"))
+  ;; may be use `regexp-opt'?
   (concat begin "\\(" (mapconcat 'identity variants "\\|") "\\)" end))
 
 (defun persp-group-by (keyf lst)
