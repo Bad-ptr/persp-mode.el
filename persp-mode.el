@@ -4,7 +4,7 @@
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
 ;; Version: 0.9.99-cvs
-;; Package-Requires: ((workgroups "0.2.0"))
+;; Package-Requires: ()
 ;; Keywords: perspectives session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
 
@@ -56,7 +56,8 @@
 
 ;; Dependencies:
 
-;; Ability to save/restore window configurations from/to file depends
+;; Ability to save/restore window configurations from/to file
+;; form emacs versions < 24.4 depends
 ;; on workgroups.el(https://github.com/tlh/workgroups.el)
 
 ;; Keys:
@@ -236,9 +237,8 @@ Run with the activated perspective active."
   :group 'persp-mode
   :type 'hook)
 
-(defcustom persp-use-workgroups (when (and (version< emacs-version "24.4")
-                                           (locate-library "workgroups.el"))
-                                  t)
+(defcustom persp-use-workgroups (and (version< emacs-version "24.4")
+                                     (locate-library "workgroups.el"))
   "If t -- use workgroups package for saving/restoring windows configuration."
   :group 'persp-mode
   :type 'boolean)
@@ -269,16 +269,17 @@ function -- run that function."
   :group 'persp-mode)
 
 (defcustom persp-window-state-get-function
-  #'(lambda (&optional frame rwin)
-      (unless frame
-        (setq frame (selected-frame)))
-      (when frame
-        (if persp-use-workgroups
-            (with-selected-frame frame (wg-make-wconfig))
-          (unless rwin
-            (setq rwin (frame-root-window frame)))
-          (when rwin
-            (window-state-get rwin)))))
+  (if persp-use-workgroups
+      #'(lambda (&optional frame rwin)
+          (when (or frame (setq frame (selected-frame)))
+            (with-selected-frame frame (wg-make-wconfig))))
+    (if (version< emacs-version "24.4")
+        #'(lambda (&optional frame rwin)
+            (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
+              (window-state-get rwin)))
+      #'(lambda (&optional frame rwin)
+          (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
+            (window-state-get rwin t)))))
   "Function for getting window configuration of frame, accept two optional parameters:
 first -- the frame(default to selected frame)
 second -- root window(default to root window of first argument)."
@@ -286,11 +287,9 @@ second -- root window(default to root window of first argument)."
   :type 'function)
 
 (defcustom persp-window-state-put-function
-  #'(lambda (pwc &optional frame rwin)
-      (unless frame
-        (setq frame (selected-frame)))
-      (when frame
-        (if persp-use-workgroups
+  (if persp-use-workgroups
+      #'(lambda (pwc &optional frame rwin)
+          (when (or frame (setq frame (selected-frame)))
             (with-selected-frame frame
               (flet ((wg-switch-to-window-buffer (win)
                        "Switch to a buffer determined from WIN's fname and bname.
@@ -298,11 +297,10 @@ Return the buffer if it was found, nil otherwise."
                        (wg-abind win (fname bname)
                          (cond ((wg-awhen (get-buffer bname) (switch-to-buffer it)))
                                (t (switch-to-buffer wg-default-buffer) nil)))))
-                (wg-restore-wconfig pwc)))
-          (unless rwin
-            (setq rwin (frame-root-window frame)))
-          (when rwin
-            (window-state-put pwc rwin t)))))
+                (wg-restore-wconfig pwc)))))
+    #'(lambda (pwc &optional frame rwin)
+        (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
+          (window-state-put pwc rwin t))))
   "Function for restoring window configuration. Accept window configuration
 obtained with persp-window-state-get-function and two optional arguments:
 one -- the frame(default to selected frame)
@@ -1193,7 +1191,8 @@ Return name."
                      (safe-persp-buffers persp))))
 
 (defun persp-window-conf-to-savelist (persp)
-  `(def-wconf ,(if (find 'workgroups features)
+  `(def-wconf ,(if (or persp-use-workgroups
+                       (not (version< emacs-version "24.4")))
                    (safe-persp-window-conf persp)
                  nil)))
 

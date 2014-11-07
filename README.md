@@ -44,8 +44,8 @@ On emacs <= 24.3 `with-eval-after-load` not defined. Here is how to fix it -- ad
 
 
 ### Dependencies  
-Ability of saving/restoring window configurations from/to file depends on [`workgroups.el`](https://github.com/tlh/workgroups.el).  
-It's automatically installed if you install persp-mode from mepla, otherwise you must download it and put somewhere in your emacs load-path.  
+Ability of saving/restoring window configurations from/to file for emacs versions < 24.4 depends on [`workgroups.el`](https://github.com/tlh/workgroups.el).  
+It's as well available from [`MELPA`](https://github.com/milkypostman/melpa).  
 
 ## Keys  
 `C-x x s` -- create/switch to perspective.  
