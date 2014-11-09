@@ -48,17 +48,21 @@ Ability of saving/restoring window configurations from/to file for emacs version
 It's as well available from [`MELPA`](https://github.com/milkypostman/melpa).  
 
 ## Keys  
-`C-x x s` -- create/switch to perspective.  
-`C-x x r` -- rename perspective.  
-`C-x x c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
-`C-x x a` -- add buffer to perspective.  
-`C-x x t` -- switch to buffer without adding it to current perspective.  
-`C-x x i` -- import all buffers from another perspective.  
-`C-x x k` -- remove buffer from perspective.  
-`C-x x w` -- save perspectives to file.  
-`C-x x l` -- load perspectives from file.  
-
-If you kill buffer with `C-x k` it will be killed only if it belongs to one perspective, otherwise it's just removed from current perspective.  
+`s` -- create/switch to perspective.  
+`r` -- rename perspective.  
+`c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
+`a` -- add buffer to perspective.  
+`t` -- switch to buffer without adding it to current perspective.  
+`i` -- import all buffers from another perspective.  
+`k` -- remove buffer from perspective.  
+`w` -- save perspectives to file.  
+`l` -- load perspectives from file.  
+  
+These key sequences must follow `persp-keymap-prefix` which you can customize(by default it is `C-c p` in older releases it was `C-x x`), so if you want to invoke the \< `s` - create/switch perspective \> you must first type the prefix(`C-c p`) and then `s`(full sequence is `C-c p s`).  
+If you want to bind new key for persp-mode, use `persp-key-map`:  
+`(define-key persp-key-map (kbd ...) ...)`.  
+  
+If you kill buffer with `C-x k` it will be killed only if it belongs to a single perspective, otherwise it's just removed from current perspective.  
 But if you kill buffer from 'none'(nil or main) perspective -- it will be removed from all perspectives and then killed.  
 
 ## Customization  

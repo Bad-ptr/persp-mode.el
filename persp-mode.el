@@ -29,9 +29,9 @@
 ;;; Commentary:
 
 ;; Based on perspective.el by Nathan Weizenbaum
-;; (http://github.com/nex3/perspective-el) but perspectives shared
-;; among frames + ability to save/restore perspectives to/from file
-;; and it less buggy(as for me).
+;;  (http://github.com/nex3/perspective-el) but perspectives shared
+;;   among frames + ability to save/restore perspectives to/from file
+;;    and it less buggy(as for me).
 ;;
 ;; Home: https://github.com/Bad-ptr/persp-mode.el
 
@@ -45,7 +45,8 @@
 
 ;; When installed through package-install:
 ;; (with-eval-after-load "persp-mode-autoloads"
-;;   (setq wg-morph-on nil) ;; switch off animation of restoring window configuration
+;;   (setq wg-morph-on nil)
+;;   ;; switch off animation of restoring window configuration
 ;;   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 
 ;; When installed without generating autoloads file:
@@ -57,21 +58,35 @@
 ;; Dependencies:
 
 ;; Ability to save/restore window configurations from/to file
-;; form emacs versions < 24.4 depends
-;; on workgroups.el(https://github.com/tlh/workgroups.el)
+;;  for emacs versions < 24.4 depends on
+;;   workgroups.el(https://github.com/tlh/workgroups.el)
 
 ;; Keys:
 
-;; C-x x s -- create/switch to perspective.
-;; C-x x r -- rename perspective.
-;; C-x x c -- kill perspective
+;; s -- create/switch to perspective.
+;; r -- rename perspective.
+;; c -- kill perspective
 ;; (if you kill 'nil(initial or ~main~)' persp -- it'll kill all opened buffers).
-;; C-x x a -- add buffer to perspective.
-;; C-x x t -- switch to buffer without adding it to current perspective.
-;; C-x x i -- import all buffers from another perspective.
-;; C-x x k -- remove buffer from perspective.
-;; C-x x w -- save perspectives to file.
-;; C-x x l -- load perspectives from file.
+;; a -- add buffer to perspective.
+;; t -- switch to buffer without adding it to current perspective.
+;; i -- import all buffers from another perspective.
+;; k -- remove buffer from perspective.
+;; w -- save perspectives to file.
+;; l -- load perspectives from file.
+
+;; These key sequences must follow `persp-keymap-prefix' which you can customize
+;;  (by default it is 'C-c p' in older releases it was 'C-x x')
+;;   so if you want to invoke the < s - create/switch perspective > command
+;;    you must first type prefix ('C-c p') and then 's'(full sequence is C-c p s).
+;;
+;; If you want to bind new key for persp-mode, use `persp-key-map`:
+;;  `(define-key persp-key-map (kbd ...) ...)`.
+
+;; If you kill buffer with 'C-x k' it will be killed only if it belongs to
+;;  a single perspective, otherwise it'l be just removed from current perspective.
+;; But if you kill buffer from 'none'(nil or main) perspective --
+;;  it will be removed from all perspectives and then killed.
+
 
 ;; Customization:
 
@@ -102,6 +117,11 @@
   :prefix "persp-"
   :group 'session
   :link '(url-link :tag "Github page" "https://github.com/Bad-ptr/persp-mode.el"))
+
+(defcustom persp-keymap-prefix (kbd "C-c p")
+  "Prefix for activating persp-mode keymap."
+  :group 'persp-mode
+  :type 'string)
 
 (defcustom persp-nil-name "none"
   "Name for nil perspective."
@@ -316,8 +336,12 @@ to get list of all buffers."
 
 ;; Global variables:
 
+(defvar persp-key-map (make-sparse-keymap)
+  "Keymap for persp-mode.")
+(fset 'persp-key-map persp-key-map)
+
 (defvar persp-mode-map (make-sparse-keymap)
-  "Keymap for perspective-mode.")
+  "Keymap with prefix for persp-mode.")
 
 (defvar persp-minor-mode-menu nil
   "Menu for persp-mode.")
@@ -358,16 +382,17 @@ according to initial-buffer-choice.")
 
 ;; Key bindings:
 
-(define-key persp-mode-map (kbd "C-x x s") #'persp-switch)
-(define-key persp-mode-map (kbd "C-x x r") #'persp-rename)
-(define-key persp-mode-map (kbd "C-x x c") #'persp-kill)
-(define-key persp-mode-map (kbd "C-x x a") #'persp-add-buffer)
-(define-key persp-mode-map (kbd "C-x x t") #'persp-temporarily-display-buffer)
-(define-key persp-mode-map (kbd "C-x x i") #'persp-import-buffers)
-(define-key persp-mode-map (kbd "C-x x k") #'persp-remove-buffer)
-(define-key persp-mode-map (kbd "C-x x w") #'persp-save-state-to-file)
-(define-key persp-mode-map (kbd "C-x x l") #'persp-load-state-from-file)
+(define-key persp-key-map (kbd "s") #'persp-switch)
+(define-key persp-key-map (kbd "r") #'persp-rename)
+(define-key persp-key-map (kbd "c") #'persp-kill)
+(define-key persp-key-map (kbd "a") #'persp-add-buffer)
+(define-key persp-key-map (kbd "t") #'persp-temporarily-display-buffer)
+(define-key persp-key-map (kbd "i") #'persp-import-buffers)
+(define-key persp-key-map (kbd "k") #'persp-remove-buffer)
+(define-key persp-key-map (kbd "w") #'persp-save-state-to-file)
+(define-key persp-key-map (kbd "l") #'persp-load-state-from-file)
 
+(define-key persp-mode-map persp-keymap-prefix 'persp-key-map)
 
 ;; Perspective struct:
 
