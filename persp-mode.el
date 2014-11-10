@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 0.9.99-cvs
+;; Version: 1.0
 ;; Package-Requires: ()
 ;; Keywords: perspectives session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -117,11 +117,6 @@
   :prefix "persp-"
   :group 'session
   :link '(url-link :tag "Github page" "https://github.com/Bad-ptr/persp-mode.el"))
-
-(defcustom persp-keymap-prefix (kbd "C-c p")
-  "Prefix for activating persp-mode keymap."
-  :group 'persp-mode
-  :type 'string)
 
 (defcustom persp-nil-name "none"
   "Name for nil perspective."
@@ -336,13 +331,6 @@ to get list of all buffers."
 
 ;; Global variables:
 
-(defvar persp-key-map (make-sparse-keymap)
-  "Keymap for persp-mode.")
-(fset 'persp-key-map persp-key-map)
-
-(defvar persp-mode-map (make-sparse-keymap)
-  "Keymap with prefix for persp-mode.")
-
 (defvar persp-minor-mode-menu nil
   "Menu for persp-mode.")
 
@@ -382,6 +370,11 @@ according to initial-buffer-choice.")
 
 ;; Key bindings:
 
+(define-prefix-command 'persp-key-map)
+
+(defvar persp-mode-map (make-sparse-keymap)
+  "Keymap with prefix for persp-mode.")
+
 (define-key persp-key-map (kbd "s") #'persp-switch)
 (define-key persp-key-map (kbd "r") #'persp-rename)
 (define-key persp-key-map (kbd "c") #'persp-kill)
@@ -392,7 +385,15 @@ according to initial-buffer-choice.")
 (define-key persp-key-map (kbd "w") #'persp-save-state-to-file)
 (define-key persp-key-map (kbd "l") #'persp-load-state-from-file)
 
-(define-key persp-mode-map persp-keymap-prefix 'persp-key-map)
+(defcustom persp-keymap-prefix (kbd "C-c p")
+  "Prefix for activating persp-mode keymap."
+  :group 'persp-mode
+  :type 'key-sequence
+  :set #'(lambda (sym val)
+           (when (boundp 'persp-keymap-prefix)
+             (substitute-key-definition 'persp-key-map nil persp-mode-map))
+           (define-key persp-mode-map val 'persp-key-map)
+           (set-default sym val)))
 
 ;; Perspective struct:
 
@@ -671,7 +672,7 @@ instead content of this buffer is erased.")
 (defsubst persp-regexp-variants (variants &optional begin end)
   (unless begin (setq begin "\\`"))
   (unless end (setq end "\\'"))
-  ;; may be use `regexp-opt'?
+  ;;XXX may be use `regexp-opt'?
   (concat begin "\\(" (mapconcat 'identity variants "\\|") "\\)" end))
 
 (defun persp-group-by (keyf lst)
