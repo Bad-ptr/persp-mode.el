@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.0
+;; Version: 1.0.1-cvs
 ;; Package-Requires: ()
 ;; Keywords: perspectives session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -270,10 +270,12 @@ Run with the activated perspective active."
 
 ;; check if initial-buffer-choice may be a function (emacs >= 24.4)
 (defvar persp-is-ibc-as-f-supported
-  (not
-   (null
-    (assoc 'function
-           (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type)))))
+  (or
+   (not (version< emacs-version "24.4"))
+   (not
+    (null
+     (assoc 'function
+            (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
   "t if initial-buffer-choice as function is supported in your emacs,
 otherwise nil.")
 
@@ -1027,7 +1029,10 @@ Return name."
 
 (defun persp-delete-frame (frame)
   (unless (frame-parameter frame 'persp-ignore-wconf)
-    (persp-frame-save-state frame t)))
+    (persp-frame-save-state frame
+                            (if persp-set-last-persp-for-new-frames
+                                (string= (safe-persp-name persp) persp-last-persp-name)
+                              (null (get-frame-persp frame))))))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
@@ -1169,7 +1174,7 @@ Return name."
                   (let ((persp-add-on-switch-or-display nil))
                     (delete-other-windows)
                     (funcall persp-window-state-put-function pwc frame)
-                    (when new-frame
+                    (when (and new-frame persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
                   (delete-other-windows)
