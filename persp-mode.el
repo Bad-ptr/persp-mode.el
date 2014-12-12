@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.0.1-cvs
+;; Version: 1.1-cvs
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -491,6 +491,8 @@ according to initial-buffer-choice.")
     (persp-save-state-to-file persp-auto-save-fname *persp-hash*
                               persp-auto-save-persps-to-their-file)))
 
+(defun persp-special-last-buffer-make-current ()
+  (setq persp-special-last-buffer (current-buffer)))
 
 ;; Mode itself:
 
@@ -506,46 +508,55 @@ named collections of buffers and window configurations."
   :global     t
   :lighter    (:eval persp-lighter)
   (if persp-mode
-      (if (or noninteractive
-              (and (daemonp)
-                   (null (cdr (frame-list)))
-                   (eq (selected-frame) terminal-frame)))
-          (progn
-            (persp-hook-once 'after-make-frame-functions (frame)
-                             (persp-mode 1))
-            (setq persp-mode nil))
+      (progn
+        (setq persp-special-last-buffer nil)
+        (add-hook 'find-file-hook #'persp-special-last-buffer-make-current)
+        (if (or noninteractive
+                (and (daemonp)
+                     (null (cdr (frame-list)))
+                     (eq (selected-frame) terminal-frame)))
+            (progn
+              (persp-hook-once 'after-make-frame-functions (frame)
+                               (persp-mode 1))
+              (setq persp-mode nil))
 
-        (setq *persp-hash* (make-hash-table :test 'equal :size 10))
-        (persp-add-minor-mode-menu)
-        (persp-add-new persp-nil-name)
+          (setq *persp-hash* (make-hash-table :test 'equal :size 10))
+          (persp-add-minor-mode-menu)
+          (persp-add-new persp-nil-name)
 
-        (ad-enable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
-        (ad-enable-advice #'display-buffer   'after  'persp-add-buffer-adv)
-        (ad-enable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
-        (ad-activate #'switch-to-buffer)
-        (ad-activate #'display-buffer)
-        (ad-activate #'kill-buffer)
+          (ad-enable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
+          (ad-enable-advice #'display-buffer   'after  'persp-add-buffer-adv)
+          (ad-enable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
+          (ad-activate #'switch-to-buffer)
+          (ad-activate #'display-buffer)
+          (ad-activate #'kill-buffer)
 
-        (add-hook 'find-file-hook             #'persp-add-or-not-on-find-file)
-        (add-hook 'before-make-frame-hook     #'persp-before-make-frame)
-        (add-hook 'after-make-frame-functions #'persp-init-new-frame)
-        (add-hook 'delete-frame-functions     #'persp-delete-frame)
-        (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
-        (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
+          (add-hook 'find-file-hook             #'persp-add-or-not-on-find-file)
+          (add-hook 'before-make-frame-hook     #'persp-before-make-frame)
+          (add-hook 'after-make-frame-functions #'persp-init-new-frame)
+          (add-hook 'delete-frame-functions     #'persp-delete-frame)
+          (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
+          (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
-        (setq persp-saved-read-buffer-function  #'read-buffer-function
-              read-buffer-function              #'persp-read-buffer)
+          (setq persp-saved-read-buffer-function  #'read-buffer-function
+                read-buffer-function              #'persp-read-buffer)
 
-        (mapc #'persp-init-frame (persp-frame-list-without-daemon))
+          (mapc #'persp-init-frame (persp-frame-list-without-daemon))
 
-        (when (fboundp 'tabbar-mode)
-          (setq tabbar-buffer-list-function #'persp-buffer-list))
+          (when (fboundp 'tabbar-mode)
+            (setq tabbar-buffer-list-function #'persp-buffer-list))
 
-        (when (fboundp 'iswitchb-mode)
-          (add-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
+          (when (fboundp 'iswitchb-mode)
+            (add-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
 
-        (when (> persp-auto-resume-time 0)
-          (run-at-time persp-auto-resume-time nil #'(lambda () (persp-load-state-from-file)))))
+          (if (> persp-auto-resume-time 0)
+              (run-at-time persp-auto-resume-time nil
+                           #'(lambda ()
+                               (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current)
+                               (persp-load-state-from-file)
+                               (when (buffer-live-p persp-special-last-buffer)
+                                 (switch-to-buffer persp-special-last-buffer))))
+            (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
 
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
 
@@ -1191,7 +1202,7 @@ Return name."
                (not (frame-parameter frame 'persp-ignore-wconf)))
       (with-selected-frame frame
         (when set-persp-special-last-buffer
-          (setq persp-special-last-buffer (current-buffer)))
+          (persp-special-last-buffer-make-current))
         (if persp
             (setf (persp-window-conf persp) (funcall persp-window-state-get-function frame))
           (setq persp-nil-wconf (funcall persp-window-state-get-function frame)))))))
