@@ -5,7 +5,7 @@
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
 ;; Version: 1.0.1-cvs
 ;; Package-Requires: ()
-;; Keywords: perspectives session
+;; Keywords: perspectives, session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
 
 ;;; License:
@@ -1029,10 +1029,11 @@ Return name."
 
 (defun persp-delete-frame (frame)
   (unless (frame-parameter frame 'persp-ignore-wconf)
-    (persp-frame-save-state frame
-                            (if persp-set-last-persp-for-new-frames
-                                (string= (safe-persp-name persp) persp-last-persp-name)
-                              (null (get-frame-persp frame))))))
+    (let ((persp (get-frame-persp frame)))
+      (persp-frame-save-state frame
+                              (if persp-set-last-persp-for-new-frames
+                                  (string= (safe-persp-name persp) persp-last-persp-name)
+                                (null persp))))))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
