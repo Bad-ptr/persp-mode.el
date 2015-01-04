@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1-cvs
+;; Version: 1.1.0-cvs
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -226,6 +226,56 @@ This variable and switch/display-buffer advices will be removed in next version.
   (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
         #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
   "If one of this functions returns t - buffer will not be saved."
+  :group 'persp-mode
+  :type '(repeat (function :tag "Function")))
+
+(defcustom persp-save-buffer-functions
+  (list #'(lambda (b)
+            (block 'persp-skip-buffer
+              (dolist (f-f persp-filter-save-buffers-functions)
+                (when (funcall f-f b)
+                  (return-from 'persp-skip-buffer 'skip)))))
+        #'(lambda (b)
+            `(def-buffer ,(buffer-name b)
+               ,(buffer-file-name b)
+               ,(buffer-local-value 'major-mode b))))
+  "Convert buffer to structure that could be saved to file.
+If function return nil -- follow to next function in list.
+If function return 'skip -- don't save buffer."
+  :group 'persp-mode
+  :type '(repeat (function :tag "Function")))
+
+(defcustom persp-load-buffer-functions
+  (list #'(lambda (savelist)
+            (when (eq (car savelist) 'def-buffer)
+              (let ((persp-add-buffer-on-find-file nil)
+                    (def-buffer
+                      #'(lambda (name fname mode &optional parameters)
+                          (let ((buf (persp-get-buffer-or-null name)))
+                            (if (buffer-live-p buf)
+                                (if (or (null fname)
+                                        (string= fname (buffer-file-name buf)))
+                                    buf
+                                  (if (file-exists-p fname)
+                                      (setq buf (find-file-noselect fname))
+                                    (message "[persp-mode] Warning: File %s no longer exists." fname)
+                                    (setq buf nil)))
+                              (if (and fname (file-exists-p fname))
+                                  (setq buf (find-file-noselect fname))
+                                (when fname
+                                  (message "[persp-mode] Warning: File %s no longer exists." fname))
+                                (setq buf (get-buffer-create name))))
+                            (when (buffer-live-p buf)
+                              (with-current-buffer buf
+                                (typecase mode
+                                  (function (when (and (not (eq major-mode mode))
+                                                       (not (eq major-mode 'not-loaded-yet)))
+                                              (funcall mode))))))
+                            buf))))
+                (persp-car-as-fun-cdr-as-args savelist (>= . 3))))))
+  "Restore buffer from saved structure.
+If function return nil -- follow to next function in list.
+If function return 'skip -- don't restore buffer."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
@@ -1222,16 +1272,18 @@ Return name."
 ;; Save funcs
 
 (defun persp-buffers-to-savelist (persp)
-  (mapcar #'(lambda (b)
-              `(def-buffer ,(buffer-name b)
-                 ,(buffer-file-name b)
-                 ,(buffer-local-value 'major-mode b)))
-          (delete-if #'(lambda (b)
-                         (loop for f-p in persp-filter-save-buffers-functions
-                               when (funcall f-p b)
-                               return t
-                               end))
-                     (safe-persp-buffers persp))))
+  (let (ret)
+    (mapc #'(lambda (b)
+              (block 'persp-buffer-to-savelist
+                (let (tmp)
+                  (dolist (s-f persp-save-buffer-functions)
+                    (setq tmp (funcall s-f b))
+                    (when tmp
+                      (when (eq tmp 'skip) (return-from 'persp-buffer-to-savelist))
+                      (push tmp ret)
+                      (return-from 'persp-buffer-to-savelist))))))
+          (safe-persp-buffers persp))
+    ret))
 
 (defun persp-window-conf-to-savelist (persp)
   `(def-wconf ,(if (or persp-use-workgroups
@@ -1369,32 +1421,20 @@ does not exist or not a directory %S." p-save-dir)
               'result))))))
 
 (defun persp-buffers-from-savelist (savelist)
-  (let ((persp-add-buffer-on-find-file nil)
-        (def-buffer
-          #'(lambda (name fname mode)
-              (let ((buf (persp-get-buffer-or-null name)))
-                (if (buffer-live-p buf)
-                    (if (or (null fname)
-                            (string= fname (buffer-file-name buf)))
-                        buf
-                      (if (file-exists-p fname)
-                          (setq buf (find-file-noselect fname))
-                        (message "[persp-mode] Warning: File %s no longer exists." fname)
-                        (setq buf nil)))
-                  (if (and fname (file-exists-p fname))
-                      (setq buf (find-file-noselect fname))
-                    (when fname
-                      (message "[persp-mode] Warning: File %s no longer exists." fname))
-                    (setq buf (get-buffer-create name))))
-                (when (buffer-live-p buf)
-                  (with-current-buffer buf
-                    (typecase mode
-                      (function (when (and (not (eq major-mode mode))
-                                           (not (eq major-mode 'not-loaded-yet)))
-                                  (funcall mode))))))
-                buf))))
-    (mapcar #'(lambda (db) (persp-car-as-fun-cdr-as-args db 3))
-            savelist)))
+  (let (ret)
+    (mapc #'(lambda (saved-buf)
+              (block 'persp-buffer-from-savelist
+                (let (tmp)
+                  (dolist (l-f persp-load-buffer-functions)
+                    (setq tmp (funcall l-f saved-buf))
+                    (when tmp
+                      (when (eq tmp 'skip)
+                        (return-from 'persp-buffer-from-savelist))
+                      (when (buffer-live-p tmp)
+                        (push tmp ret))
+                      (return-from 'persp-buffer-from-savelist))))))
+          savelist)
+    ret))
 
 (defun persp-window-conf-from-savelist (savelist)
   (let ((def-wconf #'identity))
