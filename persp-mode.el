@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.0-cvs
+;; Version: 1.1.0
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -440,6 +440,9 @@ to a wrong one.")
 (define-key persp-key-map (kbd "k") #'persp-remove-buffer)
 (define-key persp-key-map (kbd "w") #'persp-save-state-to-file)
 (define-key persp-key-map (kbd "l") #'persp-load-state-from-file)
+(define-key persp-key-map (kbd "o") #'(lambda ()
+                                        (interactive)
+                                        (persp-mode -1)))
 
 
 (defcustom persp-keymap-prefix (kbd "C-c p")
@@ -608,9 +611,10 @@ named collections of buffers and window configurations."
               (run-at-time persp-auto-resume-time nil
                            #'(lambda ()
                                (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current)
-                               (persp-load-state-from-file)
-                               (when (buffer-live-p persp-special-last-buffer)
-                                 (switch-to-buffer persp-special-last-buffer))))
+                               (when (> persp-auto-resume-time 0)
+                                 (persp-load-state-from-file)
+                                 (when (buffer-live-p persp-special-last-buffer)
+                                   (switch-to-buffer persp-special-last-buffer)))))
             (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
 
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
