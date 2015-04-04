@@ -3,9 +3,9 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.0
+;; Version: 1.1.1-cvs
 ;; Package-Requires: ()
-;; Keywords: perspectives, session
+;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
 
 ;;; License:
@@ -347,7 +347,8 @@ function -- run that function."
     (if (version< emacs-version "24.4")
         #'(lambda (&optional frame rwin)
             (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
-              (window-state-get rwin)))
+              (when (fboundp 'window-state-get)
+                (window-state-get rwin))))
       #'(lambda (&optional frame rwin)
           (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
             (window-state-get rwin t)))))
@@ -371,7 +372,8 @@ Return the buffer if it was found, nil otherwise."
                 (wg-restore-wconfig pwc)))))
     #'(lambda (pwc &optional frame rwin)
         (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
-          (window-state-put pwc rwin t))))
+          (when (fboundp 'window-state-put)
+            (window-state-put pwc rwin t)))))
   "The function for restoring a window configuration. Accept a window configuration
 obtained by the `persp-window-state-get-function' and two optional arguments:
 one -- a frame(default is the selected frame)
@@ -422,6 +424,23 @@ if `persp-set-last-persp-for-new-frames' is t.")
 (defvar persp-special-last-buffer nil
   "The special variable to handle the case when new frames switches the selected window buffer
 to a wrong one.")
+
+(defvar persp-backtrace-frame-function
+  (if (version< emacs-version "24.4")
+      #'(lambda (nframes &optional base)
+          (let ((i (if base
+                       (let ((k 8) found)
+                         (while (and (not found)
+                                     (setq bt (cadr (funcall #'backtrace-frame
+                                                             (incf k)))))
+                           ;; (message "%s:%s" k (backtrace-frame k))
+                           (when (eq bt base) (setq found t)))
+                         (when found (+ nframes (- k 3))))
+                     (+ nframes 6))))
+            (when i
+              (funcall #'backtrace-frame i))))
+    #'backtrace-frame)
+  "Backtrace function with base argument.")
 
 
 ;; Key bindings:
@@ -699,7 +718,13 @@ instead it's contents will be erased.")
 
 (defun persp-add-or-not-on-find-file ()
   (when persp-add-buffer-on-find-file
-    (persp-add-buffer (current-buffer))))
+    (let ((no-select
+           (funcall persp-backtrace-frame-function
+                    0 'find-file-noselect)))
+      (if no-select
+          (let ((persp-switch-to-added-buffer nil))
+            (persp-add-buffer (current-buffer)))
+        (persp-add-buffer (current-buffer))))))
 
 
 ;; Misc funcs:
