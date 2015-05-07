@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.1-cvs
+;; Version: 1.1.2-cvs
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -864,7 +864,7 @@ Switch all frames with that perspective to another one.
 Return the removed perspective."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt
+    (setq name (persp-prompt "to remove"
                 (and (eq phash *persp-hash*) (safe-persp-name (get-frame-persp)))
                 t t)))
   (let ((persp (persp-get-by-name name phash))
@@ -973,10 +973,7 @@ If run interactively assume import from some perspective that is in the `*persp-
 into the current."
   (interactive "i")
   (unless name
-    (setq name (funcall persp-interactive-completion-function
-                        "Import buffers from: "
-                        (delete (safe-persp-name (get-frame-persp))
-                                (persp-names-sorted)) nil)))
+    (setq name (persp-prompt "to import buffers from" nil t nil t)))
   (let ((persp-from (persp-get-by-name name phash)))
     (persp-import-buffers-from persp-from persp-to)))
 
@@ -1005,7 +1002,7 @@ perspective buffers or the *scratch* buffer."
 
 (defun* persp-switchto-prev-buf (old-buff-or-name
                                  &optional (persp (get-frame-persp)))
-  "Switch all windows in all frames with a perspective displaying that buffer 
+  "Switch all windows in all frames with a perspective displaying that buffer
 to some previous buffer in the perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
@@ -1032,7 +1029,7 @@ Return that old buffer."
 (defun persp-kill (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt (safe-persp-name (get-frame-persp)) t)))
+    (setq name (persp-prompt "to kill" (safe-persp-name (get-frame-persp)) t)))
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill the 'nil' perspective\
 (It'l kill all buffers)?"))
@@ -1048,7 +1045,8 @@ Return that old buffer."
 (defun persp-kill-without-buffers (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt (safe-persp-name (get-frame-persp)) t)))
+    (setq name (persp-prompt "to kill(not killing buffers)"
+                             (safe-persp-name (get-frame-persp)) t)))
   (when (not (string= name persp-nil-name))
     (let ((persp (gethash name *persp-hash* :+-123emptynooo))
           (cpersp (get-frame-persp)))
@@ -1084,10 +1082,7 @@ If there is no perspective with that name it will be created.
 Return `NAME'."
   (interactive "i")
   (unless name
-    (setq name (funcall persp-interactive-completion-function
-                        "Switch to perspective: "
-                        (delete (safe-persp-name (get-frame-persp))
-                                (persp-names-sorted)) nil)))
+    (setq name (persp-prompt "to switch to" nil t nil t)))
   (if (string= name (safe-persp-name (get-frame-persp frame)))
       name
     (persp-frame-save-state frame)
@@ -1111,7 +1106,8 @@ Return `NAME'."
     (setq persp-last-persp-name (safe-persp-name persp))
     (set-frame-persp persp frame)
     (persp-restore-window-conf frame persp new-frame)
-    (run-hooks 'persp-activated-hook)))
+    (with-selected-frame frame
+      (run-hooks 'persp-activated-hook))))
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame frame t))
@@ -1170,15 +1166,17 @@ Return `NAME'."
                             (vector str_name #'(lambda () (interactive)
                                                  (persp-kill str_name))))))))
 
-(defun persp-prompt (&optional default require-match delnil)
-  (funcall persp-interactive-completion-function
-           (concat "Perspective name"
-                   (if default (concat " (default " default ")") "")
-                   ": ")
-           (if delnil
-               (delete persp-nil-name (persp-names-sorted))
-             (persp-names-sorted))
-           nil require-match nil nil default))
+(defun persp-prompt (action &optional default require-match delnil delcur)
+  (let ((persps (persp-names-sorted)))
+    (when delnil
+      (setq persps (delete persp-nil-name persps)))
+    (when delcur
+      (setq persps (delete (safe-persp-name (get-frame-persp)) persps)))
+    (funcall persp-interactive-completion-function
+             (concat "Perspective name " action
+                     (if default (concat " (default " default ")") "")
+                     ": ")
+             persps nil require-match nil nil default)))
 
 (defun persp-iswitchb-completing-read (prompt choices
                                               &optional predicate require-match
@@ -1259,8 +1257,7 @@ Return `NAME'."
       (let ((pwc (safe-persp-window-conf persp))
             (split-width-threshold 0)
             (split-height-threshold 0)
-            (gr-mode (and (boundp 'golden-ratio-mode) (fboundp 'golden-ratio-mode)
-                          golden-ratio-mode)))
+            (gr-mode (and (boundp 'golden-ratio-mode) golden-ratio-mode)))
         (when gr-mode
           (golden-ratio-mode -1))
         (unwind-protect
