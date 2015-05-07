@@ -435,7 +435,7 @@ to a wrong one.")
   (if (version< emacs-version "24.4")
       #'(lambda (nframes &optional base)
           (let ((i (if base
-                       (let ((k 8) found)
+                       (let ((k 8) found bt)
                          (while (and (not found)
                                      (setq bt (cadr (funcall #'backtrace-frame
                                                              (incf k)))))
