@@ -201,6 +201,12 @@ then delete all windows and show the *scratch* buffer."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-set-frame-buffer-predicate t
+  "If t -- then set the buffer-predicate frame parameter on perspective
+activation."
+  :group 'persp-mode
+  :type 'boolean)
+
 (defcustom persp-switch-to-added-buffer t
   "If t then after you add a buffer to the current perspective
 the currently selected window will be switched to that buffer."
@@ -865,8 +871,8 @@ Return the removed perspective."
   (interactive "i")
   (unless name
     (setq name (persp-prompt "to remove"
-                (and (eq phash *persp-hash*) (safe-persp-name (get-frame-persp)))
-                t t)))
+                             (and (eq phash *persp-hash*) (safe-persp-name (get-frame-persp)))
+                             t t)))
   (let ((persp (persp-get-by-name name phash))
         (persp-to-switch persp-nil-name))
     (persp-save-state persp)
@@ -1115,7 +1121,9 @@ Return `NAME'."
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
                                  persp-last-persp-name)
                             persp-nil-name) *persp-hash* :+-123emptynooo)))
-    (modify-frame-parameters frame '((persp . nil)))
+    (modify-frame-parameters frame `((persp . nil)
+                                     (buffer-predicate
+                                      . ,(persp-make-frame-buffer-predicate frame))))
     (when (eq persp :+-123emptynooo)
       (setq persp (persp-add-new persp-nil-name)))
     (persp-activate persp frame new-frame)))
@@ -1177,6 +1185,19 @@ Return `NAME'."
                      (if default (concat " (default " default ")") "")
                      ": ")
              persps nil require-match nil nil default)))
+
+(defun persp-make-frame-buffer-predicate (frame)
+  (lexical-let ((oldpred (frame-parameter frame 'buffer-predicate)))
+    (if persp-set-frame-buffer-predicate
+        (lexical-let ((newpred
+                       #'(lambda (b)
+                           (if persp-mode
+                               (memq b (safe-persp-buffers (get-frame-persp)))
+                             b))))
+          (if oldpred
+              #'(lambda (b) (and (funcall oldpred b) (funcall newpred b)))
+            newpred))
+      oldpred)))
 
 (defun persp-iswitchb-completing-read (prompt choices
                                               &optional predicate require-match
