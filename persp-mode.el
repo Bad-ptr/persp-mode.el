@@ -241,6 +241,11 @@ This variable and the switch/display-buffer advices may be removed in a next ver
 
 (defcustom persp-save-buffer-functions
   (list #'(lambda (b)
+            (when (tramp-tramp-file-p (buffer-file-name b))
+              `(def-buffer ,(buffer-name b)
+                 ,(persp-tramp-save-buffer-file-name b)
+                 ,(buffer-local-value 'major-mode b))))
+        #'(lambda (b)
             (block 'persp-skip-buffer
               (dolist (f-f persp-filter-save-buffers-functions)
                 (when (funcall f-f b)
@@ -1442,6 +1447,25 @@ does not exist or not a directory %S." p-save-dir)
       (mapc #'(lambda (pn) (persp-add (persp-get-by-name pn phash) temphash)) names)
       (persp-save-state-to-file fname temphash)
       (mapc #'kill-buffer bufferlist-diff))))
+
+(defun persp-tramp-save-buffer-file-name (b)
+  (let ((persp-tramp-file-name tramp-prefix-format)
+        (tmh (tramp-compute-multi-hops (tramp-dissect-file-name (buffer-file-name b)))))
+    (while tmh
+      (let* ((hop (car tmh))
+             (method   (tramp-file-name-method hop))
+             (user     (tramp-file-name-user hop))
+             (host     (tramp-file-name-host hop))
+             (filename (tramp-file-name-localname hop)))
+        (setq persp-tramp-file-name (concat
+                                     persp-tramp-file-name
+                                     method tramp-postfix-method-format
+                                     user tramp-postfix-user-format
+                                     host (if (= (string-width filename) 0)
+                                              tramp-postfix-hop-format
+                                            (concat tramp-postfix-host-format filename)))
+              tmh (cdr tmh))))
+    persp-tramp-file-name))
 
 ;; Load funcs
 
