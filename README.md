@@ -46,6 +46,8 @@ If you run emacs <= 24.3 the macro `with-eval-after-load` is not defined. You ca
 Ability to save/restore window configurations from/to a file for emacs < 24.4 depends on the [`workgroups.el`](https://github.com/tlh/workgroups.el) which also available from [`MELPA`](https://github.com/milkypostman/melpa).  
 
 ## Keys  
+`n` -- next perspective.  
+`p` -- previous perspective.  
 `s` -- create/switch to perspective.  
 `r` -- rename perspective.  
 `c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
