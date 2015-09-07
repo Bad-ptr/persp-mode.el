@@ -454,6 +454,11 @@ to a wrong one.")
   "Backtrace function with base argument.")
 
 
+(defcustom persp-switch-wrap t
+  "Whether `persp-next' and `persp-prev' should wrap."
+  :group 'persp-mode
+  :type 'boolean)
+
 ;; Key bindings:
 
 (define-prefix-command 'persp-key-map)
@@ -461,6 +466,8 @@ to a wrong one.")
 (defvar persp-mode-map (make-sparse-keymap)
   "The keymap with a prefix for the persp-mode.")
 
+(define-key persp-key-map (kbd "n") #'persp-next)
+(define-key persp-key-map (kbd "p") #'persp-prev)
 (define-key persp-key-map (kbd "s") #'persp-switch)
 (define-key persp-key-map (kbd "r") #'persp-rename)
 (define-key persp-key-map (kbd "c") #'persp-kill)
@@ -861,6 +868,35 @@ instead it's contents will be erased.")
 
 
 ;; Perspective funcs:
+
+(defun persp-next ()
+  "Switch to next perspective (to the right)."
+  (interactive)
+  (let* ((persp-list (persp-names-current-frame-fast-ordered))
+         (persp-list-length (length persp-list))
+         (only-perspective? (equal persp-list-length 1))
+         (pos (position (safe-persp-name (get-frame-persp)) persp-list)))
+    (cond
+     ((null pos) nil)
+     (only-perspective? nil)
+     ((= pos (1- persp-list-length))
+      (if persp-switch-wrap (persp-switch (nth 0 persp-list))))
+     (t (persp-switch (nth (1+ pos) persp-list))))))
+
+(defun persp-prev ()
+  "Switch to previous perspective (to the left)."
+  (interactive)
+  (let* ((persp-list (persp-names-current-frame-fast-ordered))
+         (persp-list-length (length persp-list))
+         (only-perspective? (equal persp-list-length 1))
+         (pos (position (safe-persp-name (get-frame-persp)) persp-list)))
+    (cond
+     ((null pos) nil)
+     (only-perspective? nil)
+     ((= pos 0)
+      (if persp-switch-wrap
+          (persp-switch (nth (1- persp-list-length) persp-list))))
+     (t (persp-switch (nth (1- pos) persp-list))))))
 
 (defun* persp-add (persp &optional (phash *persp-hash*))
   "Insert `PERSP' to `PHASH'.
