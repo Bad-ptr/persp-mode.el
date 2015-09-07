@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.2
+;; Version: 1.1.3
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -764,19 +764,24 @@ instead it's contents will be erased.")
 (defun get-frame-persp (&optional frame)
   (frame-parameter frame 'persp))
 
-(defun* persp-names (&optional (phash *persp-hash*))
+(defun* persp-names (&optional (phash *persp-hash*) (reverse t))
   (let ((ret nil))
     (maphash #'(lambda (k p)
                  (push k ret))
              phash)
-    ret))
+    (if reverse
+        (reverse ret)
+      ret)))
+
+(defun persp-names-current-frame-fast-ordered ()
+  (mapcar #'caddr (cddddr persp-minor-mode-menu)))
 
 (defun* persp-get-by-name (name &optional (phash *persp-hash*) default)
   (gethash name phash default))
 
 
 (defsubst* persp-names-sorted (&optional (phash *persp-hash*))
-  (sort (persp-names phash) #'string<))
+  (sort (persp-names phash nil) #'string<))
 
 (defsubst persp-regexp-variants (variants &optional begin end)
   (unless begin (setq begin "\\`"))
@@ -886,7 +891,7 @@ Return the removed perspective."
       (remhash name phash)
       (when (eq phash *persp-hash*)
         (persp-remove-from-menu persp)
-        (setq persp-to-switch (or (car (persp-names phash)) persp-nil-name))
+        (setq persp-to-switch (or (car (persp-names phash nil)) persp-nil-name))
         (mapc #'(lambda (f)
                   (when (eq persp (get-frame-persp f))
                     (persp-switch persp-to-switch f)))
@@ -898,7 +903,7 @@ Return the removed perspective."
 Return the created perspective."
   (interactive "sA name for the new perspective: ")
   (if (and name (not (string= "" name)))
-      (if (member name (persp-names phash))
+      (if (member name (persp-names phash nil))
           (persp-get-by-name name phash)
         (let ((persp (if (string= persp-nil-name name)
                          nil
@@ -1180,7 +1185,7 @@ Return `NAME'."
                                                  (persp-kill str_name))))))))
 
 (defun persp-prompt (action &optional default require-match delnil delcur)
-  (let ((persps (persp-names-sorted)))
+  (let ((persps (persp-names-current-frame-fast-ordered)))
     (when delnil
       (setq persps (delete persp-nil-name persps)))
     (when delcur
@@ -1474,7 +1479,8 @@ does not exist or not a directory %S." p-save-dir)
     `(progn
        (let ((,c-frame (selected-frame)))
          ,@body
-         (select-frame ,c-frame)))))
+         (unless (eq (selected-frame) ,c-frame)
+           (select-frame ,c-frame))))))
 
 (defsubst persp-update-frames-window-confs (&optional names-regexp)
   (persp-preserve-frame
