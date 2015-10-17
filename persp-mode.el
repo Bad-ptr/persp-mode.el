@@ -241,15 +241,17 @@ This variable and the switch/display-buffer advices may be removed in a next ver
 
 (defcustom persp-save-buffer-functions
   (list #'(lambda (b)
-            (when (tramp-tramp-file-p (buffer-file-name b))
-              `(def-buffer ,(buffer-name b)
-                 ,(persp-tramp-save-buffer-file-name b)
-                 ,(buffer-local-value 'major-mode b))))
-        #'(lambda (b)
             (block 'persp-skip-buffer
               (dolist (f-f persp-filter-save-buffers-functions)
                 (when (funcall f-f b)
                   (return-from 'persp-skip-buffer 'skip)))))
+        #'(lambda (b)
+            (if (or (featurep 'tramp) (require 'tramp nil t))
+                (when (tramp-tramp-file-p (buffer-file-name b))
+                  `(def-buffer ,(buffer-name b)
+                     ,(persp-tramp-save-buffer-file-name b)
+                     ,(buffer-local-value 'major-mode b)))
+              nil))
         #'(lambda (b)
             `(def-buffer ,(buffer-name b)
                ,(buffer-file-name b)
