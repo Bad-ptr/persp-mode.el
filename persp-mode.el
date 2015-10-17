@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.3
+;; Version: 1.1.4
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -1412,7 +1412,10 @@ of the perspective %s can't be saved."
      ,(persp-parameters-to-savelist persp)))
 
 (defun persps-to-savelist (phash &optional names-regexp)
-  (mapcar #'persp-to-savelist (persp-persps phash names-regexp)))
+  (mapcar #'persp-to-savelist
+          (delete-if #'(lambda (p)
+                         (persp-parameter 'dont-save-to-file p))
+                     (persp-persps phash names-regexp))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
