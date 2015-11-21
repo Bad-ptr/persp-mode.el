@@ -585,8 +585,7 @@ to a wrong one.")
 
 (defun persp-asave-on-exit ()
   (when (> persp-auto-save-opt 0)
-    (persp-save-state-to-file persp-auto-save-fname *persp-hash*
-                              persp-auto-save-persps-to-their-file)))
+    (persp-save-state-to-file)))
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
@@ -1438,7 +1437,8 @@ of the perspective %s can't be saved."
   (write-file fname nil))
 
 (defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname)
-                                            (phash *persp-hash*) respect-persp-file-parameter)
+                                            (phash *persp-hash*)
+                                            (respect-persp-file-parameter persp-auto-save-persps-to-their-file))
   (interactive (list (read-file-name "Save perspectives to file: "
                                      persp-save-dir)))
   (when (and fname phash)
@@ -1491,7 +1491,7 @@ does not exist or not a directory %S." p-save-dir)
         (setq bufferlist-diff (delete-if #'(lambda (b) (memq b bufferlist-pre))
                                          (funcall persp-buffer-list-function))))
       (mapc #'(lambda (pn) (persp-add (persp-get-by-name pn phash) temphash)) names)
-      (persp-save-state-to-file fname temphash)
+      (persp-save-state-to-file fname temphash nil)
       (mapc #'kill-buffer bufferlist-diff))))
 
 (defun persp-tramp-save-buffer-file-name (b)
