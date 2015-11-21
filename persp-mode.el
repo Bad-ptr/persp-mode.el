@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.4
+;; Version: 1.1.5
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -1460,7 +1460,9 @@ does not exist or not a directory %S." p-save-dir)
               (mapc #'(lambda (gr)
                         (let ((pfname (car gr)) (pl (cdr gr)) names)
                           (mapc #'(lambda (p) (push (safe-persp-name p) names)) pl)
-                          (persp-save-to-file-by-names (or pfname p-save-file) phash names 'yes)))
+                          (if pfname
+                              (persp-save-to-file-by-names pfname phash names 'yes)
+                            (persp-save-to-file-by-names p-save-file phash names 'no))))
                     fg))
           (with-temp-buffer
             (erase-buffer)
