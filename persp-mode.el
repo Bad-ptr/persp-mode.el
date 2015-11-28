@@ -1498,12 +1498,13 @@ does not exist or not a directory %S." p-save-dir)
 (defun* persp-save-to-file-by-names (&optional (fname persp-auto-save-fname)
                                                (phash *persp-hash*)
                                                names keep-others)
-  (interactive (list (read-file-name "Save subset of perspectives to file: "
-                                     persp-save-dir)))
+  (interactive)
   (unless names
-    (setq names (split-string (read-string (format "What perspectives to save%s: "
-                                                   (persp-names phash)))
-                              " " t)))
+    (setq names (persp-prompt t "to save" (safe-persp-name (get-frame-persp)) t)))
+  (when (or (not fname) (called-interactively-p 'any))
+    (setq fname (read-file-name (format "Save subset of perspectives%s to file: "
+                                        names)
+                                persp-save-dir)))
   (when names
     (unless keep-others
       (setq keep-others (if (and (file-exists-p fname) (yes-or-no-p "Keep other perspectives in the file?"))
@@ -1654,10 +1655,7 @@ does not exist or not a directory %S." p-save-dir)
                                     (expand-file-name persp-save-dir))
                                 (file-name-nondirectory fname)))
            (available-names (persp-list-persp-names-in-file p-save-file)))
-      (setq names (split-string (read-string (format "What perspectives to load%s: "
-                                                     ;;(mapconcat 'identity available-names " ")
-                                                     available-names ))
-                                " " t))))
+      (setq names (persp-prompt t "to load" nil nil nil available-names))))
   (when names
     (let ((names-regexp (persp-regexp-variants names)))
       (persp-load-state-from-file fname phash names-regexp t))))
