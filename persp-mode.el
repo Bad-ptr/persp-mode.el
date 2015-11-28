@@ -917,7 +917,7 @@ Switch all frames with that perspective to another one.
 Return the removed perspective."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to remove"
+    (setq name (persp-prompt nil "to remove"
                              (and (eq phash *persp-hash*) (safe-persp-name (get-frame-persp)))
                              t t)))
   (let ((persp (persp-get-by-name name phash))
@@ -1026,7 +1026,7 @@ If run interactively assume import from some perspective that is in the `*persp-
 into the current."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to import buffers from" nil t nil t)))
+    (setq name (persp-prompt nil "to import buffers from" nil t nil t)))
   (let ((persp-from (persp-get-by-name name phash)))
     (persp-import-buffers-from persp-from persp-to)))
 
@@ -1082,7 +1082,7 @@ Return that old buffer."
 (defun persp-kill (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to kill" (safe-persp-name (get-frame-persp)) t)))
+    (setq name (persp-prompt nil "to kill" (safe-persp-name (get-frame-persp)) t)))
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill the 'nil' perspective\
 (It'l kill all buffers)?"))
@@ -1098,7 +1098,7 @@ Return that old buffer."
 (defun persp-kill-without-buffers (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to kill(not killing buffers)"
+    (setq name (persp-prompt nil "to kill(not killing buffers)"
                              (safe-persp-name (get-frame-persp)) t)))
   (when (not (string= name persp-nil-name))
     (let ((persp (gethash name *persp-hash* :+-123emptynooo))
@@ -1135,7 +1135,7 @@ If there is no perspective with that name it will be created.
 Return `NAME'."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to switch to" nil nil nil t)))
+    (setq name (persp-prompt nil "to switch to" nil nil nil t)))
   (if (string= name (safe-persp-name (get-frame-persp frame)))
       name
     (persp-frame-save-state frame)
@@ -1221,17 +1221,39 @@ Return `NAME'."
                             (vector str_name #'(lambda () (interactive)
                                                  (persp-kill str_name))))))))
 
-(defun persp-prompt (action &optional default require-match delnil delcur)
-  (let ((persps (persp-names-current-frame-fast-ordered)))
+(defun persp-prompt (multiple action &optional default require-match delnil delcur persp-list)
+  (let ((persps (or persp-list
+                    (persp-names-current-frame-fast-ordered))))
     (when delnil
       (setq persps (delete persp-nil-name persps)))
     (when delcur
       (setq persps (delete (safe-persp-name (get-frame-persp)) persps)))
-    (funcall persp-interactive-completion-function
-             (concat "Perspective name " action
-                     (if default (concat " (default " default ")") "")
-                     ": ")
-             persps nil require-match nil nil default)))
+    (let (retlst)
+      (macrolet ((call-pif ()
+                           `(funcall persp-interactive-completion-function
+                                     (concat
+                                      (when retlst
+                                        (concat "(" (mapconcat #'identity retlst " ") ") "))
+                                      "Perspective name " action
+                                      (if default (concat " (default " default ")") "")
+                                      ": ")
+                                     persps nil require-match nil nil default)))
+        (if multiple
+            (let ((done_str "[>done<]")
+                  cp)
+              (push done_str persps)
+              (block 'multi-ret
+                (while (setq cp (call-pif))
+                  (when default
+                    (setq persps (cdr persps)
+                          persps (cons default persps)
+                          persps (cons done_str persps))
+                    (setq default nil))
+                  (if (string= cp done_str)
+                      (return-from 'multi-ret retlst)
+                    (setq persps (delete cp persps))
+                    (push cp retlst)))))
+          (call-pif))))))
 
 (defun persp-make-frame-buffer-predicate (frame)
   (lexical-let ((oldpred (frame-parameter frame 'buffer-predicate)))
