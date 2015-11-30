@@ -313,6 +313,13 @@ It's single argument is the perspective that will be killed."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
+(defcustom persp-before-switch-functions nil
+  "The list of functions that runs before actually switching to a perspective.
+These functions must take one argument -- a name of a perspective to switch
+(it could be a name of an unexistent perspective or it could be the same as current)."
+  :group 'persp-mode
+  :type '(repeat (function :tag "Function")))
+
 (defcustom persp-activated-hook nil
   "The hook that runs after a perspective has been activated.
 Run with the activated perspective as currently active."
@@ -1136,6 +1143,7 @@ Return `NAME'."
   (interactive "i")
   (unless name
     (setq name (persp-prompt nil "to switch to" nil nil nil t)))
+  (run-hook-with-args 'persp-before-switch-functions name)
   (if (string= name (safe-persp-name (get-frame-persp frame)))
       name
     (persp-frame-save-state frame)
