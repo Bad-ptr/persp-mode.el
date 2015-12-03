@@ -428,7 +428,7 @@ function (Must be used only for the local rebinding):
 0 -- restrict to the current perspective buffers;
 1 -- restrict to buffers that is not in the current perspective.")
 
-(defvar persp-saved-read-buffer-function #'read-buffer-function
+(defvar persp-saved-read-buffer-function read-buffer-function
   "Save the `read-buffer-function' to restore it on deactivation.")
 
 (defvar persp-nil-wconf nil
@@ -641,7 +641,7 @@ named collections of buffers and window configurations."
           (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
           (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
 
-          (setq persp-saved-read-buffer-function  #'read-buffer-function
+          (setq persp-saved-read-buffer-function  read-buffer-function
                 read-buffer-function              #'persp-read-buffer)
 
           (mapc #'persp-init-frame (persp-frame-list-without-daemon))
@@ -681,7 +681,7 @@ named collections of buffers and window configurations."
     (when (fboundp 'iswitchb-mode)
       (remove-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
 
-    (setq read-buffer-function #'persp-saved-read-buffer-function
+    (setq read-buffer-function persp-saved-read-buffer-function
           *persp-hash* nil)))
 
 
