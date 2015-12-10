@@ -1159,7 +1159,8 @@ Return `NAME'."
                             persp-nil-name) *persp-hash* :+-123emptynooo)))
     (when (eq persp :+-123emptynooo)
       (setq persp (persp-add-new persp-nil-name)))
-    (persp-save-state persp nil t)))
+    (when persp
+      (persp-save-state persp nil t))))
 
 (defun* persp-activate (persp
                         &optional (frame (selected-frame)) new-frame)
@@ -1181,7 +1182,8 @@ Return `NAME'."
                                       . ,(persp-make-frame-buffer-predicate frame))))
     (when (eq persp :+-123emptynooo)
       (setq persp (persp-add-new persp-nil-name)))
-    (persp-activate persp frame new-frame)))
+    (when persp
+      (persp-activate persp frame new-frame))))
 
 (defun persp-delete-frame (frame)
   (unless (frame-parameter frame 'persp-ignore-wconf)
