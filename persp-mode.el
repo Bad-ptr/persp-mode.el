@@ -577,18 +577,9 @@ to a wrong one.")
 
 ;; Used in mode defenition:
 
-(defmacro persp-alambda (arglist &rest body)
-  "Anaphoric lambda."
-  (declare (indent 1))
-  `(labels ((self ,arglist ,@body))
-     #'self))
-
-(defmacro persp-hook-once (hook arglist &rest body)
-  "The hook that autoremove itself after first execution."
-  (declare (indent 1))
-  `(add-hook ,hook (persp-alambda ,arglist
-                     ,@body
-                     (remove-hook ,hook #'self))))
+(defun persp-mode-start-and-remove-from-make-frame-hook (f)
+  (persp-mode 1)
+  (remove-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook))
 
 (defun persp-asave-on-exit ()
   (when (> persp-auto-save-opt 0)
@@ -619,8 +610,7 @@ named collections of buffers and window configurations."
                      (null (cdr (frame-list)))
                      (eq (selected-frame) terminal-frame)))
             (progn
-              (persp-hook-once 'after-make-frame-functions (frame)
-                               (persp-mode 1))
+              (add-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook)
               (setq persp-mode nil))
 
           (setq *persp-hash* (make-hash-table :test 'equal :size 10))
