@@ -1050,6 +1050,16 @@ perspective buffers or the *scratch* buffer."
      &optional (persp (get-frame-persp)) (phash *persp-hash*))
   (persp-persps-with-buffer-except-nil buff-or-name persp phash))
 
+(defun* persp-get-another-buffer-for-window (old-buff-or-name window
+                                                              &optional (persp (get-frame-persp)))
+  (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
+         (buffers (delete-if #'(lambda (bc)
+                                 (or
+                                  (eq (car bc) old-buf)
+                                  (not (find (car bc) (safe-persp-buffers persp)))))
+                             (window-prev-buffers window))))
+    (persp-get-buffer (and buffers (car (first buffers))) persp)))
+
 (defun* persp-switchto-prev-buf (old-buff-or-name
                                  &optional (persp (get-frame-persp)))
   "Switch all windows in all frames with a perspective displaying that buffer
@@ -1059,13 +1069,8 @@ Return that old buffer."
     (when persp-when-kill-switch-to-buffer-in-perspective
       (mapc #'(lambda (w)
                 (set-window-buffer
-                 w (persp-get-buffer
-                    (let* ((buffers (delete-if-not #'(lambda (bc)
-                                                       (find (car bc) (safe-persp-buffers persp)))
-                                                   (window-prev-buffers w)))
-                           (buf (and buffers (car (first buffers)))))
-                      buf)
-                    persp)))
+                 w
+                 (persp-get-another-buffer-for-window old-buf w)))
             (delete-if-not #'(lambda (w)
                                (eq (get-frame-persp (window-frame w)) persp))
                            (get-buffer-window-list old-buf nil t))))
