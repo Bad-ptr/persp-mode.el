@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.7
+;; Version: 1.1.8
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -516,9 +516,31 @@ to a wrong one.")
 
 (defun* persp-buffer-list-restricted (&optional (frame (selected-frame))
                                                 (option *persp-restrict-buffers-to*))
-  (case option
-    (0 (persp-buffer-list frame))
-    (1 (set-difference (funcall persp-buffer-list-function frame) (persp-buffer-list frame)))))
+  (let ((bl
+         (case option
+           (0 (persp-buffer-list frame))
+           (1 (set-difference (funcall persp-buffer-list-function frame) (persp-buffer-list frame)))))
+        (i 1)
+        (curbuf (current-buffer))
+        cbt kill-found)
+    (when (not (memq curbuf bl))
+      (block pblr-ret
+        (while (setq cbt (funcall persp-backtrace-frame-function i 'persp-buffer-list-restricted))
+          (if kill-found
+              (when (and (eq (car cbt) t)
+                         (symbolp (cadr cbt))
+                         (string-match-p "^.+?-interactively$" (symbol-name (cadr cbt))))
+                (when (eq kill-found (caddr cbt))
+                  (setq bl (cons curbuf bl))
+                  (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) t))
+                (return-from pblr-ret))
+            (when (and (eq (car cbt) t)
+                       (symbolp (cadr cbt))
+                       (interactive-form (cadr cbt))
+                       (string-match-p "^.*?kill-buffer.*?$" (symbol-name (cadr cbt))))
+              (setq kill-found (cadr cbt))))
+          (setq i (1+ i)))))
+    bl))
 
 (defmacro* with-persp-buffer-list
     ((&key (buffer-list-function persp-buffer-list-function)
@@ -588,6 +610,49 @@ to a wrong one.")
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
 
+(defun persp-kill-buffer-query-function ()
+  (if (and (boundp 'persp-ask-to-kill-buffer-not-in-persp)
+           persp-ask-to-kill-buffer-not-in-persp)
+      (let* ((curbuf (current-buffer))
+             (curwin (get-buffer-window curbuf nil))
+             (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. \
+It will be removed from every perspective and then killed.\nWhat do you really want to do(k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
+                             curbuf))
+             ans)
+        (macrolet
+            ((clwin (w)
+                    `(run-at-time 1 nil
+                                  #'(lambda (ww) (delete-window ww))
+                                  ,w))
+             (swb (b w)
+                  `(run-at-time 1 nil
+                                #'(lambda (bb ww)
+                                    (with-selected-window ww
+                                      (set-window-buffer ww (persp-get-another-buffer-for-window bb ww))))
+                                ,b ,w)))
+          (while (eq
+                  (setq ans
+                        (case (let ((cursor-in-echo-area t))
+                                (when minibuffer-auto-raise
+                                  (raise-frame (window-frame (minibuffer-window))))
+                                (read-key (propertize
+                                           (if ans
+                                               (concat prompt
+                                                       "\nPlease answer k/K/c/s/q. ")
+                                             prompt)
+                                           'face 'minibuffer-prompt)))
+                          ((or ?q ?\C-g ?\C-\[) nil)
+                          (?k t)
+                          (?K (clwin curwin) t)
+                          (?c (clwin curwin) nil)
+                          (?s (swb curbuf curwin) nil)
+                          (t 'ask-again)))
+                  'ask-again)
+            (ding)
+            (discard-input)))
+        ans)
+    t))
+
 ;; Mode itself:
 
 ;;;###autoload
@@ -624,12 +689,13 @@ named collections of buffers and window configurations."
           (ad-activate #'display-buffer)
           (ad-activate #'kill-buffer)
 
-          (add-hook 'find-file-hook             #'persp-add-or-not-on-find-file)
-          (add-hook 'before-make-frame-hook     #'persp-before-make-frame)
-          (add-hook 'after-make-frame-functions #'persp-init-new-frame)
-          (add-hook 'delete-frame-functions     #'persp-delete-frame)
-          (add-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
-          (add-hook 'kill-emacs-hook            #'persp-asave-on-exit)
+          (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
+          (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+          (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
+          (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
+          (add-hook 'delete-frame-functions      #'persp-delete-frame)
+          (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+          (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
           (setq persp-saved-read-buffer-function  read-buffer-function
                 read-buffer-function              #'persp-read-buffer)
@@ -659,12 +725,13 @@ named collections of buffers and window configurations."
     (ad-disable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
     ;;(ad-deactivate-regexp "^persp-.*")
 
-    (remove-hook 'find-file-hook             #'persp-add-or-not-on-find-file)
-    (remove-hook 'before-make-frame-hook     #'persp-before-make-frame)
-    (remove-hook 'after-make-frame-functions #'persp-init-new-frame)
-    (remove-hook 'delete-frame-functions     #'persp-delete-frame)
-    (remove-hook 'ido-make-buffer-list-hook  #'persp-restrict-ido-buffers)
-    (remove-hook 'kill-emacs-hook            #'persp-asave-on-exit)
+    (remove-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
+    (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+    (remove-hook 'before-make-frame-hook      #'persp-before-make-frame)
+    (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
+    (remove-hook 'delete-frame-functions      #'persp-delete-frame)
+    (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+    (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
 
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
