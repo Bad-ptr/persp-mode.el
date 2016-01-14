@@ -616,41 +616,26 @@ to a wrong one.")
       (let* ((curbuf (current-buffer))
              (curwin (get-buffer-window curbuf nil))
              (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. \
-It will be removed from every perspective and then killed.\nWhat do you really want to do(k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
-                             curbuf))
-             ans)
+It will be removed from every perspective and then killed.\nWhat do you really want to do\
+(k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
+                             (buffer-name curbuf))))
+        (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
         (macrolet
             ((clwin (w)
-                    `(run-at-time 1 nil
-                                  #'(lambda (ww) (delete-window ww))
-                                  ,w))
+                    `(run-at-time 1 nil #'(lambda (ww) (delete-window ww)) ,w))
              (swb (b w)
                   `(run-at-time 1 nil
                                 #'(lambda (bb ww)
                                     (with-selected-window ww
                                       (set-window-buffer ww (persp-get-another-buffer-for-window bb ww))))
                                 ,b ,w)))
-          (while (eq
-                  (setq ans
-                        (case (let ((cursor-in-echo-area t))
-                                (when minibuffer-auto-raise
-                                  (raise-frame (window-frame (minibuffer-window))))
-                                (read-key (propertize
-                                           (if ans
-                                               (concat prompt
-                                                       "\nPlease answer k/K/c/s/q. ")
-                                             prompt)
-                                           'face 'minibuffer-prompt)))
-                          ((or ?q ?\C-g ?\C-\[) nil)
-                          (?k t)
-                          (?K (clwin curwin) t)
-                          (?c (clwin curwin) nil)
-                          (?s (swb curbuf curwin) nil)
-                          (t 'ask-again)))
-                  'ask-again)
-            (ding)
-            (discard-input)))
-        ans)
+          (case (read-char-choice prompt '(?k ?K ?c ?s ?q ?\C-g ?\C-\[))
+            ((or ?q ?\C-g ?\C-\[) nil)
+            (?k t)
+            (?K (clwin curwin) t)
+            (?c (clwin curwin) nil)
+            (?s (swb curbuf curwin) nil)
+            (t t))))
     t))
 
 ;; Mode itself:
