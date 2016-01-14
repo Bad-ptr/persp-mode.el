@@ -1296,14 +1296,12 @@ Return `NAME'."
         (if multiple
             (let ((done_str "[>done<]")
                   cp)
+              (while (member done_str persps)
+                (setq done_str (concat ">" done_str)))
               (push done_str persps)
               (block 'multi-ret
                 (while (setq cp (call-pif))
-                  (when default
-                    (setq persps (cdr persps)
-                          persps (cons default persps)
-                          persps (cons done_str persps))
-                    (setq default nil))
+                  (when default (setq default nil))
                   (if (string= cp done_str)
                       (return-from 'multi-ret retlst)
                     (setq persps (delete cp persps))
