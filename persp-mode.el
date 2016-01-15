@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.1.9
+;; Version: 1.2
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -1400,6 +1400,8 @@ Return `NAME'."
       (let ((pwc (safe-persp-window-conf persp))
             (split-width-threshold 0)
             (split-height-threshold 0)
+            (window-min-height window-safe-min-height)
+            (window-min-width window-safe-min-width)
             (gr-mode (and (boundp 'golden-ratio-mode) golden-ratio-mode)))
         (when gr-mode
           (golden-ratio-mode -1))
@@ -1411,7 +1413,9 @@ Return `NAME'."
               (if pwc
                   (let ((persp-add-on-switch-or-display nil))
                     (delete-other-windows)
-                    (funcall persp-window-state-put-function pwc frame)
+                    (condition-case err
+                        (funcall persp-window-state-put-function pwc frame)
+                      (error (message "[persp-mode] Warning: Could not restore window confiuration, because of the error -- %s" err)))
                     (when (and new-frame persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
