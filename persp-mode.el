@@ -232,6 +232,20 @@ This variable and the switch/display-buffer advices may be removed in a next ver
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-kill-foreign-buffer-action 'ask
+  "What to do when manually killing a buffer that is not in the current persp.
+'ask       -- ask what to do
+'kill      -- just kill
+<function> -- execute that function. This function will be executed in
+  kill-buffer-query-hook, so if it will return nil the buffer will not be killed.
+nil        -- do not include the current buffer to buffer list if it not in the perspective."
+  :group 'persp-mode
+  :type '(choice (const    :tag "Ask what to do" :value ask)
+                 (const    :tag "Just kill"      :value kill)
+                 (function :tag "Run function"   :value (lambda () t))
+                 (const    :tag "do not suggest foreign buffer to the user"
+                           :value nil)))
+
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
         #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
@@ -523,7 +537,8 @@ to a wrong one.")
         (i 1)
         (curbuf (current-buffer))
         cbt kill-found)
-    (when (not (memq curbuf bl))
+    (when (and persp-kill-foreign-buffer-action
+               (not (memq curbuf bl)))
       (block pblr-ret
         (while (setq cbt (funcall persp-backtrace-frame-function i 'persp-buffer-list-restricted))
           (if kill-found
@@ -610,33 +625,6 @@ to a wrong one.")
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
 
-(defun persp-kill-buffer-query-function ()
-  (if (and (boundp 'persp-ask-to-kill-buffer-not-in-persp)
-           persp-ask-to-kill-buffer-not-in-persp)
-      (let* ((curbuf (current-buffer))
-             (curwin (get-buffer-window curbuf nil))
-             (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. \
-It will be removed from every perspective and then killed.\nWhat do you really want to do\
-(k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
-                             (buffer-name curbuf))))
-        (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
-        (macrolet
-            ((clwin (w)
-                    `(run-at-time 1 nil #'(lambda (ww) (delete-window ww)) ,w))
-             (swb (b w)
-                  `(run-at-time 1 nil
-                                #'(lambda (bb ww)
-                                    (with-selected-window ww
-                                      (set-window-buffer ww (persp-get-another-buffer-for-window bb ww))))
-                                ,b ,w)))
-          (case (read-char-choice prompt '(?k ?K ?c ?s ?q ?\C-g ?\C-\[))
-            ((or ?q ?\C-g ?\C-\[) nil)
-            (?k t)
-            (?K (clwin curwin) t)
-            (?c (clwin curwin) nil)
-            (?s (swb curbuf curwin) nil)
-            (t t))))
-    t))
 
 ;; Mode itself:
 
@@ -783,6 +771,41 @@ instead it's contents will be erased.")
                     (setq ad-return-value nil)))))
           ad-do-it))
     ad-do-it))
+
+(defun persp-kill-buffer-query-function ()
+  (if (and persp-kill-foreign-buffer-action
+           (boundp 'persp-ask-to-kill-buffer-not-in-persp)
+           persp-ask-to-kill-buffer-not-in-persp)
+      (cond
+       ((functionp persp-kill-foreign-buffer-action)
+        (funcall persp-kill-foreign-buffer-action))
+       ((eq persp-kill-foreign-buffer-action 'kill)
+        t)
+       (t
+        (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+        (let* ((curbuf (current-buffer))
+               (curwin (get-buffer-window curbuf nil))
+               (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. \
+It will be removed from every perspective and then killed.\nWhat do you really want to do\
+(k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
+                             (buffer-name curbuf))))
+        (macrolet
+            ((clwin (w)
+                    `(run-at-time 1 nil #'(lambda (ww) (delete-window ww)) ,w))
+             (swb (b w)
+                  `(run-at-time 1 nil
+                                #'(lambda (bb ww)
+                                    (with-selected-window ww
+                                      (set-window-buffer ww (persp-get-another-buffer-for-window bb ww))))
+                                ,b ,w)))
+          (case (read-char-choice prompt '(?k ?K ?c ?s ?q ?\C-g ?\C-\[))
+            ((or ?q ?\C-g ?\C-\[) nil)
+            (?k t)
+            (?K (clwin curwin) t)
+            (?c (clwin curwin) nil)
+            (?s (swb curbuf curwin) nil)
+            (t t))))))
+    t))
 
 (defun persp-add-or-not-on-find-file ()
   (when persp-add-buffer-on-find-file
