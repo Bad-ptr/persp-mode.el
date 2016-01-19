@@ -228,13 +228,6 @@ Also delete windows not showing that files
   :group 'persp-mode
   :type 'boolean)
 
-(defcustom persp-add-on-switch-or-display nil
-  "If not nil then add to the current perspective any buffer which
-was switched-to or displayed in any window.
-This variable and the switch/display-buffer advices may be removed in a next version."
-  :group 'persp-mode
-  :type 'boolean)
-
 (defcustom persp-add-buffer-on-find-file t
   "If t -- add a buffer with opened file to current perspective."
   :group 'persp-mode
@@ -663,11 +656,7 @@ named collections of buffers and window configurations."
           (persp-add-minor-mode-menu)
           (persp-add-new persp-nil-name)
 
-          (ad-enable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
-          (ad-enable-advice #'display-buffer   'after  'persp-add-buffer-adv)
           (ad-enable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
-          (ad-activate #'switch-to-buffer)
-          (ad-activate #'display-buffer)
           (ad-activate #'kill-buffer)
 
           (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
@@ -703,8 +692,6 @@ named collections of buffers and window configurations."
 
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
 
-    (ad-disable-advice #'switch-to-buffer 'after  'persp-add-buffer-adv)
-    (ad-disable-advice #'display-buffer   'after  'persp-add-buffer-adv)
     (ad-disable-advice #'kill-buffer      'around 'persp-kill-buffer-adv)
     ;;(ad-deactivate-regexp "^persp-.*")
 
@@ -728,22 +715,6 @@ named collections of buffers and window configurations."
 
 
 ;; Advices:
-
-(defadvice switch-to-buffer (after persp-add-buffer-adv)
-  ;; We must add a buffer to some perspective if we want to display it.
-  (when (and persp-add-on-switch-or-display
-             persp-mode ad-return-value)
-    (let ((buf (ad-get-arg 0)))
-      (when buf
-        (persp-add-buffer buf (get-frame-persp) nil)))))
-
-(defadvice display-buffer (after persp-add-buffer-adv)
-  ;; We must add a buffer to some perspective if we want to display it.
-  (when (and persp-add-on-switch-or-display
-             persp-mode ad-return-value)
-    (let ((buf (ad-get-arg 0)))
-      (when buf
-        (persp-add-buffer buf (get-frame-persp) nil)))))
 
 (defadvice kill-buffer (around persp-kill-buffer-adv (&optional b) )
   ;; We must remove a buffer from the current perspective before killing it.
