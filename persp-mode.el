@@ -220,6 +220,14 @@ otherwise let  the emacs deside what to do."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-ignore-wconf-of-frames-created-to-edit-file t
+  "If t -- set the persp-ignore-wconf frame parameter to t for frames
+that were created by emacsclient with file arguments.
+Also delete windows not showing that files
+(this is because server-switch-hook runs after after-make-frames)."
+  :group 'persp-mode
+  :type 'boolean)
+
 (defcustom persp-add-on-switch-or-display nil
   "If not nil then add to the current perspective any buffer which
 was switched-to or displayed in any window.
@@ -669,6 +677,8 @@ named collections of buffers and window configurations."
           (add-hook 'delete-frame-functions      #'persp-delete-frame)
           (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
           (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+          (when (daemonp)
+            (add-hook 'server-switch-hook #'persp-server-switch))
 
           (setq persp-saved-read-buffer-function  read-buffer-function
                 read-buffer-function              #'persp-read-buffer)
@@ -705,6 +715,8 @@ named collections of buffers and window configurations."
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
     (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
     (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+    (when (daemonp)
+      (remove-hook 'server-switch-hook #'persp-server-switch))
 
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
@@ -816,6 +828,17 @@ It will be removed from every perspective and then killed.\nWhat do you really w
           (let ((persp-switch-to-added-buffer nil))
             (persp-add-buffer (current-buffer)))
         (persp-add-buffer (current-buffer))))))
+
+(defun persp-server-switch ()
+  (let* ((cframe (selected-frame))
+         (ccp (frame-parameter cframe 'client))
+         (bl (when ccp (process-get ccp 'buffers))))
+    (when bl
+      (set-frame-parameter cframe 'persp-ignore-wconf t)
+      (mapc #'(lambda (w)
+                (unless (memq (window-buffer w) bl)
+                  (delete-window w)))
+            (window-list cframe)))))
 
 
 ;; Misc funcs:
