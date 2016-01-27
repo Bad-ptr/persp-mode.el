@@ -778,7 +778,7 @@ named collections of buffers and window configurations."
 instead it's contents will be erased.")
                   (erase-buffer)
                   (setq ad-return-value nil))
-              (let ((persps (persp-persps-with-buffer-except-nil buffer persp))
+              (let ((persps (persp-other-persps-with-buffer-except-nil buffer persp))
                     (windows (get-buffer-window-list buffer 0 t))
                     (pbcontain (memq buffer (safe-persp-buffers persp))))
                 (if (or (not persp) (not pbcontain))
@@ -932,7 +932,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
              phash)
     ret))
 
-(defun* persp-persps-with-buffer-except-nil
+(defun* persp-other-persps-with-buffer-except-nil
     (buff-or-name
      &optional persp (phash *persp-hash*))
   (let ((buf (persp-get-buffer-or-null buff-or-name)))
@@ -1116,7 +1116,7 @@ Return the removed buffer."
                   (yes-or-no-p "Remove buffer from all perspectives?"))
           (mapc #'(lambda (p)
                     (persp-remove-buffer buffer p))
-                (persp-persps-with-buffer-except-nil buffer))
+                (persp-other-persps-with-buffer-except-nil buffer))
           buffer)
       (if (memq buffer (persp-buffers persp))
           (progn
@@ -1165,7 +1165,7 @@ perspective buffers or the *scratch* buffer."
 (defun* persp-buffer-in-other-p
     (buff-or-name
      &optional (persp (get-frame-persp)) (phash *persp-hash*))
-  (persp-persps-with-buffer-except-nil buff-or-name persp phash))
+  (persp-other-persps-with-buffer-except-nil buff-or-name persp phash))
 
 (defun* persp-get-another-buffer-for-window (old-buff-or-name window
                                                               &optional (persp (get-frame-persp)))
