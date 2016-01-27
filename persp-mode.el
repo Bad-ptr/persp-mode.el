@@ -229,9 +229,13 @@ otherwise let  the emacs deside what to do."
   "If t -- set the persp-ignore-wconf frame parameter to t for frames
 that were created by emacsclient with file arguments.
 Also delete windows not showing that files
-(this is because server-switch-hook runs after after-make-frames)."
+(this is because server-switch-hook runs after after-make-frames);
+If function -- run that function."
   :group 'persp-mode
-  :type 'boolean)
+  :type '(choice
+          (const    :tag "Ignore window configuration" :value t)
+          (const    :tag "Do as usual"  :value nil)
+          (function :tag "Run function" :value (lambda () nil))))
 
 (defcustom persp-add-on-switch-or-display nil
   "If not nil then add to the current perspective any buffer which
@@ -842,15 +846,18 @@ It will be removed from every perspective and then killed.\nWhat do you really w
         (persp-add-buffer (current-buffer))))))
 
 (defun persp-server-switch ()
-  (let* ((cframe (selected-frame))
-         (ccp (frame-parameter cframe 'client))
-         (bl (when ccp (process-get ccp 'buffers))))
-    (when bl
-      (set-frame-parameter cframe 'persp-ignore-wconf t)
-      (mapc #'(lambda (w)
-                (unless (memq (window-buffer w) bl)
-                  (delete-window w)))
-            (window-list cframe)))))
+  (when persp-ignore-wconf-of-frames-created-to-edit-file
+    (let* ((cframe (selected-frame))
+           (ccp (frame-parameter cframe 'client))
+           (bl (when ccp (process-get ccp 'buffers))))
+      (when bl
+        (if (functionp persp-ignore-wconf-of-frames-created-to-edit-file)
+            (funcall persp-ignore-wconf-of-frames-created-to-edit-file)
+          (set-frame-parameter cframe 'persp-ignore-wconf t)
+          (mapc #'(lambda (w)
+                    (unless (memq (window-buffer w) bl)
+                      (delete-window w)))
+                (window-list cframe)))))))
 
 
 ;; Misc funcs:
