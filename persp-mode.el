@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 1.2
+;; Version: 1.2.1
 ;; Package-Requires: ()
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -174,10 +174,10 @@ in the `persp-file' perspective parameter."
 1 -- save on the emacs shutdown and only if the persp-mode active;
 2 -- save on the persp-mode deactivation or the emacs shutdown."
   :group 'persp-mode
-  :type '(choice (integer :tag "Do not save" :value 0)
-                 (integer :tag "Save on exit" :value 1)
-                 (integer :tag "Save on exit and persp-mode deactivation"
-                          :value 2)))
+  :type '(choice
+          (integer :tag "Do not save"  :value 0)
+          (integer :tag "Save on exit" :value 1)
+          (integer :tag "Save on exit and persp-mode deactivation" :value 2)))
 
 (defcustom persp-auto-save-num-of-backups 3
   "How many autosave file backups to keep."
@@ -251,17 +251,17 @@ This variable and the switch/display-buffer advices may be removed in a next ver
 
 (defcustom persp-kill-foreign-buffer-action 'ask
   "What to do when manually killing a buffer that is not in the current persp.
-'ask       -- ask what to do
-'kill      -- just kill
+'ask       -- ask what to do;
+'kill      -- just kill;
 <function> -- execute that function. This function will be executed in
-  kill-buffer-query-hook, so if it will return nil the buffer will not be killed.
+  kill-buffer-query-hook, so if it will return nil the buffer will not be killed;
 nil        -- do not include the current buffer to buffer list if it not in the perspective."
   :group 'persp-mode
-  :type '(choice (const    :tag "Ask what to do" :value ask)
-                 (const    :tag "Just kill"      :value kill)
-                 (function :tag "Run function"   :value (lambda () t))
-                 (const    :tag "do not suggest foreign buffer to the user"
-                           :value nil)))
+  :type '(choice
+          (const    :tag "Ask what to do" :value ask)
+          (const    :tag "Just kill"      :value kill)
+          (function :tag "Run function"   :value (lambda () t))
+          (const    :tag "do not suggest foreign buffer to the user" :value nil)))
 
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
