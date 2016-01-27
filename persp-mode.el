@@ -513,15 +513,22 @@ to a wrong one.")
                                         (persp-mode -1)))
 
 
+(defun persp-set-keymap-prefix (prefix)
+  (interactive
+   (list
+    (read-key-sequence
+     "Now press a key sequence to be used as persp-key-map prefix: ")))
+  (when prefix
+    (when (boundp 'persp-keymap-prefix)
+      (substitute-key-definition 'persp-key-map nil persp-mode-map))
+    (define-key persp-mode-map prefix 'persp-key-map)
+    (set-default 'persp-keymap-prefix prefix)))
+
 (defcustom persp-keymap-prefix (kbd "C-c p")
   "The prefix for activating the persp-mode keymap."
   :group 'persp-mode
   :type 'key-sequence
-  :set #'(lambda (sym val)
-           (when (boundp 'persp-keymap-prefix)
-             (substitute-key-definition 'persp-key-map nil persp-mode-map))
-           (define-key persp-mode-map val 'persp-key-map)
-           (set-default sym val)))
+  :set #'(lambda (sym val) (persp-set-keymap-prefix val)))
 
 ;; Perspective struct:
 
