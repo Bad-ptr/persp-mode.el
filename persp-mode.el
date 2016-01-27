@@ -197,9 +197,14 @@ otherwise with a last activated perspective."
 
 (defcustom persp-reset-windows-on-nil-window-conf t
   "t -- When a perspective without a window configuration is activated
-then delete all windows and show the *scratch* buffer."
+then delete all windows and show the *scratch* buffer;
+function -- run that function;
+nil -- do nothing."
   :group 'persp-mode
-  :type 'boolean)
+  :type '(choice
+          (const    :tag "Delete all windows" :value t)
+          (const    :tag "Do nothing"         :value nil)
+          (function :tag "Run function"       :value (lambda () nil))))
 
 (defcustom persp-set-frame-buffer-predicate t
   "If t -- then set the buffer-predicate frame parameter on perspective
@@ -1472,8 +1477,10 @@ Return `NAME'."
                     (when (and new-frame persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
-                  (delete-other-windows)
-                  (persp-revive-scratch persp t)))))
+                  (if (functionp persp-reset-windows-on-nil-window-conf)
+                      (funcall persp-reset-windows-on-nil-window-conf)
+                    (delete-other-windows)
+                    (persp-revive-scratch persp t))))))
           (when gr-mode
             (golden-ratio-mode 1)))))))
 
