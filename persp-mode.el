@@ -1478,6 +1478,7 @@ Return `NAME'."
               (if pwc
                   (let ((persp-add-on-switch-or-display nil))
                     (delete-other-windows)
+                    (set-window-dedicated-p nil nil)
                     (condition-case err
                         (funcall persp-window-state-put-function pwc frame)
                       (error (message "[persp-mode] Warning: Could not restore window confiuration, because of the error -- %s" err)))
