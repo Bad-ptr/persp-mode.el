@@ -556,12 +556,15 @@ to a wrong one.")
                                                 (option *persp-restrict-buffers-to*))
   (let* ((cpersp (get-frame-persp frame))
          (curbuf (current-buffer))
-         (tbl (cons curbuf
-                    (remove curbuf (safe-persp-buffers cpersp))))
          (bl
           (case option
-            (0 tbl)
-            (1 (set-difference (funcall persp-buffer-list-function frame) tbl)))))
+            (0 (safe-persp-buffers cpersp))
+            (1 (let ((ret (set-difference
+                           (funcall persp-buffer-list-function frame)
+                           (safe-persp-buffers cpersp))))
+                 (unless (persp-contain-buffer-p curbuf cpersp)
+                   (setq ret (cons curbuf (delete curbuf ret))))
+                 ret)))))
     (when (and cpersp
                persp-kill-foreign-buffer-action
                (not (memq curbuf bl)))
@@ -804,16 +807,18 @@ instead it's contents will be erased.")
   (if (and persp-kill-foreign-buffer-action
            (boundp 'persp-ask-to-kill-buffer-not-in-persp)
            persp-ask-to-kill-buffer-not-in-persp)
-      (cond
-       ((functionp persp-kill-foreign-buffer-action)
-        (funcall persp-kill-foreign-buffer-action))
-       ((eq persp-kill-foreign-buffer-action 'kill)
-        t)
-       (t
-        (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
-        (let* ((curbuf (current-buffer))
-               (curwin (get-buffer-window curbuf nil))
-               (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. \
+      (if (persp-contain-buffer-p (current-buffer))
+          (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+        (cond
+         ((functionp persp-kill-foreign-buffer-action)
+          (funcall persp-kill-foreign-buffer-action))
+         ((eq persp-kill-foreign-buffer-action 'kill)
+          t)
+         (t
+          (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+          (let* ((curbuf (current-buffer))
+                 (curwin (get-buffer-window curbuf nil))
+                 (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. \
 It will be removed from every perspective and then killed.\nWhat do you really want to do\
 (k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
                              (buffer-name curbuf))))
@@ -832,7 +837,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
             (?K (clwin curwin) t)
             (?c (clwin curwin) nil)
             (?s (swb curbuf curwin) nil)
-            (t t))))))
+            (t t)))))))
     t))
 
 (defun persp-add-or-not-on-find-file ()
@@ -1075,7 +1080,7 @@ with empty name.")
                           (switchorno persp-switch-to-added-buffer))
   (interactive
    (list (let ((*persp-restrict-buffers-to* 1))
-           (read-buffer "Add a buffer to the perspective: " (current-buffer)))))
+           (read-buffer "Add a buffer to the perspective: " (current-buffer) t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
                (null (persp-contain-buffer-p buffer persp)))
