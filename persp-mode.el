@@ -808,7 +808,9 @@ instead it's contents will be erased.")
            (boundp 'persp-ask-to-kill-buffer-not-in-persp)
            persp-ask-to-kill-buffer-not-in-persp)
       (if (persp-contain-buffer-p (current-buffer))
-          (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+          (progn
+            (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+            t)
         (cond
          ((functionp persp-kill-foreign-buffer-action)
           (funcall persp-kill-foreign-buffer-action))
