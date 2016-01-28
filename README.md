@@ -122,7 +122,11 @@ This must work for most buffer listing commands that internally use the `buffer-
                                   (with-persp-buffer-list () (ibuffer arg))))
 ```
 
-And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/7644606).
+And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/7644606).  
+
+##### helm  
+Buffer filtering support: [gist](https://gist.github.com/Bad-ptr/304ada85c9ba15013303).  
+Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and epecially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bwindow-management/spacemacs-layouts/funcs.el).  
 
 
 ## Hints  
