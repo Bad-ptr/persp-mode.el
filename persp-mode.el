@@ -1493,6 +1493,7 @@ Return `NAME'."
                   (if (functionp persp-reset-windows-on-nil-window-conf)
                       (funcall persp-reset-windows-on-nil-window-conf)
                     (delete-other-windows)
+                    (set-window-dedicated-p nil nil)
                     (persp-revive-scratch persp t))))))
           (when gr-mode
             (golden-ratio-mode 1)))))))

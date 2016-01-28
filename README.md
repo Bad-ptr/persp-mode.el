@@ -126,7 +126,7 @@ And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/7
 
 ##### helm  
 Buffer filtering support: [gist](https://gist.github.com/Bad-ptr/304ada85c9ba15013303).  
-Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and epecially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bwindow-management/spacemacs-layouts/funcs.el).  
+Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and especially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bwindow-management/spacemacs-layouts/funcs.el).  
 
 
 ## Hints  
