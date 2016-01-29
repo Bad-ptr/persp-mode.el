@@ -42,9 +42,6 @@ If you run emacs <= 24.3 the macro `with-eval-after-load` is not defined. You ca
     `(eval-after-load ,file '(progn ,@body))))
 ```
 
-And plase note, that the `persp-kill-buffer-query-function` must always be at a tail of the `kill-buffer-query-functions` list to work properly.
-However nothing too bad will happen if this requirement is not satisfied, just if the next hook in list will return nil the buffer will not be killed but it was already removed from the current perspective in the `persp-kill-buffer-query-function`.  
-
 
 ### Dependencies  
 Ability to save/restore window configurations from/to a file for emacs < 24.4 depends on the [`workgroups.el`](https://github.com/tlh/workgroups.el) which also available from [`MELPA`](https://github.com/milkypostman/melpa).  
