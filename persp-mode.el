@@ -780,7 +780,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
                   (persp-remove-buffer buffer nil t)
                 (persp-remove-buffer buffer persp t))
               (when (and persp pbcontain
-                         (persp-persps-with-buffer-except-nil buffer persp))
+                         (persp-other-persps-with-buffer-except-nil buffer persp))
                 (return-from pkbqf nil)))
           (return-from pkbqf nil))))
     t))
