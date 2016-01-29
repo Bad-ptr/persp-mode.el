@@ -94,7 +94,33 @@ The load function:
       (inferior-emacs-lisp-mode))))
 ```
 Add load function to the `persp-load-buffer-functions` list.  
-That's it. Now the persp-mode could save and restore ielm buffers.
+That's it. Now the persp-mode could save and restore ielm buffers.  
+
+Python shell example:
+```lisp
+(with-eval-after-load "persp-mode-autoloads"
+  (add-to-list 'persp-save-buffer-functions
+               #'(lambda (b)
+                   (when (eq 'inferior-python-mode (buffer-local-value 'major-mode b))
+                     `(def-inferior-python-buffer ,(buffer-name b)
+                        ,(let ((process (get-buffer-process b)))
+                           (if process
+                               (progn
+                                 (python-shell-send-string "import os" process)
+                                 (python-shell-send-string-no-output "os.getcwd()" process))
+                             (concat "'" (buffer-local-value 'default-directory b) "'")))))))
+  (add-to-list 'persp-load-buffer-functions
+               #'(lambda (savelist)
+                   (when (eq (car savelist) 'def-inferior-python-buffer)
+                     (destructuring-bind (bname dir) (cdr savelist)
+                       (run-python nil nil nil)
+                       (with-current-buffer (python-shell-get-buffer)
+                         (rename-buffer bname)
+                         (cd dir)
+                         (python-shell-send-string "import os")
+                         (python-shell-send-string (format "os.chdir(%s)" dir))
+                         (current-buffer)))))))
+```
 
 
 ## Interaction with side packages  
@@ -134,14 +160,26 @@ Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs),
 
 
 ## Hints  
-If you often launch emacs to edit a single file (some kinf of config for example) and you don't want
-to wait the persp-mode resuming process(and don't want to use the emacs daemon) -- you can create a script like that:
+If you often launch emacs to edit a single file and you don't want to wait the persp-mode 
+resuming process(and don't want to use the emacs daemon) -- you can create a script like that:
 ```shell
  #!/bin/bash
  emacs --eval '(setq persp-auto-resume-time -1.0 persp-auto-save-opt 0)' $@;
 ```
-call it the editor.sh, save somewhere in $PATH, and add `export EDITOR="editor.sh"` to your .bashrc .
-
+call it editor.sh, save somewhere in the $PATH, and add `export EDITOR="editor.sh"` to your .bashrc.  
+Or add
+```lisp
+(add-to-list 'command-switch-alist
+               (cons "persp-q"
+                     #'(lambda (p)
+                         (setq persp-auto-resume-time -1
+                               persp-auto-save-opt 0))))
+```
+To your emacs config. Then the editor.sh would be:
+```shell
+ #!/bin/bash
+ emacs -persp-q $@;
+```
 
 ---
 
