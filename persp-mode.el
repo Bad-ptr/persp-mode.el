@@ -676,7 +676,8 @@ named collections of buffers and window configurations."
           (persp-add-new persp-nil-name)
 
           (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-          (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function t)
+          (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+          (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
           (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
           (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
           (add-hook 'delete-frame-functions      #'persp-delete-frame)
@@ -710,6 +711,7 @@ named collections of buffers and window configurations."
 
     (remove-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
     (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+    (remove-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
     (remove-hook 'before-make-frame-hook      #'persp-before-make-frame)
     (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
@@ -776,14 +778,15 @@ It will be removed from every perspective and then killed.\nWhat do you really w
                 t)))
         (if foreign-check
             (let ((pbcontain (memq buffer (safe-persp-buffers persp))))
-              (if (or (not persp) (not pbcontain))
-                  (persp-remove-buffer buffer nil t)
-                (persp-remove-buffer buffer persp t))
               (when (and persp pbcontain
                          (persp-other-persps-with-buffer-except-nil buffer persp))
+                (persp-remove-buffer buffer persp)
                 (return-from pkbqf nil)))
           (return-from pkbqf nil))))
     t))
+
+(defun persp-kill-buffer-h ()
+  (persp-remove-buffer (current-buffer) nil t))
 
 (defun persp-add-or-not-on-find-file ()
   (when persp-add-buffer-on-find-file
