@@ -1048,8 +1048,7 @@ with empty name.")
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1))
                   (read-buffer "Temporarily display a buffer, not adding it to the current perspective: "))))
-  (let ((buffer (persp-get-buffer-or-null buff-or-name))
-        (persp-add-on-switch-or-display nil))
+  (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when buffer
       (switch-to-buffer buffer t))))
 
@@ -1429,7 +1428,7 @@ Return `NAME'."
               (funcall persp-restore-window-conf-method frame persp new-frame))
              (t
               (if pwc
-                  (let ((persp-add-on-switch-or-display nil))
+                  (progn
                     (delete-other-windows)
                     (set-window-dedicated-p nil nil)
                     (condition-case err
