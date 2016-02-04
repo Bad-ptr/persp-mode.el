@@ -1122,11 +1122,13 @@ perspective buffers or the *scratch* buffer."
 (defun* persp-get-another-buffer-for-window (old-buff-or-name window
                                                               &optional (persp (get-frame-persp)))
   (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
+         (p-bs (safe-persp-buffers persp))
          (buffers (delete-if #'(lambda (bc)
                                  (or
                                   (eq (car bc) old-buf)
-                                  (not (find (car bc) (safe-persp-buffers persp)))))
-                             (window-prev-buffers window))))
+                                  (not (find (car bc) p-bs))))
+                             (append (window-prev-buffers window)
+                                     (window-next-buffers window)))))
     (persp-get-buffer (and buffers (car (first buffers))) persp)))
 
 (defun* persp-switchto-prev-buf (old-buff-or-name
