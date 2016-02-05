@@ -449,8 +449,13 @@ to interactivly read an user input with completion.")
 (defvar *persp-restrict-buffers-to* 0
   "The global variable that controls the behaviour of the `persp-buffer-list-restricted'
 function (Must be used only for the local rebinding):
-0 -- restrict to the current perspective buffers;
-1 -- restrict to buffers that is not in the current perspective.")
+-1 -- show all buffers;
+ 0 -- restrict to current perspective's buffers;
+ 1 -- restrict to buffers that is not in the current perspective;
+ 2 -- show all buffers which are not in any _other_ perspective;
+ 2.5 -- same as 2, but show all buffers if the current perspective is nil;
+ 3 -- list only _free_ buffers, that do not belongs to any perspective;
+ function -- run that function with a frame as an argument.")
 
 (defvar persp-saved-read-buffer-function read-buffer-function
   "Save the `read-buffer-function' to restore it on deactivation.")
@@ -547,35 +552,55 @@ to a wrong one.")
 
 (defun* persp-buffer-list-restricted (&optional (frame (selected-frame))
                                                 (option *persp-restrict-buffers-to*))
-  (let* ((cpersp (get-frame-persp frame))
-         (curbuf (current-buffer))
-         (bl
-          (case option
-            (0 (safe-persp-buffers cpersp))
-            (1 (let ((ret (set-difference
-                           (funcall persp-buffer-list-function frame)
-                           (safe-persp-buffers cpersp))))
-                 (unless (persp-contain-buffer-p curbuf cpersp)
-                   (setq ret (cons curbuf (delete curbuf ret))))
-                 ret)))))
-    (when (and cpersp
-               persp-kill-foreign-buffer-action
-               (not (memq curbuf bl)))
-      (block pblr-ret
-        (let ((i 1)
-              cbt ckit)
-          (while (setq cbt (funcall persp-backtrace-frame-function i 'persp-buffer-list-restricted))
-            (when (and (eq (car cbt) t)
-                       (symbolp (cadr cbt))
-                       (or (interactive-form (setq ckit (cadr cbt)))
-                           (and (eq ckit 'call-interactively)
-                                (setq ckit (caddr cbt))))
-                       (string-match-p "^.*?kill-buffer.*?$" (symbol-name ckit)))
-              (setq bl (cons curbuf bl))
-              (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) t)
-              (return-from pblr-ret))
-            (setq i (1+ i))))))
-    bl))
+  (unless frame (setq frame (selected-frame)))
+  (unless option (setq option 0))
+  (if (functionp option)
+      (funcall option frame)
+    (let ((cpersp (get-frame-persp frame))
+          (curbuf (current-buffer)))
+      (when (= option 2.5)
+        (setq option (if (null cpersp) -1 2)))
+      (let ((bl
+             (case option
+               (-1 (funcall persp-buffer-list-function frame))
+               (0 (safe-persp-buffers cpersp))
+               (1 (let ((ret (set-difference
+                              (funcall persp-buffer-list-function frame)
+                              (safe-persp-buffers cpersp))))
+                    (unless (persp-contain-buffer-p curbuf cpersp)
+                      (setq ret (cons curbuf (delete curbuf ret))))
+                    ret))
+               (2 (let ((ret (delete-if #'(lambda (b)
+                                            (persp-other-persps-with-buffer-except-nil
+                                             b cpersp))
+                                        (funcall persp-buffer-list-function frame))))
+                    ret))
+               (3 (let ((ret (delete-if #'(lambda (b)
+                                            (or
+                                             (and cpersp
+                                                  (persp-contain-buffer-p b cpersp))
+                                             (persp-other-persps-with-buffer-except-nil
+                                              b cpersp)))
+                                        (funcall persp-buffer-list-function frame))))
+                    ret)))))
+        (when (and cpersp
+                   persp-kill-foreign-buffer-action
+                   (not (memq curbuf bl)))
+          (block pblr-ret
+            (let ((i 1)
+                  cbt ckit)
+              (while (setq cbt (funcall persp-backtrace-frame-function i 'persp-buffer-list-restricted))
+                (when (and (eq (car cbt) t)
+                           (symbolp (cadr cbt))
+                           (or (interactive-form (setq ckit (cadr cbt)))
+                               (and (eq ckit 'call-interactively)
+                                    (setq ckit (caddr cbt))))
+                           (string-match-p "^.*?kill-buffer.*?$" (symbol-name ckit)))
+                  (setq bl (cons curbuf bl))
+                  (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) t)
+                  (return-from pblr-ret))
+                (setq i (1+ i))))))
+        bl))))
 
 (defmacro* with-persp-buffer-list
     ((&key (buffer-list-function persp-buffer-list-function)
