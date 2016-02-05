@@ -1376,24 +1376,22 @@ Return `NAME'."
 
 (defun persp-iswitchb-filter-buflist ()
   "Support for the `iswitchb-mode'."
-  (when (get-frame-persp)
-    (setq iswitchb-temp-buflist (persp-buffer-list-restricted))))
+  (setq iswitchb-temp-buflist (persp-buffer-list-restricted)))
 
 
 (defun persp-restrict-ido-buffers ()
   "Support for the `ido-mode'."
-  (when (get-frame-persp)
-    (let ((buffer-names-sorted
-           (mapcar #'buffer-name (persp-buffer-list-restricted)))
-          (indices (make-hash-table)))
-      (let ((i 0))
-        (dolist (elt ido-temp-list)
-          (puthash elt i indices)
-          (setq i (1+ i))))
-      (setq ido-temp-list
-            (sort buffer-names-sorted #'(lambda (a b)
-                                          (< (gethash a indices 10000)
-                                             (gethash b indices 10000))))))))
+  (let ((buffer-names-sorted
+         (mapcar #'buffer-name (persp-buffer-list-restricted)))
+        (indices (make-hash-table)))
+    (let ((i 0))
+      (dolist (elt ido-temp-list)
+        (puthash elt i indices)
+        (setq i (1+ i))))
+    (setq ido-temp-list
+          (sort buffer-names-sorted #'(lambda (a b)
+                                        (< (gethash a indices 10000)
+                                           (gethash b indices 10000)))))))
 
 (defun persp-read-buffer (prompt
                           &optional def require-match)
