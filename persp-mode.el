@@ -380,17 +380,18 @@ Run with the activated perspective as currently active."
                                      (locate-library "workgroups.el"))
   "If t -- use the workgroups.el package for saving/restoring windows configurations."
   :group 'persp-mode
-  :type 'boolean)
-
-;; require workgroups if we are going to use it
-(when persp-use-workgroups
-  ;;(require 'workgroups)
-  (unless (fboundp 'wg-make-wconfig)
-    (autoload 'wg-make-wconfig "workgroups"
-      "Return a new Workgroups window config from `selected-frame'." ))
-  (unless (fboundp 'wg-restore-wconfig)
-    (autoload 'wg-restore-wconfig "workgroups"
-      "Restore WCONFIG in `selected-frame'." )))
+  :type 'boolean
+  :set #'(lambda (sym val)
+           (set-default sym val)
+           ;; require workgroups if we are going to use it
+           (when persp-use-workgroups
+             ;;(require 'workgroups)
+             (unless (fboundp 'wg-make-wconfig)
+               (autoload 'wg-make-wconfig "workgroups"
+                 "Return a new Workgroups window config from `selected-frame'." ))
+             (unless (fboundp 'wg-restore-wconfig)
+               (autoload 'wg-restore-wconfig "workgroups"
+                 "Restore WCONFIG in `selected-frame'." )))))
 
 ;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
 (defvar persp-is-ibc-as-f-supported
