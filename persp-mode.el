@@ -206,11 +206,37 @@ nil -- do nothing."
           (const    :tag "Do nothing"         :value nil)
           (function :tag "Run function"       :value (lambda () nil))))
 
-(defcustom persp-set-frame-buffer-predicate t
-  "If t -- then set the buffer-predicate frame parameter on perspective
-activation."
+(defcustom persp-set-frame-buffer-predicate 'restricted-buffer-list
+  "If t -- set the frame's buffer-predicate parameter to a function returning `t'
+    for buffers in current persp;
+nil -- do not set the buffer-predicate;
+restricted-buffer-list -- return t for buffers contained in the list returned
+  from the persp-buffer-list-restricted called without arguments;
+number -- the same meaning as for the `*persp-restrict-buffers-to*';
+function -- use that function as buffer-predicate."
   :group 'persp-mode
-  :type 'boolean)
+  :type '(choice
+          (const :tag "Constrain to current
+perspective's buffers."
+                 :value t)
+          (const :tag "Do not set frames'
+buffer-predicate parameter."
+                 :value nil)
+          (const :tag "Constrain with
+persp-buffer-list-restricted."
+                 :value restricted-buffer-list)
+          (number :tag "Constrain with
+persp-buffer-list-restricted and use the value of this variable as
+the restriction option (see the *persp-restrict-buffers-to* variable)."
+                  :value 0)
+          (function :tag "Constrain with function
+which take buffer as argument."
+                    :value (lambda (b) b)))
+  :set #'(lambda (sym val)
+           (set-default sym val)
+           (if persp-mode
+               (persp-update-frames-buffer-predicate)
+             (add-hook 'persp-mode-hook #'persp-update-frames-buffer-predicate))))
 
 (defcustom persp-switch-to-added-buffer t
   "If t then after you add a buffer to the current perspective
@@ -473,6 +499,10 @@ if `persp-set-last-persp-for-new-frames' is t.")
 (defvar persp-special-last-buffer nil
   "The special variable to handle the case when new frames switches the selected window buffer
 to a wrong one.")
+
+(defvar persp-frame-buffer-predicate nil
+  "Current buffer-predicate.")
+
 
 (defvar persp-backtrace-frame-function
   (if (version< emacs-version "24.4")
@@ -750,6 +780,9 @@ named collections of buffers and window configurations."
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
     (when (fboundp 'iswitchb-mode)
       (remove-hook 'iswitchb-make-buflist-hook #'persp-iswitchb-filter-buflist))
+
+    (when persp-set-frame-buffer-predicate
+      (persp-update-frames-buffer-predicate t))
 
     (setq read-buffer-function persp-saved-read-buffer-function
           *persp-hash* nil)))
@@ -1268,9 +1301,9 @@ Return `NAME'."
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
                                  persp-last-persp-name)
                             persp-nil-name) *persp-hash* :+-123emptynooo)))
-    (modify-frame-parameters frame `((persp . nil)
-                                     (buffer-predicate
-                                      . ,(persp-make-frame-buffer-predicate frame))))
+    (modify-frame-parameters frame `((persp . nil)))
+    (when persp-set-frame-buffer-predicate
+      (persp-set-frame-buffer-predicate frame))
     (when (eq persp :+-123emptynooo)
       (setq persp (persp-add-new persp-nil-name)))
     (persp-activate persp frame new-frame)))
@@ -1353,18 +1386,60 @@ Return `NAME'."
                     (push cp retlst)))))
           (call-pif))))))
 
-(defun persp-make-frame-buffer-predicate (frame)
-  (lexical-let ((oldpred (frame-parameter frame 'buffer-predicate)))
-    (if persp-set-frame-buffer-predicate
-        (lexical-let ((newpred
-                       #'(lambda (b)
-                           (if persp-mode
-                               (memq b (safe-persp-buffers (get-frame-persp)))
-                             b))))
-          (if oldpred
-              #'(lambda (b) (and (funcall oldpred b) (funcall newpred b)))
-            newpred))
-      oldpred)))
+(defun persp-generate-frame-buffer-predicate (opt)
+  (eval
+   (if opt
+       `(function
+         (lambda (b)
+           ,(typecase opt
+              (function
+               `(funcall ,opt b))
+              (number
+               `(let ((*persp-restrict-buffers-to*
+                       ,opt))
+                  (memq b (persp-buffer-list-restricted
+                           (selected-frame) ,opt))))
+              (symbol
+               (case opt
+                 ('nil t)
+                 ('restricted-buffer-list
+                  '(memq b (persp-buffer-list-restricted (selected-frame))))
+                 (t '(memq b (safe-persp-buffers (get-frame-persp))))))
+              (t t))))
+     nil)))
+
+(defun persp-set-frame-buffer-predicate (frame &optional off)
+  (lexical-let ((old-pred (frame-parameter frame 'buffer-predicate-old)))
+    (let (new-pred)
+      (if off
+          (progn
+            (when (eq :null old-pred) (setq old-pred nil))
+            (set-frame-parameter frame 'buffer-predicate-old nil)
+            (setq new-pred old-pred))
+        (setq new-pred
+              (case old-pred
+                ('nil
+                 (set-frame-parameter frame 'buffer-predicate-old
+                                      (or (frame-parameter frame 'buffer-predicate)
+                                          :null))
+                 persp-frame-buffer-predicate)
+                (:null
+                 persp-frame-buffer-predicate)
+                (t
+                 (if persp-frame-buffer-predicate
+                     #'(lambda (b)
+                         (and
+                          (funcall persp-frame-buffer-predicate b)
+                          (funcall old-pred b)))
+                   old-pred)))))
+      (set-frame-parameter frame 'buffer-predicate new-pred))))
+
+(defun persp-update-frames-buffer-predicate (&optional off)
+  (setq persp-frame-buffer-predicate
+        (persp-generate-frame-buffer-predicate
+         persp-set-frame-buffer-predicate))
+  (mapc #'(lambda (f) (persp-set-frame-buffer-predicate f off))
+        (persp-frame-list-without-daemon)))
 
 (defun persp-iswitchb-completing-read (prompt choices
                                               &optional predicate require-match
