@@ -244,7 +244,7 @@ the currently selected window will be switched to that buffer."
   :group 'persp-mode
   :type 'boolean)
 
-(defcustom persp-when-kill-switch-to-buffer-in-perspective t
+(defcustom persp-when-kill-switch-to-buffer-in-perspective nil
   "If t -- then after a buffer is killed the current window
 will be switched to some previous buffer in the current perspective,
 otherwise let  the emacs deside what to do."
