@@ -393,17 +393,6 @@ Run with the activated perspective as currently active."
                (autoload 'wg-restore-wconfig "workgroups"
                  "Restore WCONFIG in `selected-frame'." )))))
 
-;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
-(defvar persp-is-ibc-as-f-supported
-  (or
-   (not (version< emacs-version "24.4"))
-   (not
-    (null
-     (assoc 'function
-            (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
-  "t if the `initial-buffer-choice' as a function is supported in your emacs,
-otherwise nil.")
-
 (defcustom persp-restore-window-conf-method t
   "Defines how to restore window configurations for the new frames:
 t -- the standard action.
@@ -460,6 +449,17 @@ to get a list of all buffers."
 
 ;; Global variables:
 
+;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
+(defvar persp-is-ibc-as-f-supported
+  (or
+   (not (version< emacs-version "24.4"))
+   (not
+    (null
+     (assoc 'function
+            (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
+  "t if the `initial-buffer-choice' as a function is supported in your emacs,
+otherwise nil.")
+
 (defvar persp-minor-mode-menu nil
   "Menu for the persp-mode.")
 
@@ -481,7 +481,7 @@ function (Must be used only for the local rebinding):
  1 -- restrict to buffers that is not in the current perspective;
  2 -- show all buffers which are not in any _other_ perspective;
  2.5 -- same as 2, but show all buffers if the current perspective is nil;
- 3 -- list only _free_ buffers, that do not belongs to any perspective;
+ 3 -- list only _free_ buffers, that do not belong to any perspective;
  function -- run that function with a frame as an argument.")
 
 (defvar persp-saved-read-buffer-function read-buffer-function
