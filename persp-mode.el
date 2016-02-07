@@ -1120,7 +1120,8 @@ with empty name.")
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1)
                       (persp-restrict-buffers-to-if-foreign-buffer nil))
-                  (read-buffer "Temporarily display a buffer, not adding it to the current perspective: "))))
+                  (read-buffer "Temporarily display a buffer, not adding it to the current perspective: "
+                               nil t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when buffer
       (switch-to-buffer buffer t))))
@@ -1134,7 +1135,7 @@ Return the removed buffer."
    (list
     (let ((*persp-restrict-buffers-to* 0)
           (persp-restrict-buffers-to-if-foreign-buffer nil))
-      (read-buffer "Remove buffer from perspective: " (current-buffer)))))
+      (read-buffer "Remove buffer from perspective: " (current-buffer) t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     ;; (when (buffer-live-p buffer)
     ;;   (bury-buffer buffer))
