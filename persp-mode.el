@@ -548,6 +548,7 @@ to a wrong one.")
 (define-key persp-key-map (kbd "t") #'persp-temporarily-display-buffer)
 (define-key persp-key-map (kbd "i") #'persp-import-buffers)
 (define-key persp-key-map (kbd "k") #'persp-remove-buffer)
+(define-key persp-key-map (kbd "K") #'persp-kill-buffer)
 (define-key persp-key-map (kbd "w") #'persp-save-state-to-file)
 (define-key persp-key-map (kbd "l") #'persp-load-state-from-file)
 (define-key persp-key-map (kbd "o") #'(lambda ()
@@ -1153,6 +1154,18 @@ Return the removed buffer."
                 buffer
               (persp-switchto-prev-buf buffer persp)))
         nil))))
+
+(defun persp-kill-buffer (&optional buf-or-name)
+  "Kill buffer, take the restriction into account."
+  (interactive)
+  (unless buf-or-name
+    (let ((*persp-restrict-buffers-to* 0)
+          (persp-restrict-buffers-to-if-foreign-buffer nil))
+      (setq buf-or-name
+            (read-buffer "Kill buffer: " (current-buffer) t))))
+  (when (and buf-or-name
+             (buffer-live-p (get-buffer buf-or-name)))
+    (kill-buffer buf-or-name)))
 
 (defun* persp-remove-buffers-by-regexp (&optional regexp (persp (get-frame-persp)))
   (interactive)
