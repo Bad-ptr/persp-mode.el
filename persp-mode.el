@@ -484,6 +484,10 @@ function (Must be used only for the local rebinding):
  3 -- list only _free_ buffers, that do not belong to any perspective;
  function -- run that function with a frame as an argument.")
 
+(defvar persp-restrict-buffers-to-if-foreign-buffer 2.5
+  "Override the *persp-restrict-buffers-to* if the current buffer is not in the
+current perspective. If nil -- do not override.")
+
 (defvar persp-saved-read-buffer-function read-buffer-function
   "Save the `read-buffer-function' to restore it on deactivation.")
 
@@ -581,14 +585,19 @@ to a wrong one.")
 (defun persp-buffer-list (&optional frame)
   (safe-persp-buffers (get-frame-persp frame)))
 
-(defun* persp-buffer-list-restricted (&optional (frame (selected-frame))
-                                                (option *persp-restrict-buffers-to*))
+(defun* persp-buffer-list-restricted
+    (&optional (frame (selected-frame))
+               (option *persp-restrict-buffers-to*)
+               (option-foreign-override persp-restrict-buffers-to-if-foreign-buffer))
   (unless frame (setq frame (selected-frame)))
   (unless option (setq option 0))
-  (if (functionp option)
-      (funcall option frame)
-    (let ((cpersp (get-frame-persp frame))
-          (curbuf (current-buffer)))
+  (let* ((cpersp (get-frame-persp frame))
+         (curbuf (current-buffer))
+         (cb-foreign (not (persp-contain-buffer-p curbuf cpersp))))
+    (when (and option-foreign-override cb-foreign)
+      (setq option option-foreign-override))
+    (if (functionp option)
+        (funcall option frame)
       (when (= option 2.5)
         (setq option (if (null cpersp) -1 2)))
       (let ((bl
@@ -636,11 +645,13 @@ to a wrong one.")
 (defmacro* with-persp-buffer-list
     ((&key (buffer-list-function persp-buffer-list-function)
            (restriction *persp-restrict-buffers-to*)
+           (restriction-foreign-override persp-restrict-buffers-to-if-foreign-buffer)
            (frame (selected-frame)))
      &rest body)
-  `(let ((*persp-restrict-buffers-to* ,restriction))
+  `(let ((*persp-restrict-buffers-to* ,restriction)
+         (persp-restrict-buffers-to-if-foreign-buffer ,restriction-foreign-override))
      (flet ((buffer-list (&optional frame)
-                         (persp-buffer-list-restricted ,frame ,restriction)))
+                         (persp-buffer-list-restricted ,frame ,restriction ,restriction-foreign-override)))
        ,@body)))
 
 (defun safe-persp-name (p)
