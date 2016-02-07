@@ -1098,7 +1098,8 @@ with empty name.")
                           &optional (persp (get-frame-persp))
                           (switchorno persp-switch-to-added-buffer))
   (interactive
-   (list (let ((*persp-restrict-buffers-to* 1))
+   (list (let ((*persp-restrict-buffers-to* 1)
+               (persp-restrict-buffers-to-if-foreign-buffer nil))
            (read-buffer "Add a buffer to the perspective: " (current-buffer) t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
@@ -1117,7 +1118,8 @@ with empty name.")
 
 (defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
-                (let ((*persp-restrict-buffers-to* 1))
+                (let ((*persp-restrict-buffers-to* 1)
+                      (persp-restrict-buffers-to-if-foreign-buffer nil))
                   (read-buffer "Temporarily display a buffer, not adding it to the current perspective: "))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when buffer
@@ -1130,7 +1132,9 @@ to another one. If `PERSP' is nil -- remove the buffer from all perspectives.
 Return the removed buffer."
   (interactive
    (list
-    (read-buffer "Remove buffer from perspective: " (current-buffer))))
+    (let ((*persp-restrict-buffers-to* 0)
+          (persp-restrict-buffers-to-if-foreign-buffer nil))
+      (read-buffer "Remove buffer from perspective: " (current-buffer)))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     ;; (when (buffer-live-p buffer)
     ;;   (bury-buffer buffer))
