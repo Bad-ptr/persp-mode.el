@@ -282,19 +282,33 @@ nil        -- do not include the current buffer to buffer list if it not in the 
           (function :tag "Run function"   :value (lambda () t))
           (const    :tag "do not suggest foreign buffer to the user" :value nil)))
 
+(defcustom persp-common-buffer-filter-functions
+  (list #'(lambda (b) (or (string-prefix-p " " (buffer-name b))
+                     (eq 'helm-mode
+                         (buffer-local-value 'major-mode b))
+                     (string-prefix-p "*helm" (buffer-name b)))))
+  "Common buffer filters.
+The list of functions wich takes a buffer as an argument.
+If one of these functions returns a non nil value the buffer considered as 'filtered out'."
+  :group 'persp-mode
+  :type '(repeat (function :tag "Function")))
+
+(defcustom persp-buffer-list-restricted-filter-functions nil
+  "Additional filters for use inside pthe `persp-buffer-list-restricted'."
+  :group 'persp-mode
+  :type '(repeat (function :tag "Function")))
+
 (defcustom persp-filter-save-buffers-functions
-  (list #'(lambda (b) (string-prefix-p " " (buffer-name b)))
-        #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
-  "If one of these functions returns t - a buffer will not be saved."
+  (list #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
+  "Additional filters to not save unneded buffers."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
 (defcustom persp-save-buffer-functions
   (list #'(lambda (b)
-            (block 'persp-skip-buffer
-              (dolist (f-f persp-filter-save-buffers-functions)
-                (when (funcall f-f b)
-                  (return-from 'persp-skip-buffer 'skip)))))
+            (when (persp-buffer-filtered-out-p
+                   b persp-filter-save-buffers-functions)
+              'skip))
         #'(lambda (b)
             (if (or (featurep 'tramp) (require 'tramp nil t))
                 (when (tramp-tramp-file-p (buffer-file-name b))
@@ -608,7 +622,7 @@ to a wrong one.")
       (let ((bl
              (case option
                (-1 (funcall persp-buffer-list-function frame))
-               (0 (safe-persp-buffers cpersp))
+               (0 (append (safe-persp-buffers cpersp) nil))
                (1 (let ((ret (set-difference
                               (funcall persp-buffer-list-function frame)
                               (safe-persp-buffers cpersp))))
@@ -626,6 +640,10 @@ to a wrong one.")
                                              (persp-buffer-in-other-p* b cpersp)))
                                         (funcall persp-buffer-list-function frame))))
                     ret)))))
+        (setq bl (delete-if #'(lambda (b)
+                                (persp-buffer-filtered-out-p
+                                 b persp-buffer-list-restricted-filter-functions))
+                            bl))
         (when (and cpersp
                    persp-kill-foreign-buffer-action
                    (not (memq curbuf bl)))
@@ -1215,6 +1233,23 @@ perspective buffers or the *scratch* buffer."
             buf)))
     (otherwise nil)))
 
+(defun persp-buffer-filtered-out-p (buff-or-name &rest filters)
+  (setq filters (append
+                 persp-common-buffer-filter-functions
+                 filters))
+  (block pbfop
+    (let ((buf (get-buffer buff-or-name))
+          filter f)
+      (while (setq filter (pop filters))
+        (when
+            (if (functionp filter)
+                (funcall filter buf)
+              (while (setq f (pop filter))
+                (when (funcall f buf)
+                  (return-from pbfop t))))
+          (return-from pbfop t)))
+      nil)))
+
 (defun persp-buffer-free-p (buff-or-name)
   (with-current-buffer buff-or-name
     (null persp-buffer-in-persps)))
@@ -1443,8 +1478,7 @@ Return `NAME'."
               (function
                `(funcall ,opt b))
               (number
-               `(let ((*persp-restrict-buffers-to*
-                       ,opt))
+               `(let ((*persp-restrict-buffers-to* ,opt))
                   (memq b (persp-buffer-list-restricted
                            (selected-frame) ,opt))))
               (symbol
