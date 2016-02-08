@@ -268,8 +268,27 @@ If function -- run that function."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-add-buffer-on-after-change-major-mode nil
+  "If t -- add the current buffer to the current perspective when
+the `after-change-major-mode-hook' fires:
+nil -- do not add;
+'free -- add only _free_ buffers;
+function -- run that function."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "Alaways add" :value t)
+          (const :tag "Dont add" :value nil)
+          (const :tag "Add if the buffer is not already in any other persp" :value free)
+          (function :tag "Run this function." :value (lambda () nil)))
+  :set #'(lambda (sym val)
+           (set-default sym val)
+           (when persp-mode
+             (if val
+                 (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+               (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)))))
+
 (defcustom persp-kill-foreign-buffer-action 'ask
-  "What to do when manually killing a buffer that is not in the current persp.
+  "What to do when manually killing a buffer that is not in the current persp:
 'ask       -- ask what to do;
 'kill      -- just kill;
 <function> -- execute that function. This function will be executed in
@@ -295,6 +314,12 @@ If one of these functions returns a non nil value the buffer considered as 'filt
 
 (defcustom persp-buffer-list-restricted-filter-functions nil
   "Additional filters for use inside pthe `persp-buffer-list-restricted'."
+  :group 'persp-mode
+  :type '(repeat (function :tag "Function")))
+
+(defcustom persp-add-buffer-on-after-change-major-mode-filter-functions nil
+  "Additional filters to know which buffers we dont want to add to the current perspective
+after the `after-change-major-mode-hook' is fired."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
@@ -772,6 +797,8 @@ named collections of buffers and window configurations."
           (add-hook 'delete-frame-functions      #'persp-delete-frame)
           (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
           (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+          (when persp-add-buffer-on-after-change-major-mode
+            (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
           (when (daemonp)
             (add-hook 'server-switch-hook #'persp-server-switch))
 
@@ -806,6 +833,8 @@ named collections of buffers and window configurations."
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
     (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
     (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+    (when persp-add-buffer-on-after-change-major-mode
+      (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
     (when (daemonp)
       (remove-hook 'server-switch-hook #'persp-server-switch))
 
@@ -889,6 +918,15 @@ It will be removed from every perspective and then killed.\nWhat do you really w
           (let ((persp-switch-to-added-buffer nil))
             (persp-add-buffer (current-buffer)))
         (persp-add-buffer (current-buffer))))))
+
+(defun persp-after-change-major-mode-h ()
+  (let ((buf (current-buffer)))
+    (unless (persp-buffer-filtered-out-p
+             buf persp-add-buffer-on-after-change-major-mode-filter-functions)
+      (case persp-add-buffer-on-after-change-major-mode
+        ('nil nil)
+        ('free (and (persp-buffer-free-p buf) (persp-add-buffer buf)))
+        ('t (persp-add-buffer buf))))))
 
 (defun persp-server-switch ()
   (when persp-ignore-wconf-of-frames-created-to-edit-file
