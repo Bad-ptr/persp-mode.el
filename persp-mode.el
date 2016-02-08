@@ -508,6 +508,10 @@ to a wrong one.")
 (defvar persp-frame-buffer-predicate nil
   "Current buffer-predicate.")
 
+(make-variable-buffer-local
+ (defvar persp-buffer-in-persps nil
+   "Buffer-local list of perspective names this buffer belongs to."))
+
 
 (defvar persp-backtrace-frame-function
   (if (version< emacs-version "24.4")
@@ -612,16 +616,14 @@ to a wrong one.")
                       (setq ret (cons curbuf (delete curbuf ret))))
                     ret))
                (2 (let ((ret (delete-if #'(lambda (b)
-                                            (persp-other-persps-with-buffer-except-nil
-                                             b cpersp))
+                                            (persp-buffer-in-other-p* b cpersp))
                                         (funcall persp-buffer-list-function frame))))
                     ret))
                (3 (let ((ret (delete-if #'(lambda (b)
                                             (or
                                              (and cpersp
                                                   (persp-contain-buffer-p b cpersp))
-                                             (persp-other-persps-with-buffer-except-nil
-                                              b cpersp)))
+                                             (persp-buffer-in-other-p* b cpersp)))
                                         (funcall persp-buffer-list-function frame))))
                     ret)))))
         (when (and cpersp
@@ -851,7 +853,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
         (if foreign-check
             (let ((pbcontain (memq buffer (safe-persp-buffers persp))))
               (when (and persp pbcontain
-                         (persp-other-persps-with-buffer-except-nil buffer persp))
+                         (persp-buffer-in-other-p* buffer persp))
                 (persp-remove-buffer buffer persp)
                 (return-from pkbqf nil)))
           (return-from pkbqf nil))))
@@ -886,15 +888,6 @@ It will be removed from every perspective and then killed.\nWhat do you really w
 
 
 ;; Misc funcs:
-
-(defun persp-get-buffer-or-null (buff-or-name)
-  "Safely return a buffer or the nil without errors."
-  (typecase buff-or-name
-    ((or string buffer)
-     (let ((buf (get-buffer buff-or-name)))
-       (and (buffer-live-p buf)
-            buf)))
-    (otherwise nil)))
 
 (defsubst persp-is-frame-daemons-frame (f)
   (and (daemonp) (eq f terminal-frame)))
@@ -966,6 +959,12 @@ It will be removed from every perspective and then killed.\nWhat do you really w
                          (when p
                            (memq buf (persp-buffers p))))
                      (delq persp (delq nil (persp-persps phash)))))))
+(defun persp-other-persps-with-buffer-except-nil* (buff-or-name &optional persp)
+  (with-current-buffer buff-or-name
+    (let ((persps persp-buffer-in-persps))
+      (when persp
+        (setq persps (remove (persp-name persp) persps)))
+      persps)))
 
 (defun* persp-frames-with-persp (&optional (persp (get-frame-persp)))
   (delete-if-not #'(lambda (f)
@@ -1105,7 +1104,9 @@ with empty name.")
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
                (null (persp-contain-buffer-p buffer persp)))
-      (push buffer (persp-buffers persp)))
+      (push buffer (persp-buffers persp))
+      (with-current-buffer buffer
+        (push (persp-name persp) persp-buffer-in-persps)))
     (when (and buffer switchorno)
       (switch-to-buffer buffer))
     buffer))
@@ -1150,6 +1151,8 @@ Return the removed buffer."
       (if (memq buffer (persp-buffers persp))
           (progn
             (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
+            (with-current-buffer buffer
+              (setq persp-buffer-in-persps (delete (persp-name persp) persp-buffer-in-persps)))
             (if noswitch
                 buffer
               (persp-switchto-prev-buf buffer persp)))
@@ -1203,10 +1206,25 @@ perspective buffers or the *scratch* buffer."
         (first (safe-persp-buffers persp))
         (persp-revive-scratch persp t))))
 
+(defun persp-get-buffer-or-null (buff-or-name)
+  "Safely return a buffer or the nil without errors."
+  (typecase buff-or-name
+    ((or string buffer)
+     (let ((buf (get-buffer buff-or-name)))
+       (and (buffer-live-p buf)
+            buf)))
+    (otherwise nil)))
+
+(defun persp-buffer-free-p (buff-or-name)
+  (with-current-buffer buff-or-name
+    (null persp-buffer-in-persps)))
+
 (defun* persp-buffer-in-other-p
     (buff-or-name
      &optional (persp (get-frame-persp)) (phash *persp-hash*))
   (persp-other-persps-with-buffer-except-nil buff-or-name persp phash))
+(defun* persp-buffer-in-other-p* (buff-or-name &optional (persp (get-frame-persp)))
+  (persp-other-persps-with-buffer-except-nil* buff-or-name persp))
 
 (defun* persp-get-another-buffer-for-window (old-buff-or-name window
                                                               &optional (persp (get-frame-persp)))
