@@ -368,7 +368,9 @@ nil        -- do not include the current buffer to buffer list if it not in the 
 
 (defcustom persp-common-buffer-filter-functions
   (list #'(lambda (b) (or (string-prefix-p " " (buffer-name b))
-                     (string-prefix-p "Helm" (buffer-local-value 'mode-name b)))))
+                     (let ((m-n (buffer-local-value 'mode-name b)))
+                       (and (stringp m-n)
+                            (string-prefix-p "Helm" m-n))))))
   "Common buffer filters.
 The list of functions wich takes a buffer as an argument.
 If one of these functions returns a non nil value the buffer considered as 'filtered out'."
