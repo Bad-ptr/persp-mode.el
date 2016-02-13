@@ -207,7 +207,7 @@ nil -- do nothing."
           (function :tag "Run function"       :value (lambda () nil))))
 
 (defcustom persp-set-frame-buffer-predicate 'restricted-buffer-list
-  "If t -- set the frame's buffer-predicate parameter to a function returning `t'
+  "t -- set the frame's buffer-predicate parameter to a function returning `t'
     for buffers in current persp;
 nil -- do not set the buffer-predicate;
 restricted-buffer-list -- return t for buffers contained in the list returned
@@ -334,17 +334,17 @@ If function -- run that function."
   :type 'boolean)
 
 (defcustom persp-add-buffer-on-after-change-major-mode nil
-  "If t -- add the current buffer to the current perspective when
-the `after-change-major-mode-hook' fires:
+  "t -- add the current buffer to the current perspective when
+the `after-change-major-mode-hook' fires;
 nil -- do not add;
 'free -- add only _free_ buffers;
 function -- run that function."
   :group 'persp-mode
   :type '(choice
-          (const :tag "Alaways add" :value t)
-          (const :tag "Dont add" :value nil)
+          (const :tag "Always add" :value t)
+          (const :tag "Don't add" :value nil)
           (const :tag "Add if the buffer is not already in any other persp" :value free)
-          (function :tag "Run this function." :value (lambda () nil)))
+          (function :tag "Run this function" :value (lambda () nil)))
   :set #'(lambda (sym val)
            (set-default sym val)
            (when persp-mode
@@ -1788,7 +1788,7 @@ Return `NAME'."
                     (set-window-dedicated-p nil nil)
                     (condition-case err
                         (funcall persp-window-state-put-function pwc frame)
-                      (error (message "[persp-mode] Warning: Could not restore window confiuration, because of the error -- %s" err)))
+                      (error (message "[persp-mode] Warning: Could not restore window configuration, because of the error -- %s" err)))
                     (when (and new-frame persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
