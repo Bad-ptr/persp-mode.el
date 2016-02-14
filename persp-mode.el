@@ -715,7 +715,8 @@ to a wrong one.")
 (defun* persp-buffer-list-restricted
     (&optional (frame (selected-frame))
                (option *persp-restrict-buffers-to*)
-               (option-foreign-override persp-restrict-buffers-to-if-foreign-buffer))
+               (option-foreign-override persp-restrict-buffers-to-if-foreign-buffer)
+               (sure-not-killing nil))
   (unless frame (setq frame (selected-frame)))
   (unless option (setq option 0))
   (let* ((cpersp (get-frame-persp frame))
@@ -752,7 +753,7 @@ to a wrong one.")
                                 (persp-buffer-filtered-out-p
                                  b persp-buffer-list-restricted-filter-functions))
                             bl))
-        (when (and cpersp
+        (when (and (not sure-not-killing) cpersp
                    persp-kill-foreign-buffer-action
                    (not (memq curbuf bl)))
           (block pblr-ret
@@ -764,6 +765,7 @@ to a wrong one.")
                            (or (interactive-form (setq ckit (cadr cbt)))
                                (and (eq ckit 'call-interactively)
                                     (setq ckit (caddr cbt))))
+                           (or (symbolp ckit) (return-from pblr-ret))
                            (string-match-p "^.*?kill-buffer.*?$" (symbol-name ckit)))
                   (setq bl (cons curbuf bl))
                   (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) t)
