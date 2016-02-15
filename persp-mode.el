@@ -457,7 +457,8 @@ If a function return 'skip -- don't restore a buffer."
 
 (defcustom persp-created-functions nil
   "The list of functions that runs after a perspective has been created.
-It's single argument is the created perspective."
+It must accept two argument -- the created perspecive and the hash to which this perspective
+will be placed, you could be interested if that hash is the `*persp-hash*' or some other."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
@@ -1218,8 +1219,8 @@ Return the created perspective."
         (let ((persp (if (string= persp-nil-name name)
                          nil
                        (make-persp :name name))))
+          (run-hook-with-args 'persp-created-functions persp phash)
           (persp-revive-scratch persp nil)
-          (run-hook-with-args 'persp-created-functions persp)
           (persp-add persp phash)))
     (message "[persp-mode] Error: Can't create or switch to a perspective \
 with empty name.")
