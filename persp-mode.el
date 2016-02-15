@@ -580,6 +580,7 @@ function (Must be used only for the local rebinding):
  2 -- show all buffers which are not in any _other_ perspective;
  2.5 -- same as 2, but show all buffers if the current perspective is nil;
  3 -- list only _free_ buffers, that do not belong to any perspective;
+ 3.5 -- same as 3, but show all buffers if the current perspecive is nil;
  function -- run that function with a frame as an argument.")
 
 (defvar persp-restrict-buffers-to-if-foreign-buffer 2.5
@@ -729,6 +730,8 @@ to a wrong one.")
         (funcall option frame)
       (when (= option 2.5)
         (setq option (if (null cpersp) -1 2)))
+      (when (= option 3.5)
+        (setq option (if (null cpersp) -1 3)))
       (let ((bl
              (case option
                (-1 (funcall persp-buffer-list-function frame))
