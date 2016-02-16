@@ -455,6 +455,11 @@ If a function return 'skip -- don't restore a buffer."
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-mode-deactivated-hook nil
+  "Runs when the persp-mode is deactivated."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-created-functions nil
   "The list of functions that runs after a perspective has been created.
 It must accept two argument -- the created perspecive and the hash to which this perspective
@@ -908,6 +913,7 @@ named collections of buffers and window configurations."
                                    (switch-to-buffer persp-special-last-buffer)))))
             (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
 
+    (run-hooks 'persp-mode-deactivated-hook)
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
 
     (remove-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
