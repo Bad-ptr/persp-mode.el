@@ -139,13 +139,13 @@
 
 (defcustom persp-lighter
   '(:eval (format (propertize " #%.5s"
-                              'face (let ((persp (get-frame-persp)))
+                              'face (let ((persp (get-current-persp)))
                                       (if persp
                                           (if (persp-contain-buffer-p (current-buffer) persp)
                                               'persp-face-lighter-default
                                             'persp-face-lighter-buffer-not-in-persp)
                                         'persp-face-lighter-nil-persp)))
-                  (safe-persp-name (get-frame-persp))))
+                  (safe-persp-name (get-current-persp))))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
   :type 'list)
@@ -497,14 +497,18 @@ It's single argument is the perspective that will be killed."
 
 (defcustom persp-before-switch-functions nil
   "The list of functions that runs before actually switching to a perspective.
-These functions must take one argument -- a name of a perspective to switch
-(it could be a name of an unexistent perspective or it could be the same as current)."
+These functions must take two arguments -- a name of a perspective to switch
+(it could be a name of an unexistent perspective or it could be the same as current)
+and a frame or a window for which the switching takes place."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
-(defcustom persp-activated-hook nil
-  "The hook that runs after a perspective has been activated.
-Run with the activated perspective as currently active."
+(defcustom persp-activated-functions nil
+  "Functions that runs after a perspective has been activated.
+These functions must take one argument -- a symbol,
+if it is eq 'frame -- then the perspective is activated for the current frame,
+if it is eq 'window -- then the perspective is activated for the current window.
+The activated perspective is available with (get-current-persp)."
   :group 'persp-mode
   :type 'hook)
 
@@ -678,7 +682,8 @@ to a wrong one.")
 
 (define-key persp-key-map (kbd "n") #'persp-next)
 (define-key persp-key-map (kbd "p") #'persp-prev)
-(define-key persp-key-map (kbd "s") #'persp-switch)
+(define-key persp-key-map (kbd "s") #'persp-frame-switch)
+(define-key persp-key-map (kbd "S") #'persp-window-switch)
 (define-key persp-key-map (kbd "r") #'persp-rename)
 (define-key persp-key-map (kbd "c") #'persp-kill)
 (define-key persp-key-map (kbd "a") #'persp-add-buffer)
@@ -755,8 +760,8 @@ to a wrong one.")
 (defvar persp-nil-hidden nil
   "Hidden filed for the `nil' perspective.")
 
-(defun persp-buffer-list (&optional frame)
-  (safe-persp-buffers (get-frame-persp frame)))
+(defun persp-buffer-list (&optional frame window)
+  (safe-persp-buffers (get-current-persp frame window)))
 
 (defun* persp-buffer-list-restricted
     (&optional (frame (selected-frame))
@@ -765,7 +770,7 @@ to a wrong one.")
                (sure-not-killing nil))
   (unless frame (setq frame (selected-frame)))
   (unless option (setq option 0))
-  (let* ((cpersp (get-frame-persp frame))
+  (let* ((cpersp (get-current-persp frame))
          (curbuf (current-buffer))
          (cb-foreign (not (persp-contain-buffer-p curbuf cpersp))))
     (when (and option-foreign-override cb-foreign)
@@ -862,12 +867,12 @@ to a wrong one.")
   (if p (persp-hidden p)
     persp-nil-hidden))
 
-(defun* modify-persp-parameters (alist &optional (persp (get-frame-persp)))
+(defun* modify-persp-parameters (alist &optional (persp (get-current-persp)))
   (loop for (name . value) in alist
         do (set-persp-parameter name value persp)))
 
 (defun* set-persp-parameter (param-name value
-                                        &optional (persp (get-frame-persp)))
+                                        &optional (persp (get-current-persp)))
   (let* ((params (safe-persp-parameters persp))
          (old-cons (assoc param-name params)))
     (if old-cons
@@ -878,10 +883,10 @@ to a wrong one.")
         (setq persp-nil-parameters
               (acons param-name value params))))))
 
-(defun* persp-parameter (param-name &optional (persp (get-frame-persp)))
+(defun* persp-parameter (param-name &optional (persp (get-current-persp)))
   (cdr-safe (assoc param-name (safe-persp-parameters persp))))
 
-(defun* delete-persp-parameter (param-name &optional (persp (get-frame-persp)))
+(defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
     (if persp
         (setf (persp-parameters persp)
@@ -998,6 +1003,9 @@ named collections of buffers and window configurations."
               (setq persp-mode nil))
 
           (setq *persp-hash* (make-hash-table :test 'equal :size 10))
+
+          (push '(persp . writable) window-persistent-parameters)
+
           (persp-add-minor-mode-menu)
           (persp-add-new persp-nil-name)
 
@@ -1059,6 +1067,10 @@ named collections of buffers and window configurations."
                 (setq persp-buffer-in-persps nil)))
           (buffer-list))
 
+    (setq window-persistent-parameters
+          (delete* (assoc 'persp window-persistent-parameters)
+                   window-persistent-parameters))
+
     (setq *persp-hash* nil)))
 
 
@@ -1071,7 +1083,7 @@ but just removed from a perspective."
   (block pkbqf
     (when persp-mode
       (let* ((buffer (current-buffer))
-             (persp (get-frame-persp))
+             (persp (get-current-persp))
              (foreign-check
               (if (and persp-kill-foreign-buffer-action
                        (boundp 'persp-ask-to-kill-buffer-not-in-persp)
@@ -1158,7 +1170,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
           (mapc #'(lambda (w)
                     (unless (memq (window-buffer w) bl)
                       (delete-window w)))
-                (window-list cframe)))))))
+                (window-list cframe 'no-minibuf)))))))
 
 
 ;; Misc funcs:
@@ -1186,6 +1198,30 @@ It will be removed from every perspective and then killed.\nWhat do you really w
     (if reverse
         (reverse ret)
       ret)))
+
+(defun set-window-persp (persp &optional window)
+  (let ((frame (window-frame window)))
+    (if (eq persp (get-frame-persp frame))
+        (clear-window-persp window)
+      (set-window-parameter window 'persp (safe-persp-name persp)))))
+(defun window-persp-set-p (&optional window)
+  (window-parameter window 'persp))
+(defun get-window-persp (&optional window)
+  (let ((pn (window-parameter window 'persp)))
+    (when pn (persp-get-by-name pn))))
+(defun clear-window-persp (&optional window)
+  (set-window-parameter window 'persp nil))
+
+(defun get-current-persp (&optional frame window)
+  (with-selected-frame (or frame (selected-frame))
+    (if (window-persp-set-p window)
+        (get-window-persp window)
+      (get-frame-persp frame))))
+
+(defun set-current-persp (persp)
+  (if (window-persp-set-p)
+      (set-window-persp persp)
+    (set-frame-persp persp)))
 
 (defun persp-names-current-frame-fast-ordered ()
   (mapcar #'caddr (cddddr persp-minor-mode-menu)))
@@ -1247,9 +1283,9 @@ It will be removed from every perspective and then killed.\nWhat do you really w
 
 (defun* persp-buffer-in-other-p
     (buff-or-name
-     &optional (persp (get-frame-persp)) (phash *persp-hash*) del-weak)
+     &optional (persp (get-current-persp)) (phash *persp-hash*) del-weak)
   (persp-other-persps-with-buffer-except-nil buff-or-name persp phash del-weak))
-(defun* persp-buffer-in-other-p* (buff-or-name &optional (persp (get-frame-persp)) del-weak)
+(defun* persp-buffer-in-other-p* (buff-or-name &optional (persp (get-current-persp)) del-weak)
   (persp-other-persps-with-buffer-except-nil* buff-or-name persp) del-weak)
 
 
@@ -1257,6 +1293,16 @@ It will be removed from every perspective and then killed.\nWhat do you really w
   (delete-if-not #'(lambda (f)
                      (eq persp (get-frame-persp f)))
                  (persp-frame-list-without-daemon)))
+(defun* persp-frames-and-windows-with-persp (&optional (persp (get-current-persp)))
+  (let (frames windows)
+    (dolist (frame (persp-frame-list-without-daemon))
+      (when (eq persp (get-frame-persp frame))
+        (push frame frames))
+      (dolist (window (window-list frame 'no-minibuf))
+        (when (and (window-persp-set-p window)
+                   (eq persp (get-window-persp window)))
+          (push window windows))))
+    (cons frames windows)))
 
 
 (defun* persp-do-buffer-list-by-regexp (&key func regexp blist noask
@@ -1295,7 +1341,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
   (let* ((persp-list (persp-names-current-frame-fast-ordered))
          (persp-list-length (length persp-list))
          (only-perspective? (equal persp-list-length 1))
-         (pos (position (safe-persp-name (get-frame-persp)) persp-list)))
+         (pos (position (safe-persp-name (get-current-persp)) persp-list)))
     (cond
      ((null pos) nil)
      (only-perspective? nil)
@@ -1309,7 +1355,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
   (let* ((persp-list (persp-names-current-frame-fast-ordered))
          (persp-list-length (length persp-list))
          (only-perspective? (equal persp-list-length 1))
-         (pos (position (safe-persp-name (get-frame-persp)) persp-list)))
+         (pos (position (safe-persp-name (get-current-persp)) persp-list)))
     (cond
      ((null pos) nil)
      (only-perspective? nil)
@@ -1337,8 +1383,7 @@ Return the removed perspective."
   (interactive "i")
   (unless name
     (setq name (persp-prompt nil "to remove"
-                             (and (eq phash *persp-hash*)
-                                  (safe-persp-name (get-frame-persp)))
+                             (and (eq phash *persp-hash*) (safe-persp-name (get-current-persp)))
                              t t)))
   (let ((persp (persp-get-by-name name phash :+-123emptynooo))
         (persp-to-switch persp-nil-name))
@@ -1349,10 +1394,13 @@ Return the removed perspective."
         (remhash name phash)
         (when (eq phash *persp-hash*)
           (persp-remove-from-menu persp)
-          (mapc #'(lambda (f)
-                    (when (eq persp (get-frame-persp f))
-                      (persp-switch persp-to-switch f)))
-                (persp-frame-list-without-daemon)))))
+          (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
+                 (frames (car frames-windows))
+                 (windows (cdr frames-windows)))
+            (dolist (w windows) (clear-window-persp w))
+            (setq persp-to-switch (or (car (persp-names phash nil)) persp-nil-name))
+            (dolist (f frames)
+              (persp-switch persp-to-switch f))))))
     persp))
 
 (defun* persp-add-new (name &optional (phash *persp-hash*))
@@ -1372,11 +1420,11 @@ with empty name.")
     nil))
 
 (defun* persp-contain-buffer-p (buff-or-name
-                                &optional (persp (get-frame-persp)))
+                                &optional (persp (get-current-persp)))
   (find (persp-get-buffer-or-null buff-or-name) (safe-persp-buffers persp)))
 
 (defun* persp-add-buffer (buff-or-name
-                          &optional (persp (get-frame-persp))
+                          &optional (persp (get-current-persp))
                           (switchorno persp-switch-to-added-buffer))
   (interactive
    (list (let ((*persp-restrict-buffers-to* 1)
@@ -1392,7 +1440,7 @@ with empty name.")
       (switch-to-buffer buffer))
     buffer))
 
-(defun* persp-add-buffers-by-regexp (&optional regexp (persp (get-frame-persp)))
+(defun* persp-add-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
   (interactive)
   (when persp
     (persp-do-buffer-list-by-regexp
@@ -1412,7 +1460,7 @@ with empty name.")
       (switch-to-buffer buffer t))))
 
 (defun* persp-remove-buffer (buff-or-name
-                             &optional (persp (get-frame-persp)) noask-to-remall noswitch)
+                             &optional (persp (get-current-persp)) noask-to-remall noswitch)
   "Remove a buffer from a perspective. Switch all windows displaying that buffer
 to another one. If `PERSP' is nil -- remove the buffer from all perspectives.
 Return the removed buffer."
@@ -1473,7 +1521,7 @@ Return the removed buffer."
              (buffer-live-p (get-buffer buf-or-name)))
     (kill-buffer buf-or-name)))
 
-(defun* persp-remove-buffers-by-regexp (&optional regexp (persp (get-frame-persp)))
+(defun* persp-remove-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
   (interactive)
   (when persp
     (persp-do-buffer-list-by-regexp :regexp regexp :func 'persp-remove-buffer
@@ -1481,7 +1529,7 @@ Return the removed buffer."
 
 (defun* persp-import-buffers
     (name
-     &optional (persp-to (get-frame-persp)) (phash *persp-hash*))
+     &optional (persp-to (get-current-persp)) (phash *persp-hash*))
   "Import buffers from the perspective with the given name to another one.
 If run interactively assume import from some perspective that is in the `*persp-hash*'
 into the current."
@@ -1492,7 +1540,7 @@ into the current."
     (persp-import-buffers-from persp-from persp-to)))
 
 (defun* persp-import-buffers-from (persp-from
-                                   &optional (persp-to (get-frame-persp)))
+                                   &optional (persp-to (get-current-persp)))
   (if persp-to
       (mapc #'(lambda (b) (persp-add-buffer b persp-to))
             (safe-persp-buffers persp-from))
@@ -1500,7 +1548,7 @@ into the current."
 
 
 (defun* persp-get-buffer (buff-or-name
-                          &optional (persp (get-frame-persp)))
+                          &optional (persp (get-current-persp)))
   "Like `get-buffer', but constrained to the perspective's list of buffers.
 Return the buffer if it's in the perspective or the first buffer from the
 perspective buffers or nil."
@@ -1545,8 +1593,10 @@ perspective buffers or nil."
       nil)))
 
 
-(defun* persp-get-another-buffer-for-window (old-buff-or-name window
-                                                              &optional (persp (get-frame-persp)))
+(defun* persp-get-another-buffer-for-window
+    (old-buff-or-name window
+                      &optional
+                      (persp (get-current-persp nil window)))
   (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
          (p-bs (safe-persp-buffers persp))
          (buffers (delete-if #'(lambda (bc)
@@ -1560,22 +1610,27 @@ perspective buffers or nil."
         (car (buffer-list)))))
 
 (defun* persp-switchto-prev-buf (old-buff-or-name
-                                 &optional (persp (get-frame-persp)))
+                                 &optional (persp (get-current-persp)))
   "Switch all windows in all frames with a perspective displaying that buffer
 to some previous buffer in the perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
     (when persp-when-kill-switch-to-buffer-in-perspective
-      (mapc #'(lambda (w)
-                (set-window-buffer
-                 w
-                 (persp-get-another-buffer-for-window old-buf w)))
-            (delete-if-not #'(lambda (w)
-                               (eq (get-frame-persp (window-frame w)) persp))
-                           (get-buffer-window-list old-buf nil t))))
+      (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
+             (frames (car frames-windows))
+             (windows (cdr frames-windows)))
+        (dolist (w windows)
+          (set-window-buffer
+           w
+           (persp-get-another-buffer-for-window old-buf w)))
+        (dolist (f frames)
+          (dolist (w (get-buffer-window-list old-buf 'no-minibuf f))
+            (set-window-buffer
+             w
+             (persp-get-another-buffer-for-window old-buf w))))))
     old-buf))
 
-(defsubst* persp-filter-out-bad-buffers (&optional (persp (get-frame-persp)))
+(defsubst* persp-filter-out-bad-buffers (&optional (persp (get-current-persp)))
   ;; filter out killed buffers
   (when persp
     (delete-if-not #'buffer-live-p (persp-buffers persp))))
@@ -1583,16 +1638,21 @@ Return that old buffer."
 (defun persp-hide (name)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil "to hide" (safe-persp-name (get-frame-persp)) t)))
+    (setq name (persp-prompt nil "to hide" (safe-persp-name (get-current-persp)) t)))
   (let* ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
-         (persp-to-switch (get-frame-persp)))
+         (persp-to-switch (get-current-persp)))
     (unless (eq persp :+-123emptynooo)
       (when (eq persp persp-to-switch)
         (setq persp-to-switch (car (persp-other-not-hidden-persps persp))))
       (if persp
           (setf (persp-hidden persp) t)
         (setq persp-nil-hidden t))
-      (persp-switch (safe-persp-name persp-to-switch)))))
+      (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
+             (frames (car frames-windows))
+             (windows (cdr frames-windows)))
+        (dolist (w windows) (clear-window-persp w))
+        (dolist (f frames)
+          (persp-switch (safe-persp-name persp-to-switch)))))))
 
 (defun persp-unhide (name)
   (interactive "i")
@@ -1617,11 +1677,11 @@ Return that old buffer."
     (setq name (persp-prompt nil (concat "to kill"
                                          (and dont-kill-buffers
                                               "(not killing buffers)"))
-                             (safe-persp-name (get-frame-persp)) t)))
+                             (safe-persp-name (get-current-persp)) t)))
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
     (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
-          (cpersp (get-frame-persp)))
+          (cpersp (get-current-persp)))
       (unless (eq persp :+-123emptynooo)
         (persp-switch name)
         (run-hook-with-args 'persp-before-kill-functions persp)
@@ -1636,7 +1696,7 @@ Return that old buffer."
   (persp-kill name t))
 
 (defun* persp-rename (newname
-                      &optional (persp (get-frame-persp)) (phash *persp-hash*))
+                      &optional (persp (get-current-persp)) (phash *persp-hash*))
   (interactive "sNew name: ")
   (let ((opersp (gethash newname phash))
         (old-name (safe-persp-name persp)))
@@ -1654,23 +1714,49 @@ M-x: customize-variable RET persp-nil-name RET"))
 that name: %s." newname)
       nil)))
 
-(defun* persp-switch (name
-                      &optional (frame (selected-frame)))
+(defun* persp-switch (name &optional frame (window (selected-window)))
   "Switch to the perspective with name `NAME'.
 If there is no perspective with that name it will be created.
 Return `NAME'."
   (interactive "i")
   (unless name
     (setq name (persp-prompt nil "to switch to" nil nil nil t)))
-  (run-hook-with-args 'persp-before-switch-functions name)
+  (unless frame (setq frame (window-frame window)))
+  (let* ((switch-for-window (window-persp-set-p window))
+         (aarg (or (and switch-for-window window)
+                   frame)))
+    (run-hook-with-args 'persp-before-switch-functions name aarg)
+    (if (string= name (safe-persp-name (get-current-persp frame window)))
+        name
+      (let ((persp (or (gethash name *persp-hash*)
+                       (persp-add-new name))))
+        (unless switch-for-window
+          (persp-frame-save-state frame))
+        (persp-activate persp aarg))))
+  name)
+(defun* persp-frame-switch (name &optional (frame (selected-frame)))
+  (interactive "i")
+  (unless name
+    (setq name (persp-prompt nil "to switch to" nil nil nil t)))
+  (run-hook-with-args 'persp-before-switch-functions name frame)
   (if (string= name (safe-persp-name (get-frame-persp frame)))
       name
-    (persp-frame-save-state frame)
-    (if (string= persp-nil-name name)
-        (persp-activate nil frame)
-      (let ((p (gethash name *persp-hash*)))
-        (persp-activate (or p (persp-add-new name)) frame))))
+    (let ((persp (or (gethash name *persp-hash*)
+                     (persp-add-new name))))
+      (persp-frame-save-state frame)
+      (persp-activate persp frame)))
   name)
+(defun* persp-window-switch (name &optional (window (selected-window)))
+  (interactive "i")
+  (unless name
+    (setq name (persp-prompt nil "to switch this window to" nil nil nil t)))
+  (run-hook-with-args 'persp-before-switch-functions name window)
+  (if (and (window-persp-set-p window)
+           (string= name (safe-persp-name (get-window-persp window))))
+      name
+    (let ((persp (or (gethash name *persp-hash*)
+                     (persp-add-new name))))
+      (persp-activate persp window))))
 
 (defun persp-before-make-frame ()
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
@@ -1681,13 +1767,25 @@ Return `NAME'."
     (persp-save-state persp nil t)))
 
 (defun* persp-activate (persp
-                        &optional (frame (selected-frame)) new-frame)
-  (when frame
+                        &optional (frame-or-window (selected-frame)) new-frame)
+  (when frame-or-window
     (setq persp-last-persp-name (safe-persp-name persp))
-    (set-frame-persp persp frame)
-    (persp-restore-window-conf frame persp new-frame)
-    (with-selected-frame frame
-      (run-hooks 'persp-activated-hook))))
+    (typecase frame-or-window
+      (frame
+       (set-frame-persp persp frame-or-window)
+       (persp-restore-window-conf frame-or-window persp new-frame)
+       (with-selected-frame frame-or-window
+         (run-hook-with-args 'persp-activated-functions 'frame)))
+      (window
+       (set-window-persp persp frame-or-window)
+       (let ((cbuf (window-buffer frame-or-window)))
+         (unless (persp-contain-buffer-p cbuf persp)
+           (set-window-buffer
+            frame-or-window
+            (persp-get-another-buffer-for-window
+             cbuf frame-or-window persp))))
+       (with-selected-window frame-or-window
+         (run-hook-with-args 'persp-activated-functions 'window))))))
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame frame t))
@@ -1757,7 +1855,7 @@ Return `NAME'."
     (when delnil
       (setq persps (delete persp-nil-name persps)))
     (when delcur
-      (setq persps (delete (safe-persp-name (get-frame-persp)) persps)))
+      (setq persps (delete (safe-persp-name (get-current-persp)) persps)))
     (unless show-hidden
       (setq persps (delete-if #'(lambda (pn)
                                   (safe-persp-hidden
@@ -1805,7 +1903,7 @@ Return `NAME'."
                  ('nil t)
                  ('restricted-buffer-list
                   '(memq b (persp-buffer-list-restricted (selected-frame))))
-                 (t '(memq b (safe-persp-buffers (get-frame-persp))))))
+                 (t '(memq b (safe-persp-buffers (get-current-persp))))))
               (t t))))
      nil)))
 
@@ -2129,7 +2227,7 @@ does not exists or not a directory %S." p-save-dir)
                                                names keep-others)
   (interactive)
   (unless names
-    (setq names (persp-prompt t "to save" (safe-persp-name (get-frame-persp)) t)))
+    (setq names (persp-prompt t "to save" (safe-persp-name (get-current-persp)) t)))
   (when (or (not fname) (called-interactively-p 'any))
     (setq fname (read-file-name (format "Save a subset of perspectives%s to a file: "
                                         names)
