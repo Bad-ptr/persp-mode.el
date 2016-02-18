@@ -368,9 +368,8 @@ nil        -- do not include the current buffer to buffer list if it not in the 
 
 (defcustom persp-common-buffer-filter-functions
   (list #'(lambda (b) (or (string-prefix-p " " (buffer-name b))
-                     (let ((m-n (buffer-local-value 'mode-name b)))
-                       (and (stringp m-n)
-                            (string-prefix-p "Helm" m-n))))))
+                     (string-prefix-p "Helm" (with-current-buffer b
+                                               (format-mode-line mode-name))))))
   "Common buffer filters.
 The list of functions wich takes a buffer as an argument.
 If one of these functions returns a non nil value the buffer considered as 'filtered out'."
@@ -816,18 +815,18 @@ to a wrong one.")
 
 (defun* set-persp-parameter (param-name value
                                         &optional (persp (get-frame-persp)))
-  (delete-persp-parameter param-name persp)
-  (when (and (not (null param-name)) (symbolp param-name))
-    (if persp
-        (setf (persp-parameters persp)
-              (acons param-name value (persp-parameters persp)))
-      (setq persp-nil-parameters
-            (acons param-name value persp-nil-parameters)))))
+  (let* ((params (safe-persp-parameters persp))
+         (old-cons (assoc param-name params)))
+    (if old-cons
+        (setf (cdr old-cons) value)
+      (if persp
+          (setf (persp-parameters persp)
+                (acons param-name value params))
+        (setq persp-nil-parameters
+              (acons param-name value params))))))
 
 (defun* persp-parameter (param-name &optional (persp (get-frame-persp)))
-  (if persp
-      (cdr-safe (assoc param-name (persp-parameters persp)))
-    (cdr-safe (assoc param-name persp-nil-parameters))))
+  (cdr-safe (assoc param-name (safe-persp-parameters persp))))
 
 (defun* delete-persp-parameter (param-name &optional (persp (get-frame-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
@@ -935,6 +934,11 @@ named collections of buffers and window configurations."
       (persp-update-frames-buffer-predicate t))
 
     (persp-update-completion-system nil t)
+
+    (mapc #'(lambda (b)
+              (with-current-buffer b
+                (setq persp-buffer-in-persps nil)))
+          (buffer-list))
 
     (setq *persp-hash* nil)))
 
@@ -1990,14 +1994,6 @@ does not exist or not a directory %S." p-save-dir)
 
 ;; Load funcs
 
-(defmacro persp-preserve-frame (&rest body)
-  (let ((c-frame (gensym)))
-    `(progn
-       (let ((,c-frame (selected-frame)))
-         ,@body
-         (unless (eq (selected-frame) ,c-frame)
-           (select-frame ,c-frame))))))
-
 (defsubst persp-update-frames-window-confs (&optional names-regexp)
   (persp-preserve-frame
    (mapc #'(lambda (f) (if names-regexp
@@ -2019,6 +2015,17 @@ does not exist or not a directory %S." p-save-dir)
            ,(if body
                 (cons 'progn body)
               'result))))))
+
+(defmacro persp-preserve-frame (&rest body)
+  (let ((c-frame (gensym))
+        (ret (gensym)))
+    `(progn
+       (let ((,c-frame (selected-frame))
+             (,ret (progn ,@body)))
+         (unless (eq (selected-frame) ,c-frame)
+           (select-frame ,c-frame))
+         ,ret))))
+
 
 (defun persp-buffers-from-savelist (savelist)
   (let (ret)
