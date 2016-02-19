@@ -598,12 +598,6 @@ current perspective. If nil -- do not override.")
 (defvar persp-saved-read-buffer-function read-buffer-function
   "Save the `read-buffer-function' to restore it on deactivation.")
 
-(defvar persp-nil-wconf nil
-  "The window configuration for the `nil' perspective.")
-
-(defvar persp-nil-parameters nil
-  "The parameters of the `nil' perspective.")
-
 (defvar persp-last-persp-name persp-nil-name
   "The last activated perspective. A new frame will be created with that perspective
 if `persp-set-last-persp-for-new-frames' is t.")
@@ -718,6 +712,12 @@ to a wrong one.")
   (buffers nil)
   (window-conf nil)
   (parameters nil))
+
+(defvar persp-nil-wconf nil
+  "Window configuration for the `nil' perspective.")
+
+(defvar persp-nil-parameters nil
+  "Parameters of the `nil' perspective.")
 
 (defun persp-buffer-list (&optional frame)
   (safe-persp-buffers (get-frame-persp frame)))
