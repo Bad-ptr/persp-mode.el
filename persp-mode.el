@@ -443,7 +443,7 @@ If a function return 'skip -- don't save a buffer."
                                                        (not (eq major-mode 'not-loaded-yet)))
                                               (funcall mode))))))
                             buf))))
-                (persp-car-as-fun-cdr-as-args savelist (>= . 3))))))
+                (persp-car-as-fun-cdr-as-args savelist)))))
   "Restore a buffer from a saved structure.
 If a function return nil -- follow to the next function in the list.
 If a function return 'skip -- don't restore a buffer."
@@ -1993,19 +1993,15 @@ does not exists or not a directory %S." p-save-dir)
                     (persp-restore-window-conf f)))
          (persp-frame-list-without-daemon))))
 
-(defmacro persp-car-as-fun-cdr-as-args (lst n-args &rest body)
+(defmacro persp-car-as-fun-cdr-as-args (lst)
   (let ((kar (gensym)))
     `(let* ((,kar (car-safe ,lst))
             (args (cdr-safe ,lst))
-            (fun (symbol-value ,kar)))
-       (when (and fun ,(if (consp n-args)
-                           `(,(car n-args) (length args) ,(cdr n-args))
-                         `(= (length args) ,n-args))
-                  (functionp fun))
-         (let ((result (apply fun args)))
-           ,(if body
-                (cons 'progn body)
-              'result))))))
+            (fun (or (symbol-function ,kar)
+                     (symbol-value ,kar))))
+       (if (functionp fun)
+           (apply fun args)
+         (message "[persp-mode] Error: %s is not a function." fun)))))
 
 (defmacro persp-preserve-frame (&rest body)
   (let ((c-frame (gensym))
@@ -2036,11 +2032,11 @@ does not exists or not a directory %S." p-save-dir)
 
 (defun persp-window-conf-from-savelist-0 (savelist)
   (let ((def-wconf #'identity))
-    (persp-car-as-fun-cdr-as-args savelist 1)))
+    (persp-car-as-fun-cdr-as-args savelist)))
 
 (defun persp-parameters-from-savelist-0 (savelist)
   (let ((def-params #'identity))
-    (persp-car-as-fun-cdr-as-args savelist 1)))
+    (persp-car-as-fun-cdr-as-args savelist)))
 
 (defun persp-from-savelist-0 (savelist phash persp-file)
   (let ((def-persp
@@ -2060,7 +2056,7 @@ does not exists or not a directory %S." p-save-dir)
                                          persp)
                 (when persp-file
                   (set-persp-parameter 'persp-file persp-file persp))))))
-    (persp-car-as-fun-cdr-as-args savelist (>= . 3))))
+    (persp-car-as-fun-cdr-as-args savelist)))
 
 (defun persps-from-savelist-0 (savelist phash persp-file set-persp-file names-regexp)
   (mapc #'(lambda (pd)
