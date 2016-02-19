@@ -592,6 +592,9 @@ function (Must be used only for the local rebinding):
   "Override the *persp-restrict-buffers-to* if the current buffer is not in the
 current perspective. If nil -- do not override.")
 
+(defvar persp-temporarily-display-buffer nil
+  "This variable dynamically bound to t inside the `persp-temporarily-display-buffer'")
+
 (defvar persp-saved-read-buffer-function read-buffer-function
   "Save the `read-buffer-function' to restore it on deactivation.")
 
@@ -1265,10 +1268,12 @@ with empty name.")
 (defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1)
-                      (persp-restrict-buffers-to-if-foreign-buffer nil))
+                      (persp-restrict-buffers-to-if-foreign-buffer nil)
+                      (persp-temporarily-display-buffer t))
                   (read-buffer "Temporarily display a buffer, not adding it to the current perspective: "
                                nil t))))
-  (let ((buffer (persp-get-buffer-or-null buff-or-name)))
+  (let ((buffer (persp-get-buffer-or-null buff-or-name))
+        (persp-temporarily-display-buffer t))
     (when buffer
       (switch-to-buffer buffer t))))
 
