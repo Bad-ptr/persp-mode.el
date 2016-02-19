@@ -429,12 +429,12 @@ If a function return 'skip -- don't save a buffer."
                                     buf
                                   (if (file-exists-p fname)
                                       (setq buf (find-file-noselect fname))
-                                    (message "[persp-mode] Warning: The file %s no longer exists." fname)
+                                    (message "[persp-mode] Warning: The file %s is no longer exists." fname)
                                     (setq buf nil)))
                               (if (and fname (file-exists-p fname))
                                   (setq buf (find-file-noselect fname))
                                 (when fname
-                                  (message "[persp-mode] Warning: The file %s no longer exists." fname))
+                                  (message "[persp-mode] Warning: The file %s is no longer exists." fname))
                                 (setq buf (get-buffer-create name))))
                             (when (buffer-live-p buf)
                               (with-current-buffer buf
@@ -674,7 +674,7 @@ to a wrong one.")
   (interactive
    (list
     (read-key-sequence
-     "Now press a key sequence to be used as persp-key-map prefix: ")))
+     "Now press a key sequence to be used as the persp-key-map prefix: ")))
   (when prefix
     (when (boundp 'persp-keymap-prefix)
       (substitute-key-definition 'persp-key-map nil persp-mode-map))
@@ -691,7 +691,7 @@ to a wrong one.")
   (interactive
    (list
     (read-key-sequence
-     "Now press a key sequence to be used for toggling the persp filters during read-buffer: ")))
+     "Now press a key sequence to be used for toggling persp filters during the read-buffer: ")))
   (if persp-mode
       (case persp-interactive-completion-system
         ('ido
@@ -1209,7 +1209,7 @@ Return the removed perspective."
         (persp-to-switch persp-nil-name))
     (persp-save-state persp)
     (if (and (eq phash *persp-hash*) (null persp))
-        (message "[persp-mode] Error: Can't remove 'nil' perspective")
+        (message "[persp-mode] Error: Can't remove the 'nil' perspective")
       (remhash name phash)
       (when (eq phash *persp-hash*)
         (persp-remove-from-menu persp)
@@ -1286,7 +1286,7 @@ Return the removed buffer."
    (list
     (let ((*persp-restrict-buffers-to* 0)
           (persp-restrict-buffers-to-if-foreign-buffer nil))
-      (read-buffer "Remove buffer from perspective: " (current-buffer) t))))
+      (read-buffer "Remove a buffer from the perspective: " (current-buffer) t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     ;; (when (buffer-live-p buffer)
     ;;   (bury-buffer buffer))
@@ -1466,7 +1466,7 @@ Return that old buffer."
           (remhash old-name phash)
           (if persp
               (setf (persp-name persp) newname)
-            (message "[persp-mode] Info: You can't rename the nil perspective, use \
+            (message "[persp-mode] Info: You can't rename the `nil' perspective, use \
 M-x: customize-variable RET persp-nil-name RET"))
           (puthash newname persp phash)
           (persp-add-to-menu persp))
@@ -1794,7 +1794,7 @@ Return `NAME'."
                     (set-window-dedicated-p nil nil)
                     (condition-case err
                         (funcall persp-window-state-put-function pwc frame)
-                      (error (message "[persp-mode] Warning: Could not restore window configuration, because of the error -- %s" err)))
+                      (error (message "[persp-mode] Warning: Can not restore the window configuration, because of the error -- %s" err)))
                     (when (and new-frame persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
@@ -1900,7 +1900,7 @@ of the perspective %s can't be saved."
 (defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname)
                                             (phash *persp-hash*)
                                             (respect-persp-file-parameter persp-auto-save-persps-to-their-file))
-  (interactive (list (read-file-name "Save perspectives to file: "
+  (interactive (list (read-file-name "Save perspectives to a file: "
                                      persp-save-dir)))
   (when (and fname phash)
     (let* ((p-save-dir (or (file-name-directory fname)
@@ -1913,7 +1913,7 @@ of the perspective %s can't be saved."
       (if (not (and (file-exists-p p-save-dir)
                     (file-directory-p p-save-dir)))
           (message "[persp-mode] Error: Can't save perspectives -- `persp-save-dir' \
-does not exist or not a directory %S." p-save-dir)
+does not exists or not a directory %S." p-save-dir)
         (persp-save-all-persps-state)
         (if respect-persp-file-parameter
             (let ((fg (persp-group-by #'(lambda (p) (persp-parameter 'persp-file p))
@@ -1941,7 +1941,7 @@ does not exist or not a directory %S." p-save-dir)
   (unless names
     (setq names (persp-prompt t "to save" (safe-persp-name (get-frame-persp)) t)))
   (when (or (not fname) (called-interactively-p 'any))
-    (setq fname (read-file-name (format "Save subset of perspectives%s to file: "
+    (setq fname (read-file-name (format "Save a subset of perspectives%s to a file: "
                                         names)
                                 persp-save-dir)))
   (when names
@@ -1987,9 +1987,10 @@ does not exist or not a directory %S." p-save-dir)
 (defsubst persp-update-frames-window-confs (&optional names-regexp)
   (persp-preserve-frame
    (mapc #'(lambda (f) (if names-regexp
-                           (when (string-match-p names-regexp (safe-persp-name (get-frame-persp f)))
-                             (persp-restore-window-conf f))
-                         (persp-restore-window-conf f)))
+                      (when (string-match-p names-regexp
+                                            (safe-persp-name (get-frame-persp f)))
+                        (persp-restore-window-conf f))
+                    (persp-restore-window-conf f)))
          (persp-frame-list-without-daemon))))
 
 (defmacro persp-car-as-fun-cdr-as-args (lst n-args &rest body)
@@ -2122,7 +2123,7 @@ does not exist or not a directory %S." p-save-dir)
 
 (defun* persp-load-state-from-file (&optional (fname persp-auto-save-fname) (phash *persp-hash*)
                                               names-regexp set-persp-file)
-  (interactive (list (read-file-name "Load perspectives from file: "
+  (interactive (list (read-file-name "Load perspectives from a file: "
                                      persp-save-dir)))
   (when fname
     (let ((p-save-file (concat (or (file-name-directory fname)
@@ -2143,7 +2144,7 @@ does not exist or not a directory %S." p-save-dir)
 (defun* persp-load-from-file-by-names (&optional (fname persp-auto-save-fname)
                                                  (phash *persp-hash*)
                                                  names)
-  (interactive (list (read-file-name "Load subset of perspectives from file: "
+  (interactive (list (read-file-name "Load a subset of perspectives from a file: "
                                      persp-save-dir)))
   (unless names
     (let* ((p-save-file (concat (or (file-name-directory fname)
