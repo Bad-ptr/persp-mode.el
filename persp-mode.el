@@ -251,9 +251,10 @@ to interactivly read user input with completion.")
     (setq
      system
      (intern
-      (completing-read "Set the completion system for persp-mode: "
-                       '("ido" "iswitchb" "completing-read")
-                       nil t))))
+      (funcall persp-interactive-completion-function
+               "Set the completion system for persp-mode: "
+               '("ido" "iswitchb" "completing-read")
+               nil t))))
 
   (setq persp-interactive-completion-function #'completing-read)
   (when (boundp 'persp-interactive-completion-system)
