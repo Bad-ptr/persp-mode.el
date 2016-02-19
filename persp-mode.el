@@ -1192,12 +1192,6 @@ It will be removed from every perspective and then killed.\nWhat do you really w
                      (eq persp (get-frame-persp f)))
                  (persp-frame-list-without-daemon)))
 
-(defsubst* persp-revive-scratch
-    (&optional (persp (get-frame-persp))
-               (switchto persp-switch-to-added-buffer))
-  "Create and add the *scratch* buffer to a perspective."
-  (persp-add-buffer (get-buffer-create "*scratch*") persp switchto))
-
 
 (defun* persp-do-buffer-list-by-regexp (&key func regexp blist noask
                                              (rest-args nil rest-args-p))
@@ -1281,7 +1275,7 @@ Return the removed perspective."
                                   (safe-persp-name (get-frame-persp)))
                              t t)))
   (let ((persp (persp-get-by-name name phash :+-123emptynooo))
-        (persp-to-switch (get-frame-persp)))
+        (persp-to-switch persp-nil-name))
     (unless (eq persp :+-123emptynooo)
       (persp-save-state persp)
       (if (and (eq phash *persp-hash*) (null persp))
@@ -1289,11 +1283,9 @@ Return the removed perspective."
         (remhash name phash)
         (when (eq phash *persp-hash*)
           (persp-remove-from-menu persp)
-          (when (eq persp-to-switch persp)
-            (setq persp-to-switch (car (delq persp (persp-persps phash)))))
           (mapc #'(lambda (f)
                     (when (eq persp (get-frame-persp f))
-                      (persp-switch (safe-persp-name persp-to-switch) f)))
+                      (persp-switch persp-to-switch f)))
                 (persp-frame-list-without-daemon)))))
     persp))
 
@@ -1308,7 +1300,6 @@ Return the created perspective."
                          nil
                        (make-persp :name name))))
           (run-hook-with-args 'persp-created-functions persp phash)
-          (persp-revive-scratch persp nil)
           (persp-add persp phash)))
     (message "[persp-mode] Error: Can't create or switch to a perspective \
 with empty name.")
@@ -1446,11 +1437,10 @@ into the current."
                           &optional (persp (get-frame-persp)))
   "Like `get-buffer', but constrained to the perspective's list of buffers.
 Return the buffer if it's in the perspective or the first buffer from the
-perspective buffers or the *scratch* buffer."
+perspective buffers or nil."
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (or (find buffer (safe-persp-buffers persp))
-        (first (safe-persp-buffers persp))
-        (persp-revive-scratch persp t))))
+        (first (safe-persp-buffers persp)))))
 
 (defun persp-get-buffer-or-null (buff-or-name)
   "Safely return a buffer or the nil without errors."
@@ -1499,7 +1489,9 @@ perspective buffers or the *scratch* buffer."
                                   (not (find (car bc) p-bs))))
                              (append (window-prev-buffers window)
                                      (window-next-buffers window)))))
-    (persp-get-buffer (and buffers (car (first buffers))) persp)))
+    (or (persp-get-buffer (and buffers (car (first buffers))) persp)
+        (car (persp-buffer-list-restricted (window-frame window) 2.5))
+        (car (buffer-list)))))
 
 (defun* persp-switchto-prev-buf (old-buff-or-name
                                  &optional (persp (get-frame-persp)))
@@ -1930,8 +1922,7 @@ Return `NAME'."
                   (if (functionp persp-reset-windows-on-nil-window-conf)
                       (funcall persp-reset-windows-on-nil-window-conf)
                     (delete-other-windows)
-                    (set-window-dedicated-p nil nil)
-                    (persp-revive-scratch persp t))))))
+                    (set-window-dedicated-p nil nil))))))
           (when gr-mode
             (golden-ratio-mode 1)))))))
 
