@@ -350,7 +350,7 @@ function -- run that function."
            (set-default sym val)
            (when persp-mode
              (if val
-                 (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+                 (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h t)
                (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)))))
 
 (defcustom persp-kill-foreign-buffer-action 'dont-ask-weak
@@ -904,6 +904,72 @@ to a wrong one.")
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
+
+
+;; Auto persp macro:
+
+;;;###autoload
+(defmacro* def-auto-persp
+    (name
+     &key buffer-name file-name mode mode-name predicate
+     on-match after-match hooks dyn-env
+     get-buffer-expr get-persp-expr parameters noauto)
+  (unless get-persp-expr
+    (setq get-persp-expr `(persp-add-new ,name)))
+  (let* ((mkap-persp (gensym "persp-"))
+         (body (if on-match
+                   `(funcall ,on-match ,name buffer ,after-match hook hook-args)
+                 `(let ((,mkap-persp ,get-persp-expr))
+                    (when (and (not ,noauto) ,mkap-persp)
+                      (setf (persp-auto ,mkap-persp) t))
+                    (modify-persp-parameters ,parameters ,mkap-persp)
+                    (persp-add-buffer buffer ,mkap-persp)
+                    ,(when after-match
+                       `(funcall ,after-match ,mkap-persp buffer hook hook-args))
+                    ,mkap-persp))))
+    (when predicate
+      (setq body `(when (funcall ,predicate buffer)
+                    ,body)))
+    (when file-name
+      (setq body `(when (string-match-p ,file-name (buffer-file-name buffer))
+                    ,body)))
+    (when mode
+      (setq body `(when (eq ',mode major-mode )
+                    ,body)))
+    (when mode-name
+      (setq body `(when (string-match-p ,mode-name (format-mode-line mode-name))
+                    ,body)))
+    (when buffer-name
+      (setq body `(when (string-match-p ,buffer-name (buffer-name buffer))
+                    ,body)))
+    (unless get-buffer-expr (setq get-buffer-expr '(current-buffer)))
+    (unless hooks
+      (setq hooks (cond
+                   (mode
+                    (let ((h (intern (concat (symbol-name mode) "-hook"))))
+                      (if (boundp h) h
+                        'after-change-major-mode-hook)))
+                   ((or mode-name predicate buffer-name) 'after-change-major-mode-hook)
+                   (file-name 'find-file-hook)
+                   (t 'after-change-major-mode-hook))))
+    (unless (consp hooks) (setq hooks (list hooks)))
+
+    `(progn
+       ,@(let (ret)
+           (dolist (hook hooks)
+             (if (and hook (boundp hook))
+                 (push
+                  `(add-hook
+                    ',hook
+                    #'(lambda (&rest hook-args)
+                        (when persp-mode
+                          (let ((buffer ,get-buffer-expr)
+                                (hook ',hook)
+                                ,@dyn-env)
+                            ,body))))
+                  ret)
+               (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook)))
+           ret))))
 
 
 ;; Mode itself:
