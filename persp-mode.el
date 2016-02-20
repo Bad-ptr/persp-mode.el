@@ -1713,14 +1713,15 @@ Return `NAME'."
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
                                                for-save)
-  (let* ((flist (delq exframe (persp-frame-list-without-daemon)))
-         (pos (position persp flist
-                        :test #'(lambda (p f)
-                                  (if for-save
-                                      (not (frame-parameter f 'persp-ignore-wconf))
-                                    t)
-                                  (and f (eq p (get-frame-persp f)))))))
-    (and pos (elt flist pos))))
+  (let* ((flist (delq exframe (persp-frames-with-persp persp))))
+    (find-if
+     #'(lambda (f)
+         (and f
+              (if for-save
+                  (not (frame-parameter f 'persp-ignore-wconf))
+                t)
+              (eq persp (get-frame-persp f))))
+     flist)))
 
 
 ;; Helper funcs:
