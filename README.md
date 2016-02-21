@@ -50,16 +50,18 @@ Ability to save/restore window configurations from/to a file for emacs < 24.4 de
 `n` -- next perspective.  
 `p` -- previous perspective.  
 `s` -- create/switch to perspective.  
+`S` -- create/switch to perspective in a window.  
 `r` -- rename perspective.  
 `c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
 `a` -- add buffer to perspective.  
 `t` -- switch to buffer without adding it to the current perspective.  
 `i` -- import all buffers from another perspective.  
 `k` -- remove buffer from perspective.  
+`K` -- kill buffer.  
 `w` -- save perspectives to file.  
 `l` -- load perspectives from file.  
 `o` -- switch off persp-mode.  (you can quickly switch off persp-mode after emacs start and before autoresuming previous perspectives state if you only need to edit a single file.)  
-  
+
 These key sequences must follow the `persp-keymap-prefix` which you can customize(by default it is `C-c p` in older releases it was `C-x x`), so if you want to invoke the \< `s` - create/switch perspective \> command you must first type the prefix(`C-c p`) and then `s`(full sequence is `C-c p s`).  
 If you want to bind a new key for persp-mode, use `persp-key-map`:  
 `(define-key persp-key-map (kbd ...) ...)`.  
@@ -119,6 +121,101 @@ Python shell example:
                          (current-buffer)))))))
 ```
 
+## switch-to-buffer, display-buffer hook, and other advices:  
+
+Some time ago there were switch-to-buffer and display-buffer advices in the persp-mode.
+If you still need them, I can suggest you the way:
+
+```lisp
+(with-eval-after-load "persp-mode"
+  (defvar after-switch-to-buffer-functions nil)
+  (defvar after-display-buffer-functions nil)
+
+  (if (fboundp 'advice-add)
+      ;;Modern way
+      (progn
+        (defun after-switch-to-buffer-adv (&rest r)
+          (apply #'run-hook-with-args 'after-switch-to-buffer-functions r))
+        (defun after-display-buffer-adv (&rest r)
+          (apply #'run-hook-with-args 'after-display-buffer-functions r))
+        (advice-add #'switch-to-buffer :after #'after-switch-to-buffer-adv)
+        (advice-add #'display-buffer   :after #'after-display-buffer-adv))
+
+    ;;Old way
+    (defadvice switch-to-buffer (after after-switch-to-buffer-adv)
+      (run-hook-with-args 'after-switch-to-buffer-functions (ad-get-arg 0)))
+    (defadvice display-buffer (after after-display-buffer-adv)
+      (run-hook-with-args 'after-display-buffer-functions (ad-get-arg 0)))
+    (ad-enable-advice #'switch-to-buffer 'after 'after-switch-to-buffer-adv)
+    (ad-enable-advice #'display-buffer 'after 'after-display-buffer-adv)
+    (ad-activate #'switch-to-buffer)
+    (ad-activate #'display-buffer)))
+```
+
+After that you can add functions to `after-switch-to-buffer-functions` and `after-display-buffer-functions`:
+
+```lisp
+(add-hook 'after-switch-to-buffer-functions
+    #'(lambda (bn) (when (and persp-mode
+                              (not persp-temporarily-display-buffer))
+                     (persp-add-buffer bn))))
+```
+
+## Auto perpectives  
+
+You can now define an auto perspective using the `def-auto-persp` macro.  
+This kind of perspectives is intended to be dynamically created/destroyed/hided/unhided when a specific kind of buffers appears/disappiars.  
+
+The argument list of the `def-auto-persp` macro:  
+
+The first argument is a string which will serve as a name for the auto perspective.  
+
+Other arguments is a key - value pairs:  
+
+`:buffer-name` -- regexp to match agains a name of a buffer.  
+`:file-name` -- regexp to match against a filename of the buffer.  
+`:mode` -- symbol to compare with the major-mode of the buffer.  
+`:mode-name` -- regexp to compare against mode-name of the buffer.  
+`:predicate` -- function to check if the buffer is a good one(return nil if not).  
+`:on-match` -- function to run when the buffer passed all checks, instead of standard actions(create/get perspective, add buffer to it).  
+  arguments passed to that function:  
+  1. the name of perspective;  
+  2. the buffer;  
+  3. `after-match` argument;  
+  4. the hook that was triggered;  
+  5. arguments passed to that hook.  
+
+`:after-match` -- function to run after the buffer match and standard or custom action.  
+  arguments passed to that function:  
+  1. the perspective  
+  2. the buffer  
+  3. the hook  
+  4. the hook arguments  
+
+`:hooks` -- the list of hooks (or symbol) to which you want to add checks.  
+  `def-auto-persp` tries to be smart about hooks to which it'll add checks, but sometimes you need more control.  
+`:dyn-env` -- the list of variables and values to dynamically bind when the checks and action takes place. The format is the same as in the `let` form.  
+`:get-buffer-expr` -- expression to get the buffer.  
+`:get-persp-expr` -- expression to get the perspective.  
+`:parametes` -- list of parameters for perspective(see the `modify-persp-parameters` function).  
+`:noauto` -- if non nil then do not set the auto field of the perspective.  
+
+Only the name string(first argument) is required. All other arguments could be ommited or combined in any way you like.  
+
+Example of usage:
+```lisp
+(with-eval-after-load "persp-mode-autoload"
+  (with-eval-after-load "dired"
+    (def-auto-persp "dired"
+      :parameters '((dont-save-to-file . t))
+      :mode dired-mode
+      :dyn-env (after-switch-to-buffer-functions ;; prevent recursion
+                (persp-add-buffer-on-find-file nil)
+                persp-add-buffer-on-after-change-major-mode)
+      :hooks (after-switch-to-buffer-functions)
+      :after-match #'(lambda (p b h ha)
+                       (persp-window-switch (safe-persp-name p))))))
+```
 
 ## Interaction with side packages  
 
