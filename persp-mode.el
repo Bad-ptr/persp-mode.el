@@ -621,7 +621,7 @@ function (Must be used only for the local rebinding):
  3.5 -- same as 3, but show all buffers if the current perspecive is nil;
  function -- run that function with a frame as an argument.")
 
-(defvar persp-restrict-buffers-to-if-foreign-buffer 2.5
+(defvar persp-restrict-buffers-to-if-foreign-buffer nil
   "Override the *persp-restrict-buffers-to* if the current buffer is not in the
 current perspective. If nil -- do not override.")
 
