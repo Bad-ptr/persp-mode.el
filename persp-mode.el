@@ -1705,7 +1705,15 @@ Return that old buffer."
           (persp-remove-from-menu persp)
           (remhash old-name phash)
           (if persp
-              (setf (persp-name persp) newname)
+              (progn
+                (setf (persp-name persp) newname)
+                (mapc #'(lambda (b)
+                          (with-current-buffer b
+                            (setq persp-buffer-in-persps
+                                  (cons newname
+                                        (delete* old-name persp-buffer-in-persps
+                                                 :test #'string=)))))
+                      (persp-buffers persp)))
             (message "[persp-mode] Info: You can't rename the `nil' perspective, use \
 M-x: customize-variable RET persp-nil-name RET"))
           (puthash newname persp phash)
