@@ -1398,9 +1398,9 @@ Return the removed perspective."
                  (frames (car frames-windows))
                  (windows (cdr frames-windows)))
             (dolist (w windows) (clear-window-persp w))
-            (setq persp-to-switch (or (car (persp-names phash nil)) persp-nil-name))
+            ;;(setq persp-to-switch (or (car (persp-names phash nil)) persp-nil-name))
             (dolist (f frames)
-              (persp-switch persp-to-switch f))))))
+              (persp-frame-switch persp-to-switch f))))))
     persp))
 
 (defun* persp-add-new (name &optional (phash *persp-hash*))
@@ -1652,7 +1652,7 @@ Return that old buffer."
              (windows (cdr frames-windows)))
         (dolist (w windows) (clear-window-persp w))
         (dolist (f frames)
-          (persp-switch (safe-persp-name persp-to-switch)))))))
+          (persp-frame-switch (safe-persp-name persp-to-switch) f))))))
 
 (defun persp-unhide (name)
   (interactive "i")
@@ -1683,12 +1683,10 @@ Return that old buffer."
     (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
           (cpersp (get-current-persp)))
       (unless (eq persp :+-123emptynooo)
-        (persp-switch name)
         (run-hook-with-args 'persp-before-kill-functions persp)
         (unless dont-kill-buffers
           (let (persp-autokill-persp-when-removed-last-buffer)
             (mapc #'kill-buffer (safe-persp-buffers persp))))
-        (persp-switch (safe-persp-name cpersp))
         (persp-remove-by-name name)))))
 
 (defun persp-kill-without-buffers (name)
