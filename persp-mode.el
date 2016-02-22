@@ -586,7 +586,7 @@ to get a list of all buffers."
 (defcustom persp-dont-count-weaks-in-restricted-buffer-list nil
   "if t -- dont count weak perspectives in `persp-buffer-list-restricted'.
 For now it makes any effect only if the value of the `*persp-restrict-buffers-to*' and friends
-is 2 or 2.5."
+is 2, 2.5, 3 or 3.5."
   :group 'persp-mode
   :type 'boolean)
 
@@ -800,7 +800,8 @@ to a wrong one.")
                                             (or
                                              (and cpersp
                                                   (persp-contain-buffer-p b cpersp))
-                                             (persp-buffer-in-other-p* b cpersp)))
+                                             (persp-buffer-in-other-p*
+                                              b cpersp persp-dont-count-weaks-in-restricted-buffer-list)))
                                         (funcall persp-buffer-list-function frame))))
                     ret)))))
         (setq bl (delete-if #'(lambda (b)
@@ -1286,7 +1287,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
      &optional (persp (get-current-persp)) (phash *persp-hash*) del-weak)
   (persp-other-persps-with-buffer-except-nil buff-or-name persp phash del-weak))
 (defun* persp-buffer-in-other-p* (buff-or-name &optional (persp (get-current-persp)) del-weak)
-  (persp-other-persps-with-buffer-except-nil* buff-or-name persp) del-weak)
+  (persp-other-persps-with-buffer-except-nil* buff-or-name persp del-weak))
 
 
 (defun* persp-frames-with-persp (&optional (persp (get-frame-persp)))
