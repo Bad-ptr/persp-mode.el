@@ -911,167 +911,7 @@ to a wrong one.")
   (setq persp-special-last-buffer (current-buffer)))
 
 
-;; Auto persp macro:
 
-;;;###autoload
-(defmacro* def-auto-persp
-    (name
-     &key buffer-name file-name mode mode-name predicate
-     on-match after-match hooks dyn-env
-     get-buffer-expr get-persp-expr parameters noauto)
-  (unless get-persp-expr
-    (setq get-persp-expr `(persp-add-new ,name)))
-  (let* ((mkap-persp (gensym "persp-"))
-         (body (if on-match
-                   `(funcall ,on-match ,name buffer ,after-match hook hook-args)
-                 `(let ((,mkap-persp ,get-persp-expr))
-                    (when (and (not ,noauto) ,mkap-persp)
-                      (setf (persp-auto ,mkap-persp) t))
-                    (modify-persp-parameters ,parameters ,mkap-persp)
-                    (persp-add-buffer buffer ,mkap-persp)
-                    ,(when after-match
-                       `(funcall ,after-match ,mkap-persp buffer hook hook-args))
-                    ,mkap-persp))))
-    (when predicate
-      (setq body `(when (funcall ,predicate buffer)
-                    ,body)))
-    (when file-name
-      (setq body `(when (string-match-p ,file-name (buffer-file-name buffer))
-                    ,body)))
-    (when mode
-      (setq body `(when (eq ',mode major-mode )
-                    ,body)))
-    (when mode-name
-      (setq body `(when (string-match-p ,mode-name (format-mode-line mode-name))
-                    ,body)))
-    (when buffer-name
-      (setq body `(when (string-match-p ,buffer-name (buffer-name buffer))
-                    ,body)))
-    (unless get-buffer-expr (setq get-buffer-expr '(current-buffer)))
-    (unless hooks
-      (setq hooks (cond
-                   (mode
-                    (let ((h (intern (concat (symbol-name mode) "-hook"))))
-                      (if (boundp h) h
-                        'after-change-major-mode-hook)))
-                   ((or mode-name predicate buffer-name) 'after-change-major-mode-hook)
-                   (file-name 'find-file-hook)
-                   (t 'after-change-major-mode-hook))))
-    (unless (consp hooks) (setq hooks (list hooks)))
-
-    `(progn
-       ,@(let (ret)
-           (dolist (hook hooks)
-             (if (and hook (boundp hook))
-                 (push
-                  `(add-hook
-                    ',hook
-                    #'(lambda (&rest hook-args)
-                        (when persp-mode
-                          (let ((buffer ,get-buffer-expr)
-                                (hook ',hook)
-                                ,@dyn-env)
-                            ,body))))
-                  ret)
-               (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook)))
-           ret))))
-
-
-;; Mode itself:
-
-;;;###autoload
-(define-minor-mode persp-mode
-  "Toggle the persp-mode.
-When active, keeps track of multiple 'perspectives',
-named collections of buffers and window configurations."
-  :require    'persp-mode
-  :group      'persp-mode
-  :keymap     persp-mode-map
-  :init-value nil
-  :global     t
-  :lighter    (:eval persp-lighter)
-  (if persp-mode
-      (progn
-        (setq persp-special-last-buffer nil)
-        (add-hook 'find-file-hook #'persp-special-last-buffer-make-current)
-        (if (or noninteractive
-                (and (daemonp)
-                     (null (cdr (frame-list)))
-                     (eq (selected-frame) terminal-frame)))
-            (progn
-              (add-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook)
-              (setq persp-mode nil))
-
-          (setq *persp-hash* (make-hash-table :test 'equal :size 10))
-
-          (push '(persp . writable) window-persistent-parameters)
-
-          (persp-add-minor-mode-menu)
-          (persp-add-new persp-nil-name)
-
-          (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-          (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
-          (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
-          (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
-          (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
-          (add-hook 'delete-frame-functions      #'persp-delete-frame)
-          (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
-          (when persp-add-buffer-on-after-change-major-mode
-            (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
-          (when (daemonp)
-            (add-hook 'server-switch-hook #'persp-server-switch))
-
-          (mapc #'persp-init-frame (persp-frame-list-without-daemon))
-
-          (when (fboundp 'tabbar-mode)
-            (setq tabbar-buffer-list-function #'persp-buffer-list))
-
-          (persp-update-completion-system
-           persp-interactive-completion-system)
-
-          (if (> persp-auto-resume-time 0)
-              (run-at-time persp-auto-resume-time nil
-                           #'(lambda ()
-                               (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current)
-                               (when (> persp-auto-resume-time 0)
-                                 (persp-load-state-from-file)
-                                 (when (buffer-live-p persp-special-last-buffer)
-                                   (switch-to-buffer persp-special-last-buffer)))))
-            (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
-
-    (run-hooks 'persp-mode-deactivated-hook)
-    (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
-
-    (remove-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-    (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
-    (remove-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
-    (remove-hook 'before-make-frame-hook      #'persp-before-make-frame)
-    (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
-    (remove-hook 'delete-frame-functions      #'persp-delete-frame)
-    (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
-    (when persp-add-buffer-on-after-change-major-mode
-      (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
-    (when (daemonp)
-      (remove-hook 'server-switch-hook #'persp-server-switch))
-
-    (when (fboundp 'tabbar-mode)
-      (setq tabbar-buffer-list-function #'tabbar-buffer-list))
-
-    (when persp-set-frame-buffer-predicate
-      (persp-update-frames-buffer-predicate t))
-
-    (persp-update-completion-system nil t)
-
-    (mapc #'(lambda (b)
-              (with-current-buffer b
-                (setq persp-buffer-in-persps nil)))
-          (buffer-list))
-
-    (setq window-persistent-parameters
-          (delete* (assoc 'persp window-persistent-parameters)
-                   window-persistent-parameters))
-
-    (setq *persp-hash* nil)))
 
 
 ;; Hooks:
@@ -2457,6 +2297,171 @@ does not exists or not a directory %S." p-save-dir)
   (when names
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
+
+
+;; Autoloads:
+
+;; Auto persp macro:
+
+;;;###autoload
+(defmacro* def-auto-persp
+    (name
+     &key buffer-name file-name mode mode-name predicate
+     on-match after-match hooks dyn-env
+     get-buffer-expr get-persp-expr parameters noauto)
+  (unless get-persp-expr
+    (setq get-persp-expr `(persp-add-new ,name)))
+  (let* ((mkap-persp (gensym "persp-"))
+         (body (if on-match
+                   `(funcall ,on-match ,name buffer ,after-match hook hook-args)
+                 `(let ((,mkap-persp ,get-persp-expr))
+                    (when (and (not ,noauto) ,mkap-persp)
+                      (setf (persp/ll/persp-auto ,mkap-persp) t))
+                    (modify-persp-parameters ,parameters ,mkap-persp)
+                    (persp-add-buffer buffer ,mkap-persp)
+                    ,(when after-match
+                       `(funcall ,after-match ,mkap-persp buffer hook hook-args))
+                    ,mkap-persp))))
+    (when predicate
+      (setq body `(when (funcall ,predicate buffer)
+                    ,body)))
+    (when file-name
+      (setq body `(when (string-match-p ,file-name (buffer-file-name buffer))
+                    ,body)))
+    (when mode
+      (setq body `(when (eq ',mode major-mode )
+                    ,body)))
+    (when mode-name
+      (setq body `(when (string-match-p ,mode-name (format-mode-line mode-name))
+                    ,body)))
+    (when buffer-name
+      (setq body `(when (string-match-p ,buffer-name (buffer-name buffer))
+                    ,body)))
+    (unless get-buffer-expr (setq get-buffer-expr '(current-buffer)))
+    (unless hooks
+      (setq hooks (cond
+                   (mode
+                    (let ((h (intern (concat (symbol-name mode) "-hook"))))
+                      (if (boundp h) h
+                        'after-change-major-mode-hook)))
+                   ((or mode-name predicate buffer-name) 'after-change-major-mode-hook)
+                   (file-name 'find-file-hook)
+                   (t 'after-change-major-mode-hook))))
+    (unless (consp hooks) (setq hooks (list hooks)))
+
+    `(progn
+       ,@(let (ret)
+           (dolist (hook hooks)
+             (if (and hook (boundp hook))
+                 (push
+                  `(add-hook
+                    ',hook
+                    #'(lambda (&rest hook-args)
+                        (when persp-mode
+                          (let ((buffer ,get-buffer-expr)
+                                (hook ',hook)
+                                ,@dyn-env)
+                            ,body))))
+                  ret)
+               (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook)))
+           ret))))
+
+
+;; Mode itself:
+
+;;;###autoload
+(define-minor-mode persp-mode
+  "Toggle the persp-mode.
+When active, keeps track of multiple 'perspectives',
+named collections of buffers and window configurations."
+  :require    'persp-mode
+  :group      'persp-mode
+  :keymap     persp-mode-map
+  :init-value nil
+  :global     t
+  :lighter    (:eval persp-lighter)
+  (if persp-mode
+      (progn
+        (setq persp-special-last-buffer nil)
+        (add-hook 'find-file-hook #'persp-special-last-buffer-make-current)
+        (if (or noninteractive
+                (and (daemonp)
+                     (null (cdr (frame-list)))
+                     (eq (selected-frame) terminal-frame)))
+            (progn
+              (add-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook)
+              (setq persp-mode nil))
+
+          (setq *persp-hash* (make-hash-table :test 'equal :size 10))
+
+          (push '(persp . writable) window-persistent-parameters)
+
+          (persp-add-minor-mode-menu)
+          (persp-add-new persp-nil-name)
+
+          (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
+          (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+          (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
+          (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
+          (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
+          (add-hook 'delete-frame-functions      #'persp-delete-frame)
+          (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+          (when persp-add-buffer-on-after-change-major-mode
+            (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
+          (when (daemonp)
+            (add-hook 'server-switch-hook #'persp-server-switch))
+
+          (mapc #'persp-init-frame (persp-frame-list-without-daemon))
+
+          (when (fboundp 'tabbar-mode)
+            (setq tabbar-buffer-list-function #'persp-buffer-list))
+
+          (persp-update-completion-system
+           persp-interactive-completion-system)
+
+          (if (> persp-auto-resume-time 0)
+              (run-at-time persp-auto-resume-time nil
+                           #'(lambda ()
+                               (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current)
+                               (when (> persp-auto-resume-time 0)
+                                 (persp-load-state-from-file)
+                                 (when (buffer-live-p persp-special-last-buffer)
+                                   (switch-to-buffer persp-special-last-buffer)))))
+            (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
+
+    (run-hooks 'persp-mode-deactivated-hook)
+    (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
+
+    (remove-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
+    (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+    (remove-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
+    (remove-hook 'before-make-frame-hook      #'persp-before-make-frame)
+    (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
+    (remove-hook 'delete-frame-functions      #'persp-delete-frame)
+    (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+    (when persp-add-buffer-on-after-change-major-mode
+      (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
+    (when (daemonp)
+      (remove-hook 'server-switch-hook #'persp-server-switch))
+
+    (when (fboundp 'tabbar-mode)
+      (setq tabbar-buffer-list-function #'tabbar-buffer-list))
+
+    (when persp-set-frame-buffer-predicate
+      (persp-update-frames-buffer-predicate t))
+
+    (persp-update-completion-system nil t)
+
+    (mapc #'(lambda (b)
+              (with-current-buffer b
+                (setq persp-buffer-in-persps nil)))
+          (buffer-list))
+
+    (setq window-persistent-parameters
+          (delete* (assoc 'persp window-persistent-parameters)
+                   window-persistent-parameters))
+
+    (setq *persp-hash* nil)))
 
 
 (provide 'persp-mode)
