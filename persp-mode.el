@@ -97,6 +97,7 @@
 
 ;;; Code:
 
+
 ;; Prerequirements:
 
 (require 'cl)
@@ -104,8 +105,6 @@
 
 (unless (boundp 'iswitchb-mode)
   (setq iswitchb-mode nil))
-
-;; Customization variables:
 
 (unless
     (find 'custom-group (symbol-plist 'session))
@@ -119,10 +118,8 @@
   :group 'session
   :link '(url-link :tag "Github page" "https://github.com/Bad-ptr/persp-mode.el"))
 
-(defcustom persp-nil-name "none"
-  "Name for the nil perspective."
-  :group 'persp-mode
-  :type 'string)
+
+;; Faces:
 
 (defface persp-face-lighter-buffer-not-in-persp
   '((t :inherit error))
@@ -136,18 +133,93 @@
   '((t :inherit italic))
   "Default face for the lighter.")
 
-(defcustom persp-lighter
-  '(:eval (format (propertize " #%.5s"
-                              'face (let ((persp (get-current-persp)))
-                                      (if persp
-                                          (if (persp-contain-buffer-p (current-buffer) persp)
-                                              'persp-face-lighter-default
-                                            'persp-face-lighter-buffer-not-in-persp)
-                                        'persp-face-lighter-nil-persp)))
-                  (persp/ll/persp-name-m (get-current-persp))))
-  "Defines how the persp-mode show itself in the modeline."
-  :group 'persp-mode
-  :type 'list)
+
+;; Special variables:
+
+(defvar *persp-hash* nil
+  "The hash table that contain perspectives")
+
+(make-variable-buffer-local
+ (defvar persp-buffer-in-persps nil
+   "Buffer-local list of perspective names this buffer belongs to."))
+
+(defvar persp-last-persp-name nil
+  "The last activated perspective. A new frame will be created with that perspective
+if `persp-set-last-persp-for-new-frames' is t.")
+
+(defvar *persp-restrict-buffers-to* 0
+  "The global variable that controls the behaviour of the `persp-buffer-list-restricted'
+function (Must be used only for the local rebinding):
+-1 -- show all buffers;
+ 0 -- restrict to current perspective's buffers;
+ 1 -- restrict to buffers that is not in the current perspective;
+ 2 -- show all buffers which are not in any _other_ perspective;
+ 2.5 -- same as 2, but show all buffers if the current perspective is nil;
+ 3 -- list only _free_ buffers, that do not belong to any perspective;
+ 3.5 -- same as 3, but show all buffers if the current perspecive is nil;
+ function -- run that function with a frame as an argument.")
+
+(defvar persp-restrict-buffers-to-if-foreign-buffer nil
+  "Override the *persp-restrict-buffers-to* if the current buffer is not in the
+current perspective. If nil -- do not override.")
+
+(defvar persp-temporarily-display-buffer nil
+  "This variable dynamically bound to t inside the `persp/ui/temporarily-display-buffer'")
+
+(defvar persp-frame-buffer-predicate nil
+  "Current buffer-predicate.")
+
+(defvar persp-disable-buffer-restriction-once nil
+  "The flag used for toggling buffer filtering during read-buffer.")
+
+(defvar persp-interactive-completion-function
+  (cond (ido-mode      #'ido-completing-read)
+        (iswitchb-mode #'persp-iswitchb-completing-read)
+        (t             #'completing-read))
+  "The function which is used by the persp-mode
+to interactivly read user input with completion.")
+
+(defvar persp-minor-mode-menu nil
+  "Menu for the persp-mode.")
+
+(defvar persp-saved-read-buffer-function read-buffer-function
+  "Save the `read-buffer-function' to restore it on deactivation.")
+
+(defvar persp-special-last-buffer nil
+  "The special variable to handle the case when new frames switches the selected window buffer
+to a wrong one.")
+
+;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
+(defvar persp-is-ibc-as-f-supported
+  (or
+   (not (version< emacs-version "24.4"))
+   (not
+    (null
+     (assoc 'function
+            (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
+  "t if the `initial-buffer-choice' as a function is supported in your emacs,
+otherwise nil.")
+
+
+(defvar persp-backtrace-frame-function
+  (if (version< emacs-version "24.4")
+      #'(lambda (nframes &optional base)
+          (let ((i (if base
+                       (let ((k 8) found bt)
+                         (while (and (not found)
+                                     (setq bt (cadr (funcall #'backtrace-frame
+                                                             (incf k)))))
+                           ;; (message "%s:%s" k (backtrace-frame k))
+                           (when (eq bt base) (setq found t)))
+                         (when found (+ nframes (- k 3))))
+                     (+ nframes 6))))
+            (when i
+              (funcall #'backtrace-frame i))))
+    #'backtrace-frame)
+  "Backtrace function with base argument.")
+
+
+;; Customization variables:
 
 (defcustom persp-save-dir (expand-file-name "persp-confs/" user-emacs-directory)
   "The directory to/from where perspectives saved/loaded by default.
@@ -188,22 +260,50 @@ in the `persp-file' perspective parameter."
   :group 'persp-mode
   :type 'float)
 
+
+(defcustom persp-switch-wrap t
+  "Whether `persp/ui/next' and `persp/ui/prev' should wrap."
+  :group 'persp-mode
+  :type 'boolean)
+
+(defcustom persp-interactive-completion-system
+  (cond (ido-mode      'ido)
+        (iswitchb-mode 'iswitchb)
+        (t             'completing-read))
+  "What completion system to use."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "ido"             :value ido)
+          (const :tag "iswitchb"        :value iswitchb)
+          (const :tag "completing-read" :value completing-read))
+  :set #'(lambda (sym val)
+           (if persp-mode
+               (persp/ui/update-completion-system val)
+             (set-default 'persp-interactive-completion-system val))))
+
+(defcustom persp-use-workgroups (and (version< emacs-version "24.4")
+                                     (locate-library "workgroups.el"))
+  "If t -- use the workgroups.el package for saving/restoring windows configurations."
+  :group 'persp-mode
+  :type 'boolean
+  :set #'(lambda (sym val)
+           (set-default sym val)
+           ;; require workgroups if we are going to use it
+           (when persp-use-workgroups
+             ;;(require 'workgroups)
+             (unless (fboundp 'wg-make-wconfig)
+               (autoload 'wg-make-wconfig "workgroups"
+                 "Return a new Workgroups window config from `selected-frame'." ))
+             (unless (fboundp 'wg-restore-wconfig)
+               (autoload 'wg-restore-wconfig "workgroups"
+                 "Restore WCONFIG in `selected-frame'." )))))
+
+
 (defcustom persp-set-last-persp-for-new-frames t
   "If nil new frames will be created with the 'nil' perspective,
 otherwise with a last activated perspective."
   :group 'persp-mode
   :type 'boolean)
-
-(defcustom persp-reset-windows-on-nil-window-conf t
-  "t -- When a perspective without a window configuration is activated
-then delete all windows and show the *scratch* buffer;
-function -- run that function;
-nil -- do nothing."
-  :group 'persp-mode
-  :type '(choice
-          (const    :tag "Delete all windows" :value t)
-          (const    :tag "Do nothing"         :value nil)
-          (function :tag "Run function"       :value (lambda () nil))))
 
 (defcustom persp-set-frame-buffer-predicate 'restricted-buffer-list
   "t -- set the frame's buffer-predicate parameter to a function returning `t'
@@ -237,71 +337,28 @@ which take buffer as argument."
                (persp-update-frames-buffer-predicate)
              (add-hook 'persp-mode-hook #'persp-update-frames-buffer-predicate))))
 
-(defvar persp-interactive-completion-function
-  (cond (ido-mode      #'ido-completing-read)
-        (iswitchb-mode #'persp-iswitchb-completing-read)
-        (t             #'completing-read))
-  "The function which is used by the persp-mode
-to interactivly read user input with completion.")
-
-(defun persp/ui/update-completion-system (system &optional remove)
-  (interactive)
-  (when (and (not system) (not remove))
-    (setq
-     system
-     (intern
-      (funcall persp-interactive-completion-function
-               "Set the completion system for persp-mode: "
-               '("ido" "iswitchb" "completing-read")
-               nil t))))
-
-  (setq persp-interactive-completion-function #'completing-read)
-  (when (boundp 'persp-interactive-completion-system)
-    (case persp-interactive-completion-system
-      ('ido
-       (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-       (remove-hook 'ido-setup-hook              #'persp-ido-setup))
-      ('iswitchb
-       (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
-       (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
-       (remove-hook 'iswitchb-define-mode-map-hook  #'persp-iswitchb-define-mode-map))
-      (t
-       (setq read-buffer-function persp-saved-read-buffer-function))))
-
-  (when system
-    (set-default 'persp-interactive-completion-system system))
-
-  (unless remove
-    (case persp-interactive-completion-system
-      ('ido
-       (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-       (add-hook 'ido-setup-hook              #'persp-ido-setup)
-       (setq persp-interactive-completion-function #'ido-completing-read))
-      ('iswitchb
-       (add-hook 'iswitchb-minibuffer-setup-hook   #'persp-iswitchb-setup)
-       (add-hook 'iswitchb-make-buflist-hook       #'persp-iswitchb-filter-buflist)
-       (setq persp-interactive-completion-function #'persp-iswitchb-completing-read)
-       (add-hook 'iswitchb-define-mode-map-hook    #'persp-iswitchb-define-mode-map))
-      (t
-       (setq persp-saved-read-buffer-function read-buffer-function)
-       (setq read-buffer-function #'persp-read-buffer)))
-    (persp/ui/set-toggle-read-persp-filter-keys
-     persp-toggle-read-persp-filter-keys)))
-
-(defcustom persp-interactive-completion-system
-  (cond (ido-mode      'ido)
-        (iswitchb-mode 'iswitchb)
-        (t             'completing-read))
-  "What completion system to use."
+(defcustom persp-ignore-wconf-of-frames-created-to-edit-file t
+  "If t -- set the persp-ignore-wconf frame parameter to t for frames
+that were created by emacsclient with file arguments.
+Also delete windows not showing that files
+(this is because server-switch-hook runs after after-make-frames);
+If function -- run that function."
   :group 'persp-mode
   :type '(choice
-          (const :tag "ido"             :value ido)
-          (const :tag "iswitchb"        :value iswitchb)
-          (const :tag "completing-read" :value completing-read))
-  :set #'(lambda (sym val)
-           (if persp-mode
-               (persp/ui/update-completion-system val)
-             (set-default 'persp-interactive-completion-system val))))
+          (const    :tag "Ignore window configuration" :value t)
+          (const    :tag "Do as usual"  :value nil)
+          (function :tag "Run function" :value (lambda () nil))))
+
+(defcustom persp-reset-windows-on-nil-window-conf t
+  "t -- When a perspective without a window configuration is activated
+then delete all windows and show the *scratch* buffer;
+function -- run that function;
+nil -- do nothing."
+  :group 'persp-mode
+  :type '(choice
+          (const    :tag "Delete all windows" :value t)
+          (const    :tag "Do nothing"         :value nil)
+          (function :tag "Run function"       :value (lambda () nil))))
 
 (defcustom persp-switch-to-added-buffer t
   "If t then after you add a buffer to the current perspective
@@ -316,17 +373,6 @@ otherwise let  the emacs deside what to do."
   :group 'persp-mode
   :type 'boolean)
 
-(defcustom persp-ignore-wconf-of-frames-created-to-edit-file t
-  "If t -- set the persp-ignore-wconf frame parameter to t for frames
-that were created by emacsclient with file arguments.
-Also delete windows not showing that files
-(this is because server-switch-hook runs after after-make-frames);
-If function -- run that function."
-  :group 'persp-mode
-  :type '(choice
-          (const    :tag "Ignore window configuration" :value t)
-          (const    :tag "Do as usual"  :value nil)
-          (function :tag "Run function" :value (lambda () nil))))
 
 (defcustom persp-add-buffer-on-find-file t
   "If t -- add a buffer with opened file to current perspective."
@@ -351,6 +397,7 @@ function -- run that function."
              (if val
                  (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h t)
                (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)))))
+
 
 (defcustom persp-kill-foreign-buffer-action 'dont-ask-weak
   "What to do when manually killing a buffer that is not in the current persp:
@@ -387,6 +434,7 @@ nil        -- do not include the current buffer to buffer list if it not in the 
           (const :tag "Do not kill" :value nil)
           (function :tag "Run that function with persp as an argument"
                     :value (lambda (p) p))))
+
 
 (defcustom persp-common-buffer-filter-functions
   (list #'(lambda (b) (or (string-prefix-p " " (buffer-name b))
@@ -471,6 +519,7 @@ If a function return 'skip -- don't restore a buffer."
   :group 'persp-mode
   :type '(repeat (function :tag "Function")))
 
+
 (defcustom persp-mode-hook nil
   "The hook that's run after the `persp-mode' has been activated."
   :group 'persp-mode
@@ -511,22 +560,6 @@ The activated perspective is available with (get-current-persp)."
   :group 'persp-mode
   :type 'hook)
 
-(defcustom persp-use-workgroups (and (version< emacs-version "24.4")
-                                     (locate-library "workgroups.el"))
-  "If t -- use the workgroups.el package for saving/restoring windows configurations."
-  :group 'persp-mode
-  :type 'boolean
-  :set #'(lambda (sym val)
-           (set-default sym val)
-           ;; require workgroups if we are going to use it
-           (when persp-use-workgroups
-             ;;(require 'workgroups)
-             (unless (fboundp 'wg-make-wconfig)
-               (autoload 'wg-make-wconfig "workgroups"
-                 "Return a new Workgroups window config from `selected-frame'." ))
-             (unless (fboundp 'wg-restore-wconfig)
-               (autoload 'wg-restore-wconfig "workgroups"
-                 "Restore WCONFIG in `selected-frame'." )))))
 
 (defcustom persp-restore-window-conf-method t
   "Defines how to restore window configurations for the new frames:
@@ -576,6 +609,7 @@ and another -- root window(default is the root window of the selected frame)."
   :group 'persp-mode
   :type 'function)
 
+
 (defcustom persp-buffer-list-function (symbol-function 'buffer-list)
   "The function that is used mostly internally by persp-mode functions
 to get a list of all buffers."
@@ -589,88 +623,19 @@ is 2, 2.5, 3 or 3.5."
   :group 'persp-mode
   :type 'boolean)
 
-;; Global variables:
-
-;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
-(defvar persp-is-ibc-as-f-supported
-  (or
-   (not (version< emacs-version "24.4"))
-   (not
-    (null
-     (assoc 'function
-            (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
-  "t if the `initial-buffer-choice' as a function is supported in your emacs,
-otherwise nil.")
-
-(defvar persp-minor-mode-menu nil
-  "Menu for the persp-mode.")
-
-(defvar *persp-hash* nil
-  "The hash table that contain perspectives")
-
-(defvar *persp-restrict-buffers-to* 0
-  "The global variable that controls the behaviour of the `persp-buffer-list-restricted'
-function (Must be used only for the local rebinding):
--1 -- show all buffers;
- 0 -- restrict to current perspective's buffers;
- 1 -- restrict to buffers that is not in the current perspective;
- 2 -- show all buffers which are not in any _other_ perspective;
- 2.5 -- same as 2, but show all buffers if the current perspective is nil;
- 3 -- list only _free_ buffers, that do not belong to any perspective;
- 3.5 -- same as 3, but show all buffers if the current perspecive is nil;
- function -- run that function with a frame as an argument.")
-
-(defvar persp-restrict-buffers-to-if-foreign-buffer nil
-  "Override the *persp-restrict-buffers-to* if the current buffer is not in the
-current perspective. If nil -- do not override.")
-
-(defvar persp-temporarily-display-buffer nil
-  "This variable dynamically bound to t inside the `persp/ui/temporarily-display-buffer'")
-
-(defvar persp-saved-read-buffer-function read-buffer-function
-  "Save the `read-buffer-function' to restore it on deactivation.")
-
-(defvar persp-last-persp-name persp-nil-name
-  "The last activated perspective. A new frame will be created with that perspective
-if `persp-set-last-persp-for-new-frames' is t.")
-
-(defvar persp-special-last-buffer nil
-  "The special variable to handle the case when new frames switches the selected window buffer
-to a wrong one.")
-
-(defvar persp-frame-buffer-predicate nil
-  "Current buffer-predicate.")
-
-(defvar persp-disable-buffer-restriction-once nil
-  "The flag used for toggling buffer filtering during read-buffer.")
-
-(make-variable-buffer-local
- (defvar persp-buffer-in-persps nil
-   "Buffer-local list of perspective names this buffer belongs to."))
-
-
-(defvar persp-backtrace-frame-function
-  (if (version< emacs-version "24.4")
-      #'(lambda (nframes &optional base)
-          (let ((i (if base
-                       (let ((k 8) found bt)
-                         (while (and (not found)
-                                     (setq bt (cadr (funcall #'backtrace-frame
-                                                             (incf k)))))
-                           ;; (message "%s:%s" k (backtrace-frame k))
-                           (when (eq bt base) (setq found t)))
-                         (when found (+ nframes (- k 3))))
-                     (+ nframes 6))))
-            (when i
-              (funcall #'backtrace-frame i))))
-    #'backtrace-frame)
-  "Backtrace function with base argument.")
-
-
-(defcustom persp-switch-wrap t
-  "Whether `persp/ui/next' and `persp/ui/prev' should wrap."
+(defcustom persp-lighter
+  '(:eval (format (propertize " #%.5s"
+                              'face (let ((persp (get-current-persp)))
+                                      (if persp
+                                          (if (persp-contain-buffer-p (current-buffer) persp)
+                                              'persp-face-lighter-default
+                                            'persp-face-lighter-buffer-not-in-persp)
+                                        'persp-face-lighter-nil-persp)))
+                  (persp/ll/persp-name-m (get-current-persp))))
+  "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
-  :type 'boolean)
+  :type 'list)
+
 
 ;; Key bindings:
 
@@ -736,6 +701,7 @@ to a wrong one.")
   :set #'(lambda (sym val)
            (persp/ui/set-toggle-read-persp-filter-keys val)))
 
+
 ;; Perspective struct:
 
 (defstruct (perspective
@@ -751,7 +717,15 @@ to a wrong one.")
   (auto nil)
   (hidden nil))
 
-(defvar persp-nil-persp (persp/ll/make-persp :name persp-nil-name :weak t))
+(defvar persp-nil-persp (persp/ll/make-persp :weak t))
+
+(defcustom persp-nil-name "none"
+  "Name for the nil perspective."
+  :group 'persp-mode
+  :type 'string
+  :set #'(lambda (sym val)
+           (setf (persp/ll/persp--internal-name persp-nil-persp) val)
+           (set-default sym val)))
 
 (defun persp/persp-p (p)
   (persp/ll/persp--internal-p (or p persp-nil-persp)))
@@ -1758,6 +1732,50 @@ Return `NAME'."
          persp-set-frame-buffer-predicate))
   (mapc #'(lambda (f) (persp-set-frame-buffer-predicate f off))
         (persp-frame-list-without-daemon)))
+
+(defun persp/ui/update-completion-system (system &optional remove)
+  (interactive)
+  (when (and (not system) (not remove))
+    (setq
+     system
+     (intern
+      (funcall persp-interactive-completion-function
+               "Set the completion system for persp-mode: "
+               '("ido" "iswitchb" "completing-read")
+               nil t))))
+
+  (setq persp-interactive-completion-function #'completing-read)
+  (when (boundp 'persp-interactive-completion-system)
+    (case persp-interactive-completion-system
+      ('ido
+       (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+       (remove-hook 'ido-setup-hook              #'persp-ido-setup))
+      ('iswitchb
+       (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
+       (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
+       (remove-hook 'iswitchb-define-mode-map-hook  #'persp-iswitchb-define-mode-map))
+      (t
+       (setq read-buffer-function persp-saved-read-buffer-function))))
+
+  (when system
+    (set-default 'persp-interactive-completion-system system))
+
+  (unless remove
+    (case persp-interactive-completion-system
+      ('ido
+       (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+       (add-hook 'ido-setup-hook              #'persp-ido-setup)
+       (setq persp-interactive-completion-function #'ido-completing-read))
+      ('iswitchb
+       (add-hook 'iswitchb-minibuffer-setup-hook   #'persp-iswitchb-setup)
+       (add-hook 'iswitchb-make-buflist-hook       #'persp-iswitchb-filter-buflist)
+       (setq persp-interactive-completion-function #'persp-iswitchb-completing-read)
+       (add-hook 'iswitchb-define-mode-map-hook    #'persp-iswitchb-define-mode-map))
+      (t
+       (setq persp-saved-read-buffer-function read-buffer-function)
+       (setq read-buffer-function #'persp-read-buffer)))
+    (persp/ui/set-toggle-read-persp-filter-keys
+     persp-toggle-read-persp-filter-keys)))
 
 (defun persp-iswitchb-completing-read
     (prompt choices
