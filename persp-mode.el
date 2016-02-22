@@ -1523,8 +1523,7 @@ Return that old buffer."
                           (with-current-buffer b
                             (setq persp-buffer-in-persps
                                   (cons newname
-                                        (delete* old-name persp-buffer-in-persps
-                                                 :test #'string=)))))
+                                        (delete old-name persp-buffer-in-persps)))))
                       (persp/persp-buffers persp)))
             (message "[persp-mode] Info: You can't rename the `nil' perspective, use \
 M-x: customize-variable RET persp-nil-name RET"))
@@ -2425,8 +2424,8 @@ named collections of buffers and window configurations."
           (buffer-list))
 
     (setq window-persistent-parameters
-          (delete* (assoc 'persp window-persistent-parameters)
-                   window-persistent-parameters))
+          (delq (assoc 'persp window-persistent-parameters)
+                window-persistent-parameters))
 
     (setq *persp-hash* nil)))
 
