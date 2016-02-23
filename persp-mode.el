@@ -2303,12 +2303,14 @@ does not exists or not a directory %S." p-save-dir)
 (defmacro persp-preserve-frame (&rest body)
   (let ((c-frame (gensym))
         (ret (gensym)))
-    `(progn
-       (let ((,c-frame (selected-frame))
-             (,ret (progn ,@body)))
+    `(let* ((,c-frame (selected-frame))
+            ,ret)
+       (unwind-protect
+           (setq ,ret (progn ,@body))
          (unless (eq (selected-frame) ,c-frame)
-           (select-frame ,c-frame))
-         ,ret))))
+           (when (frame-live-p ,c-frame)
+             (select-frame ,c-frame))))
+       ,ret)))
 
 
 (defun persp-buffers-from-savelist-0 (savelist)
