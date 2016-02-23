@@ -1050,7 +1050,7 @@ Return `PERSP'."
   (let ((name (persp/ll/persp-name-m persp)))
     (puthash name persp phash)
     (when (eq phash *persp-hash*)
-      (persp-add-to-menu persp)))
+      (persp/menu/add-persp persp)))
   persp)
 
 (defun* persp/ui/remove-by-name (name &optional (phash *persp-hash*))
@@ -1072,7 +1072,7 @@ Return the removed perspective."
           (message "[persp-mode] Error: Can't remove the 'nil' perspective")
         (remhash name phash)
         (when (eq phash *persp-hash*)
-          (persp-remove-from-menu persp)
+          (persp/menu/remove-persp persp)
           (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
                  (frames (car frames-windows))
                  (windows (cdr frames-windows)))
@@ -1375,7 +1375,7 @@ Return that old buffer."
         (old-name (persp/ll/persp-name-m persp)))
     (if (and (not opersp) newname)
         (progn
-          (persp-remove-from-menu persp)
+          (persp/menu/remove-persp persp)
           (remhash old-name phash)
           (if persp
               (progn
@@ -1389,7 +1389,7 @@ Return that old buffer."
             (message "[persp-mode] Info: You can't rename the `nil' perspective, use \
 M-x: customize-variable RET persp-nil-name RET"))
           (puthash newname persp phash)
-          (persp-add-to-menu persp))
+          (persp/menu/add-persp persp))
       (message "[persp-mode] Error: There is already a perspective with \
 that name: %s." newname)
       nil)))
@@ -1486,32 +1486,6 @@ Return `NAME'."
      flist)))
 
 
-;; Helper funcs:
-
-(defun persp-add-minor-mode-menu ()
-  (easy-menu-define persp-minor-mode-menu
-    persp-mode-map
-    "The menu for the `persp-mode'."
-    '("Perspectives"
-      "-")))
-
-(defun persp-remove-from-menu (persp)
-  (easy-menu-remove-item persp-minor-mode-menu nil (persp/ll/persp-name-m persp))
-  (when persp
-    (easy-menu-remove-item persp-minor-mode-menu '("kill") (persp/ll/persp-name-m persp))))
-
-(defun persp-add-to-menu (persp)
-  (let ((name (persp/ll/persp-name-m persp)))
-    (lexical-let ((str_name name))
-      (easy-menu-add-item persp-minor-mode-menu nil
-                          (vector str_name #'(lambda () (interactive)
-                                               (persp/ui/switch str_name))))
-      (when persp
-        (easy-menu-add-item persp-minor-mode-menu '("kill")
-                            (vector str_name #'(lambda () (interactive)
-                                                 (persp/ui/kill str_name))))))))
-
-
 (defun persp-generate-frame-buffer-predicate (opt)
   (eval
    (if opt
@@ -1565,6 +1539,31 @@ Return `NAME'."
          persp-set-frame-buffer-predicate))
   (mapc #'(lambda (f) (persp-set-frame-buffer-predicate f off))
         (persp-frame-list-without-daemon)))
+
+;; Minor mode menu:
+
+(defun persp/menu/init ()
+  (easy-menu-define persp-minor-mode-menu
+    persp-mode-map
+    "The menu for the `persp-mode'."
+    '("Perspectives"
+      "-")))
+
+(defun persp/menu/remove-persp (persp)
+  (easy-menu-remove-item persp-minor-mode-menu nil (persp/ll/persp-name-m persp))
+  (when persp
+    (easy-menu-remove-item persp-minor-mode-menu '("kill") (persp/ll/persp-name-m persp))))
+
+(defun persp/menu/add-persp (persp)
+  (let ((name (persp/ll/persp-name-m persp)))
+    (lexical-let ((str_name name))
+      (easy-menu-add-item persp-minor-mode-menu nil
+                          (vector str_name #'(lambda () (interactive)
+                                               (persp/ui/switch str_name))))
+      (when persp
+        (easy-menu-add-item persp-minor-mode-menu '("kill")
+                            (vector str_name #'(lambda () (interactive)
+                                                 (persp/ui/kill str_name))))))))
 
 
 ;; Completing read:
@@ -2382,7 +2381,7 @@ named collections of buffers and window configurations."
 
           (push '(persp . writable) window-persistent-parameters)
 
-          (persp-add-minor-mode-menu)
+          (persp/menu/init)
           (persp/ui/add-new persp-nil-name)
 
           (add-hook 'kill-buffer-query-functions #'persp/hook/kill-buffer-query)
