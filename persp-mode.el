@@ -100,7 +100,6 @@
 ;; Prerequirements:
 
 (require 'cl)
-(require 'advice)
 (require 'easymenu)
 
 (unless (boundp 'iswitchb-mode)
