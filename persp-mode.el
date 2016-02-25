@@ -565,7 +565,9 @@ The activated perspective is available with (get-current-persp)."
   "Defines how to restore window configurations for the new frames:
 t -- the standard action.
 function -- run that function."
-  :group 'persp-mode)
+  :group 'persp-mode
+  :type '(choice (constant :tag "The standard action" t)
+                 (function :tag "Run that function" (lambda () nil))))
 
 (defcustom persp/custom/state/wc/get-function
   (if persp/custom/state/wc/use-workgroups
