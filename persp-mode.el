@@ -2247,7 +2247,7 @@ does not exists or not a directory %S." p-save-dir)
           bufferlist-pre bufferlist-diff)
       (when (or (eq keep-others 'yes) (eq keep-others t))
         (setq bufferlist-pre (funcall persp-buffer-list-function))
-        (persp-load-state-from-file fname temphash (concat "[^" (c-regexp-opt names) "]"))
+        (persp-load-state-from-file fname temphash (concat "[^" (regexp-opt names) "]"))
         (setq bufferlist-diff (delete-if #'(lambda (b) (memq b bufferlist-pre))
                                          (funcall persp-buffer-list-function))))
       (mapc #'(lambda (pn)
@@ -2456,7 +2456,7 @@ does not exists or not a directory %S." p-save-dir)
            (available-names (persp-list-persp-names-in-file p-save-file)))
       (setq names (persp-prompt t "to load" nil nil nil available-names))))
   (when names
-    (let ((names-regexp (c-regexp-opt names)))
+    (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
 
 
