@@ -141,7 +141,12 @@
 
 (make-variable-buffer-local
  (defvar persp/var/buffer/l:owners-names nil
-   "Buffer-local list of perspective names this buffer belongs to."))
+   "Buffer local list of perspective names this buffer belongs to."))
+
+(make-variable-buffer-local
+ (defvar persp/var/buffer/l:killing-foreign nil
+   "If this variable is t -- then ask before killing the buffer from the perspective
+that doesn't owns it."))
 
 (defvar persp/var/last-persp-name nil
   "The last activated perspective. A new frame will be created with that perspective
@@ -811,7 +816,7 @@ is 2, 2.5, 3 or 3.5."
                            (or (symbolp ckit) (return-from pblr-ret))
                            (string-match-p "^.*?kill-buffer.*?$" (symbol-name ckit)))
                   (setq bl (cons curbuf bl))
-                  (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) t)
+                  (setq persp/var/buffer/l:killing-foreign t)
                   (return-from pblr-ret))
                 (setq i (1+ i))))))
         bl))))
@@ -2165,11 +2170,10 @@ but just removed from a perspective."
              (persp (get-current-persp))
              (foreign-check
               (if (and persp/custom/buffer/foreign-kill-action
-                       (boundp 'persp-ask-to-kill-buffer-not-in-persp)
-                       persp-ask-to-kill-buffer-not-in-persp)
+                       persp/var/buffer/l:killing-foreign)
                   (if (persp-contain-buffer-p buffer)
                       (progn
-                        (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+                        (setq persp/var/buffer/l:killing-foreign nil)
                         t)
                     (cond
                      ((functionp persp/custom/buffer/foreign-kill-action)
@@ -2179,7 +2183,7 @@ but just removed from a perspective."
                      ((eq persp/custom/buffer/foreign-kill-action 'kill)
                       t)
                      (t
-                      (set (make-local-variable 'persp-ask-to-kill-buffer-not-in-persp) nil)
+                      (setq persp/var/buffer/l:killing-foreign nil)
                       (if (and (eq 'dont-ask-weak persp/custom/buffer/foreign-kill-action)
                                (persp-buffer-free-p buffer t))
                           t
