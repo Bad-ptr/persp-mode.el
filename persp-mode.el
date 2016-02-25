@@ -121,15 +121,15 @@
 
 ;; Faces:
 
-(defface persp-face-lighter-buffer-not-in-persp
+(defface persp/face/lighter/foreign-buffer
   '((t :inherit error))
   "Face for the ligher when the current buffer is not in a perspective."
   :group 'persp-mode)
-(defface persp-face-lighter-nil-persp
+(defface persp/face/lighter/nil-persp
   '((t :inherit bold-italic))
   "Face for the lighter when the current perspective is nil."
   :group 'persp-mode)
-(defface persp-face-lighter-default
+(defface persp/face/lighter
   '((t :inherit italic))
   "Default face for the lighter.")
 
@@ -628,9 +628,9 @@ is 2, 2.5, 3 or 3.5."
                               'face (let ((persp (get-current-persp)))
                                       (if persp
                                           (if (persp-contain-buffer-p (current-buffer) persp)
-                                              'persp-face-lighter-default
-                                            'persp-face-lighter-buffer-not-in-persp)
-                                        'persp-face-lighter-nil-persp)))
+                                              'persp/face/lighter
+                                            'persp/face/lighter/foreign-buffer)
+                                        'persp/face/lighter/nil-persp)))
                   (persp/ll/persp-name-m (get-current-persp))))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
