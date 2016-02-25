@@ -711,7 +711,7 @@ is 2, 2.5, 3 or 3.5."
   (name "")
   (buffers nil)
   (window-conf nil)
-  ;; reserved parameters: dont-save-to-file.
+  ;; reserved parameters: dont-save-to-file, persp-file
   (parameters nil)
   (weak nil)
   (auto nil)
