@@ -133,6 +133,11 @@
   '((t :inherit italic))
   "Default face for the lighter.")
 
+;; Constants:
+
+(defconst persp/const/does-not-exists :persp-does-not-exists)
+(defconst persp/const/no-persp :no-persp)
+(defconst persp/const/not-set :not-set)
 
 ;; Special variables:
 
@@ -1071,9 +1076,9 @@ Return the removed perspective."
     (setq name (persp/cr/persp nil "to remove"
                              (and (eq phash persp/var/*persp-hash*) (persp/ll/persp-name-m (get-current-persp)))
                              t t)))
-  (let ((persp (persp-get-by-name name phash :+-123emptynooo))
+  (let ((persp (persp-get-by-name name phash persp/const/does-not-exists))
         (persp-to-switch persp/custom/persp/nil-name))
-    (unless (eq persp :+-123emptynooo)
+    (unless (eq persp persp/const/does-not-exists)
       (persp-save-state persp)
       (if (and (eq phash persp/var/*persp-hash*) (null persp))
           (message "[persp-mode] Error: Can't remove the 'nil' perspective")
@@ -1325,9 +1330,9 @@ Return that old buffer."
   (interactive "i")
   (unless name
     (setq name (persp/cr/persp nil "to hide" (persp/ll/persp-name-m (get-current-persp)) t)))
-  (let* ((persp (persp-get-by-name name persp/var/*persp-hash* :+-123emptynooo))
+  (let* ((persp (persp-get-by-name name persp/var/*persp-hash* persp/const/does-not-exists))
          (persp-to-switch (get-current-persp)))
-    (unless (eq persp :+-123emptynooo)
+    (unless (eq persp persp/const/does-not-exists)
       (when (eq persp persp-to-switch)
         (setq persp-to-switch (car (persp-other-not-hidden-persps persp))))
       (setf (persp/ll/persp-hidden-m persp) t)
@@ -1349,8 +1354,8 @@ Return that old buffer."
             (persp/cr/persp
              nil "to unhide" (car hidden-persps) t nil nil hidden-persps t))))
   (when name
-    (let ((persp (persp-get-by-name name persp/var/*persp-hash* :+-123emptynooo)))
-      (unless (eq persp :+-123emptynooo)
+    (let ((persp (persp-get-by-name name persp/var/*persp-hash* persp/const/does-not-exists)))
+      (unless (eq persp persp/const/does-not-exists)
         (setf (persp/ll/persp-hidden-m persp) nil)))))
 
 (defun persp/ui/kill (name &optional dont-kill-buffers)
@@ -1362,9 +1367,9 @@ Return that old buffer."
                              (persp/ll/persp-name-m (get-current-persp)) t)))
   (when (or (not (string= name persp/custom/persp/nil-name))
             (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
-    (let ((persp (persp-get-by-name name persp/var/*persp-hash* :+-123emptynooo))
+    (let ((persp (persp-get-by-name name persp/var/*persp-hash* persp/const/does-not-exists))
           (cpersp (get-current-persp)))
-      (unless (eq persp :+-123emptynooo)
+      (unless (eq persp persp/const/does-not-exists)
         (run-hook-with-args 'persp/custom/persp/before-kill-functions persp)
         (unless dont-kill-buffers
           (let (persp/custom/persp/action-on-remove-last-buffer)
@@ -1471,11 +1476,11 @@ Return `NAME'."
 (defun* persp-init-frame (frame &optional new-frame)
   (let ((persp (gethash (or (and persp/custom/frame/set-last-persp-for-new-frames
                                  persp/var/last-persp-name)
-                            persp/custom/persp/nil-name) persp/var/*persp-hash* :+-123emptynooo)))
+                            persp/custom/persp/nil-name) persp/var/*persp-hash* persp/const/does-not-exists)))
     (modify-frame-parameters frame `((persp . nil)))
     (when persp/custom/frame/set-buffer-predicate
       (persp/custom/frame/set-buffer-predicate frame))
-    (when (eq persp :+-123emptynooo)
+    (when (eq persp persp/const/does-not-exists)
       (setq persp (persp/ui/add-new persp/custom/persp/nil-name)))
     (persp-activate persp frame new-frame)))
 
@@ -2226,8 +2231,8 @@ It will be removed from every perspective and then killed.\nWhat do you really w
 (defun persp/hook/before-make-frame ()
   (let ((persp (gethash (or (and persp/custom/frame/set-last-persp-for-new-frames
                                  persp/var/last-persp-name)
-                            persp/custom/persp/nil-name) persp/var/*persp-hash* :+-123emptynooo)))
-    (when (eq persp :+-123emptynooo)
+                            persp/custom/persp/nil-name) persp/var/*persp-hash* persp/const/does-not-exists)))
+    (when (eq persp persp/const/does-not-exists)
       (setq persp (persp/ui/add-new persp/custom/persp/nil-name)))
     (persp-save-state persp nil t)))
 
