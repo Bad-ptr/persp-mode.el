@@ -1590,7 +1590,7 @@ perspective buffers or nil."
                            (safe-persp-weak (persp-get-by-name pn)))
                        persp-buffer-in-persps)
           persp-buffer-in-persps)
-      nil)))
+      t)))
 
 
 (defun* persp-get-another-buffer-for-window
