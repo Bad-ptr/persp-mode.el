@@ -1286,7 +1286,7 @@ perspective buffers or nil."
                            (persp/ll/macro/persp-weak (persp-get-by-name pn)))
                        persp/var/buffer/l:owners-names)
           persp/var/buffer/l:owners-names)
-      nil)))
+      t)))
 
 
 (defun* persp-get-another-buffer-for-window
