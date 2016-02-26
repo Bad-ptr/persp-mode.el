@@ -522,7 +522,7 @@ If a function return 'skip -- don't save a buffer."
                                                        (not (eq major-mode 'not-loaded-yet)))
                                               (funcall mode))))))
                             buf))))
-                (persp-car-as-fun-cdr-as-args savelist)))))
+                (persp/macro/apply-car-to-cdr savelist)))))
   "Restore a buffer from a saved structure.
 If a function return nil -- follow to the next function in the list.
 If a function return 'skip -- don't restore a buffer."
@@ -643,7 +643,7 @@ is 2, 2.5, 3 or 3.5."
                                               'persp/face/lighter
                                             'persp/face/lighter/foreign-buffer)
                                         'persp/face/lighter/nil-persp)))
-                  (persp/ll/persp-name-m (get-current-persp))))
+                  (persp/ll/macro/persp-name (get-current-persp))))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
   :type 'list)
@@ -742,20 +742,25 @@ is 2, 2.5, 3 or 3.5."
 (defun persp/persp-p (p)
   (persp/ll/persp--internal-p (or p persp/var/nil-persp)))
 
+(eval-and-compile
+  (dolist (slot '(name buffers window-conf parameters weak auto hidden))
+    (let* ((maccessor (intern (concat "persp/ll/macro/persp-" (symbol-name slot))))
+           (internal-accessor (intern (concat "persp/ll/persp--internal-" (symbol-name slot)))))
+      (eval
+       `(progn
+          (defmacro ,maccessor (p)
+            (let ((ina ',internal-accessor))
+              `(,ina (or ,p persp/var/nil-persp)))))))))
 (dolist (slot '(name buffers window-conf parameters weak auto hidden))
-  (let* ((maccessor (intern (concat "persp/ll/persp-" (symbol-name slot) "-m")))
-         (faccessor (intern (concat "persp/ll/persp-" (symbol-name slot) "-f")))
+  (let* ((faccessor (intern (concat "persp/ll/get-" (symbol-name slot))))
          (internal-accessor (intern (concat "persp/ll/persp--internal-" (symbol-name slot)))))
     (eval
      `(progn
-        (defmacro ,maccessor (p)
-          (let ((ina ',internal-accessor))
-            `(,ina (or ,p persp/var/nil-persp))))
         (defun ,faccessor (p)
           (,internal-accessor (or p persp/var/nil-persp)))))))
 
 (defun persp/persp-buffers (p)
-  (if p (persp/ll/persp-buffers-m p)
+  (if p (persp/ll/macro/persp-buffers p)
     (funcall persp/custom/buffer/list-function)))
 
 (defun persp-buffer-list (&optional frame window)
@@ -845,21 +850,21 @@ is 2, 2.5, 3 or 3.5."
 
 (defun* set-persp-parameter (param-name value
                                         &optional (persp (get-current-persp)))
-  (let* ((params (persp/ll/persp-parameters-m persp))
+  (let* ((params (persp/ll/macro/persp-parameters persp))
          (old-cons (assoc param-name params)))
     (if old-cons
         (setf (cdr old-cons) value)
-      (setf (persp/ll/persp-parameters-m persp)
+      (setf (persp/ll/macro/persp-parameters persp)
             (acons param-name value params)))))
 
 (defun* persp-parameter (param-name &optional (persp (get-current-persp)))
-  (cdr-safe (assoc param-name (persp/ll/persp-parameters-m persp))))
+  (cdr-safe (assoc param-name (persp/ll/macro/persp-parameters persp))))
 
 (defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
-    (setf (persp/ll/persp-parameters-m persp)
-          (delete (assoc param-name (persp/ll/persp-parameters-m persp))
-                  (persp/ll/persp-parameters-m persp)))))
+    (setf (persp/ll/macro/persp-parameters persp)
+          (delete (assoc param-name (persp/ll/macro/persp-parameters persp))
+                  (persp/ll/macro/persp-parameters persp)))))
 
 
 
@@ -895,7 +900,7 @@ is 2, 2.5, 3 or 3.5."
   (let ((frame (window-frame window)))
     (if (eq persp (get-frame-persp frame))
         (clear-window-persp window)
-      (set-window-parameter window 'persp (persp/ll/persp-name-m persp)))))
+      (set-window-parameter window 'persp (persp/ll/macro/persp-name persp)))))
 (defun window-persp-set-p (&optional window)
   (window-parameter window 'persp))
 (defun get-window-persp (&optional window)
@@ -947,7 +952,7 @@ is 2, 2.5, 3 or 3.5."
     ret))
 
 (defun* persp-other-not-hidden-persps (&optional persp (phash persp/var/*persp-hash*))
-  (delete-if #'persp/ll/persp-hidden-f (delq persp (persp-persps phash))))
+  (delete-if #'persp/ll/get-hidden (delq persp (persp-persps phash))))
 
 (defun* persp-other-persps-with-buffer-except-nil
     (buff-or-name
@@ -965,10 +970,10 @@ is 2, 2.5, 3 or 3.5."
   (with-current-buffer buff-or-name
     (let ((persps persp/var/buffer/l:owners-names))
       (when persp
-        (setq persps (remove (persp/ll/persp-name-m persp) persps)))
+        (setq persps (remove (persp/ll/macro/persp-name persp) persps)))
       (when del-weak
         (setq persps (remove-if
-                      #'(lambda (pn) (persp/ll/persp-weak-m (persp-get-by-name pn)))
+                      #'(lambda (pn) (persp/ll/macro/persp-weak (persp-get-by-name pn)))
                       persps)))
       persps)))
 
@@ -1032,7 +1037,7 @@ is 2, 2.5, 3 or 3.5."
   (let* ((persp-list (persp-names-current-frame-fast-ordered))
          (persp-list-length (length persp-list))
          (only-perspective? (equal persp-list-length 1))
-         (pos (position (persp/ll/persp-name-m (get-current-persp)) persp-list)))
+         (pos (position (persp/ll/macro/persp-name (get-current-persp)) persp-list)))
     (cond
      ((null pos) nil)
      (only-perspective? nil)
@@ -1046,7 +1051,7 @@ is 2, 2.5, 3 or 3.5."
   (let* ((persp-list (persp-names-current-frame-fast-ordered))
          (persp-list-length (length persp-list))
          (only-perspective? (equal persp-list-length 1))
-         (pos (position (persp/ll/persp-name-m (get-current-persp)) persp-list)))
+         (pos (position (persp/ll/macro/persp-name (get-current-persp)) persp-list)))
     (cond
      ((null pos) nil)
      (only-perspective? nil)
@@ -1059,7 +1064,7 @@ is 2, 2.5, 3 or 3.5."
   "Insert `PERSP' to `PHASH'.
 If we adding to the `persp/var/*persp-hash*' add entries to the mode menu.
 Return `PERSP'."
-  (let ((name (persp/ll/persp-name-m persp)))
+  (let ((name (persp/ll/macro/persp-name persp)))
     (puthash name persp phash)
     (when (eq phash persp/var/*persp-hash*)
       (persp/menu/add-persp persp)))
@@ -1074,7 +1079,7 @@ Return the removed perspective."
   (interactive "i")
   (unless name
     (setq name (persp/cr/persp nil "to remove"
-                             (and (eq phash persp/var/*persp-hash*) (persp/ll/persp-name-m (get-current-persp)))
+                             (and (eq phash persp/var/*persp-hash*) (persp/ll/macro/persp-name (get-current-persp)))
                              t t)))
   (let ((persp (persp-get-by-name name phash persp/const/does-not-exists))
         (persp-to-switch persp/custom/persp/nil-name))
@@ -1124,9 +1129,9 @@ with empty name.")
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
                (null (persp-contain-buffer-p buffer persp)))
-      (push buffer (persp/ll/persp-buffers-m persp))
+      (push buffer (persp/ll/macro/persp-buffers persp))
       (with-current-buffer buffer
-        (push (persp/ll/persp-name-m persp) persp/var/buffer/l:owners-names)))
+        (push (persp/ll/macro/persp-name persp) persp/var/buffer/l:owners-names)))
     (when (and buffer switchorno)
       (switch-to-buffer buffer))
     buffer))
@@ -1169,9 +1174,9 @@ Return the removed buffer."
                 (persp-other-persps-with-buffer-except-nil buffer persp)))
       (if (memq buffer (persp/persp-buffers persp))
           (progn
-            (setf (persp/ll/persp-buffers-m persp) (delq buffer (persp/ll/persp-buffers-m persp)))
+            (setf (persp/ll/macro/persp-buffers persp) (delq buffer (persp/ll/macro/persp-buffers persp)))
             (with-current-buffer buffer
-              (setq persp/var/buffer/l:owners-names (delete (persp/ll/persp-name-m persp) persp/var/buffer/l:owners-names)))
+              (setq persp/var/buffer/l:owners-names (delete (persp/ll/macro/persp-name persp) persp/var/buffer/l:owners-names)))
             (if noswitch
                 buffer
               (persp/ui/switchto-prev-buf buffer persp)))))
@@ -1189,15 +1194,15 @@ Return the removed buffer."
        ((or
          (eq 'hide persp/custom/persp/action-on-remove-last-buffer)
          (and (eq 'hide-auto persp/custom/persp/action-on-remove-last-buffer)
-              (persp/ll/persp-auto-m persp)))
-        (persp/ui/hide (persp/ll/persp-name-m persp)))
+              (persp/ll/macro/persp-auto persp)))
+        (persp/ui/hide (persp/ll/macro/persp-name persp)))
        ((or
          (eq t persp/custom/persp/action-on-remove-last-buffer)
          (eq 'kill persp/custom/persp/action-on-remove-last-buffer)
          (and
           (eq 'kill-auto persp/custom/persp/action-on-remove-last-buffer)
-          (persp/ll/persp-auto-m persp)))
-        (persp/ui/kill (persp/ll/persp-name-m persp)))))
+          (persp/ll/macro/persp-auto persp)))
+        (persp/ui/kill (persp/ll/macro/persp-name persp)))))
     buffer))
 
 (defun persp/ui/kill-buffer (&optional buf-or-name)
@@ -1278,7 +1283,7 @@ perspective buffers or nil."
     (if persp/var/buffer/l:owners-names
         (if del-weak
             (remove-if #'(lambda (pn)
-                           (persp/ll/persp-weak-m (persp-get-by-name pn)))
+                           (persp/ll/macro/persp-weak (persp-get-by-name pn)))
                        persp/var/buffer/l:owners-names)
           persp/var/buffer/l:owners-names)
       nil)))
@@ -1329,26 +1334,26 @@ Return that old buffer."
 (defun persp/ui/hide (name)
   (interactive "i")
   (unless name
-    (setq name (persp/cr/persp nil "to hide" (persp/ll/persp-name-m (get-current-persp)) t)))
+    (setq name (persp/cr/persp nil "to hide" (persp/ll/macro/persp-name (get-current-persp)) t)))
   (let* ((persp (persp-get-by-name name persp/var/*persp-hash* persp/const/does-not-exists))
          (persp-to-switch (get-current-persp)))
     (unless (eq persp persp/const/does-not-exists)
       (when (eq persp persp-to-switch)
         (setq persp-to-switch (car (persp-other-not-hidden-persps persp))))
-      (setf (persp/ll/persp-hidden-m persp) t)
+      (setf (persp/ll/macro/persp-hidden persp) t)
       (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
              (frames (car frames-windows))
              (windows (cdr frames-windows)))
         (dolist (w windows) (clear-window-persp w))
         (dolist (f frames)
-          (persp/ui/frame-switch (persp/ll/persp-name-m persp-to-switch) f))))))
+          (persp/ui/frame-switch (persp/ll/macro/persp-name persp-to-switch) f))))))
 
 (defun persp/ui/unhide (name)
   (interactive "i")
   (unless name
     (let ((hidden-persps
-           (mapcar #'persp/ll/persp-name-f
-                   (delete-if-not #'persp/ll/persp-hidden-f
+           (mapcar #'persp/ll/get-name
+                   (delete-if-not #'persp/ll/get-hidden
                                   (persp-persps)))))
       (setq name
             (persp/cr/persp
@@ -1356,7 +1361,7 @@ Return that old buffer."
   (when name
     (let ((persp (persp-get-by-name name persp/var/*persp-hash* persp/const/does-not-exists)))
       (unless (eq persp persp/const/does-not-exists)
-        (setf (persp/ll/persp-hidden-m persp) nil)))))
+        (setf (persp/ll/macro/persp-hidden persp) nil)))))
 
 (defun persp/ui/kill (name &optional dont-kill-buffers)
   (interactive "i")
@@ -1364,7 +1369,7 @@ Return that old buffer."
     (setq name (persp/cr/persp nil (concat "to kill"
                                          (and dont-kill-buffers
                                               "(not killing buffers)"))
-                             (persp/ll/persp-name-m (get-current-persp)) t)))
+                             (persp/ll/macro/persp-name (get-current-persp)) t)))
   (when (or (not (string= name persp/custom/persp/nil-name))
             (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
     (let ((persp (persp-get-by-name name persp/var/*persp-hash* persp/const/does-not-exists))
@@ -1384,14 +1389,14 @@ Return that old buffer."
                       &optional (persp (get-current-persp)) (phash persp/var/*persp-hash*))
   (interactive "sNew name: ")
   (let ((opersp (gethash newname phash))
-        (old-name (persp/ll/persp-name-m persp)))
+        (old-name (persp/ll/macro/persp-name persp)))
     (if (and (not opersp) newname)
         (progn
           (persp/menu/remove-persp persp)
           (remhash old-name phash)
           (if persp
               (progn
-                (setf (persp/ll/persp-name-m persp) newname)
+                (setf (persp/ll/macro/persp-name persp) newname)
                 (mapc #'(lambda (b)
                           (with-current-buffer b
                             (setq persp/var/buffer/l:owners-names
@@ -1418,7 +1423,7 @@ Return `NAME'."
          (aarg (or (and switch-for-window window)
                    frame)))
     (run-hook-with-args 'persp/custom/persp/before-switch-functions name aarg)
-    (if (string= name (persp/ll/persp-name-m (get-current-persp frame window)))
+    (if (string= name (persp/ll/macro/persp-name (get-current-persp frame window)))
         name
       (let ((persp (or (gethash name persp/var/*persp-hash*)
                        (persp/ui/add-new name))))
@@ -1431,7 +1436,7 @@ Return `NAME'."
   (unless name
     (setq name (persp/cr/persp nil "to switch to" nil nil nil t)))
   (run-hook-with-args 'persp/custom/persp/before-switch-functions name frame)
-  (if (string= name (persp/ll/persp-name-m (get-frame-persp frame)))
+  (if (string= name (persp/ll/macro/persp-name (get-frame-persp frame)))
       name
     (let ((persp (or (gethash name persp/var/*persp-hash*)
                      (persp/ui/add-new name))))
@@ -1444,7 +1449,7 @@ Return `NAME'."
     (setq name (persp/cr/persp nil "to switch this window to" nil nil nil t)))
   (run-hook-with-args 'persp/custom/persp/before-switch-functions name window)
   (if (and (window-persp-set-p window)
-           (string= name (persp/ll/persp-name-m (get-window-persp window))))
+           (string= name (persp/ll/macro/persp-name (get-window-persp window))))
       name
     (let ((persp (or (gethash name persp/var/*persp-hash*)
                      (persp/ui/add-new name))))
@@ -1454,7 +1459,7 @@ Return `NAME'."
 (defun* persp-activate (persp
                         &optional (frame-or-window (selected-frame)) new-frame)
   (when frame-or-window
-    (setq persp/var/last-persp-name (persp/ll/persp-name-m persp))
+    (setq persp/var/last-persp-name (persp/ll/macro/persp-name persp))
     (typecase frame-or-window
       (frame
        (set-frame-persp persp frame-or-window)
@@ -1562,12 +1567,12 @@ Return `NAME'."
       "-")))
 
 (defun persp/menu/remove-persp (persp)
-  (easy-menu-remove-item persp/var/menu nil (persp/ll/persp-name-m persp))
+  (easy-menu-remove-item persp/var/menu nil (persp/ll/macro/persp-name persp))
   (when persp
-    (easy-menu-remove-item persp/var/menu '("kill") (persp/ll/persp-name-m persp))))
+    (easy-menu-remove-item persp/var/menu '("kill") (persp/ll/macro/persp-name persp))))
 
 (defun persp/menu/add-persp (persp)
-  (let ((name (persp/ll/persp-name-m persp)))
+  (let ((name (persp/ll/macro/persp-name persp)))
     (lexical-let ((str_name name))
       (easy-menu-add-item persp/var/menu nil
                           (vector str_name #'(lambda () (interactive)
@@ -1738,10 +1743,10 @@ Return `NAME'."
     (when delnil
       (setq persps (delete persp/custom/persp/nil-name persps)))
     (when delcur
-      (setq persps (delete (persp/ll/persp-name-m (get-current-persp)) persps)))
+      (setq persps (delete (persp/ll/macro/persp-name (get-current-persp)) persps)))
     (unless show-hidden
       (setq persps (delete-if #'(lambda (pn)
-                                  (persp/ll/persp-hidden-m
+                                  (persp/ll/macro/persp-hidden
                                    (persp-get-by-name pn)))
                               persps)))
     (let (retlst)
@@ -1778,7 +1783,7 @@ Return `NAME'."
   (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
     (when new-frame (sit-for 0.01))
     (with-selected-frame frame
-      (let ((pwc (persp/ll/persp-window-conf-m persp))
+      (let ((pwc (persp/ll/macro/persp-window-conf persp))
             (split-width-threshold 0)
             (split-height-threshold 0)
             (window-min-height window-safe-min-height)
@@ -1817,7 +1822,7 @@ Return `NAME'."
       (with-selected-frame frame
         (when set-persp-special-last-buffer
           (persp-special-last-buffer-make-current))
-        (setf (persp/ll/persp-window-conf-m persp) (funcall persp/custom/state/wc/get-function frame))))))
+        (setf (persp/ll/macro/persp-window-conf persp) (funcall persp/custom/state/wc/get-function frame))))))
 
 (defun* persp-save-state (&optional (persp (get-frame-persp)) exfr set-persp-special-last-buffer)
   (let ((frame (selected-frame)))
@@ -1850,7 +1855,7 @@ Return `NAME'."
 (defun persp-window-conf-to-savelist (persp)
   `(def-wconf ,(if (or persp/custom/state/wc/use-workgroups
                        (not (version< emacs-version "24.4")))
-                   (persp/ll/persp-window-conf-m persp)
+                   (persp/ll/macro/persp-window-conf persp)
                  nil)))
 
 (defun persp-parameters-to-savelist (persp)
@@ -1861,18 +1866,18 @@ Return `NAME'."
                                           (prin1-to-string param))
                           (message "[persp-mode] Info: The parameter %S \
 of the perspective %s can't be saved."
-                                   param (persp/ll/persp-name-m persp))
+                                   param (persp/ll/macro/persp-name persp))
                           t))
-                 (persp/ll/persp-parameters-m persp))))
+                 (persp/ll/macro/persp-parameters persp))))
 
 (defun persp-to-savelist (persp)
-  `(def-persp ,(and persp (persp/ll/persp-name-m persp))
+  `(def-persp ,(and persp (persp/ll/macro/persp-name persp))
      ,(persp-buffers-to-savelist persp)
      ,(persp-window-conf-to-savelist persp)
      ,(persp-parameters-to-savelist persp)
-     ,(persp/ll/persp-weak-m persp)
-     ,(persp/ll/persp-auto-m persp)
-     ,(persp/ll/persp-hidden-m persp)))
+     ,(persp/ll/macro/persp-weak persp)
+     ,(persp/ll/macro/persp-auto persp)
+     ,(persp/ll/macro/persp-hidden persp)))
 
 (defun persps-to-savelist (phash &optional names-regexp)
   (mapcar #'persp-to-savelist
@@ -1924,7 +1929,7 @@ does not exists or not a directory %S." p-save-dir)
                   (persp/custom/state/save/respect-the-persp-file-parameter nil))
               (mapc #'(lambda (gr)
                         (let ((pfname (car gr)) (pl (cdr gr)) names)
-                          (mapc #'(lambda (p) (push (persp/ll/persp-name-m p) names)) pl)
+                          (mapc #'(lambda (p) (push (persp/ll/macro/persp-name p) names)) pl)
                           (if pfname
                               (persp/ui/save-to-file-by-names pfname phash names 'yes)
                             (persp/ui/save-to-file-by-names p-save-file phash names 'no))))
@@ -1942,7 +1947,7 @@ does not exists or not a directory %S." p-save-dir)
                                                names keep-others)
   (interactive)
   (unless names
-    (setq names (persp/cr/persp t "to save" (persp/ll/persp-name-m (get-current-persp)) t)))
+    (setq names (persp/cr/persp t "to save" (persp/ll/macro/persp-name (get-current-persp)) t)))
   (when (or (not fname) (called-interactively-p 'any))
     (setq fname (read-file-name (format "Save a subset of perspectives%s to a file: "
                                         names)
@@ -1987,16 +1992,7 @@ does not exists or not a directory %S." p-save-dir)
 
 ;; Load funcs
 
-(defsubst persp-update-frames-window-confs (&optional names-regexp)
-  (persp-preserve-frame
-   (mapc #'(lambda (f) (if names-regexp
-                      (when (string-match-p names-regexp
-                                            (persp/ll/persp-name-m (get-frame-persp f)))
-                        (persp-restore-window-conf f))
-                    (persp-restore-window-conf f)))
-         (persp-frame-list-without-daemon))))
-
-(defmacro persp-car-as-fun-cdr-as-args (lst)
+(defmacro persp/macro/apply-car-to-cdr (lst)
   (let ((kar (gensym)))
     `(let* ((,kar (car-safe ,lst))
             (args (cdr-safe ,lst))
@@ -2006,9 +2002,10 @@ does not exists or not a directory %S." p-save-dir)
                      (symbol-value ,kar))))
        (if (functionp fun)
            (apply fun args)
-         (message "[persp-mode] Error: %s is not a function." fun)))))
+         (message "[persp-mode] Error: %s is not a function." fun)
+         nil))))
 
-(defmacro persp-preserve-frame (&rest body)
+(defmacro persp/macro/preserve-frame (&rest body)
   (let ((c-frame (gensym))
         (ret (gensym)))
     `(let* ((,c-frame (selected-frame))
@@ -2020,6 +2017,14 @@ does not exists or not a directory %S." p-save-dir)
              (select-frame ,c-frame))))
        ,ret)))
 
+(defun persp-update-frames-window-confs (&optional names-regexp)
+  (persp/macro/preserve-frame
+   (mapc #'(lambda (f) (if names-regexp
+                      (when (string-match-p names-regexp
+                                            (persp/ll/macro/persp-name (get-frame-persp f)))
+                        (persp-restore-window-conf f))
+                    (persp-restore-window-conf f)))
+         (persp-frame-list-without-daemon))))
 
 (defun persp-buffers-from-savelist-0 (savelist)
   (let (ret)
@@ -2039,11 +2044,11 @@ does not exists or not a directory %S." p-save-dir)
 
 (defun persp-window-conf-from-savelist-0 (savelist)
   (let ((def-wconf #'identity))
-    (persp-car-as-fun-cdr-as-args savelist)))
+    (persp/macro/apply-car-to-cdr savelist)))
 
 (defun persp-parameters-from-savelist-0 (savelist)
   (let ((def-params #'identity))
-    (persp-car-as-fun-cdr-as-args savelist)))
+    (persp/macro/apply-car-to-cdr savelist)))
 
 (defun persp-from-savelist-0 (savelist phash persp-file)
   (let ((def-persp
@@ -2054,19 +2059,19 @@ does not exists or not a directory %S." p-save-dir)
                 (mapc #'(lambda (b)
                           (persp/ui/add-buffer b persp nil))
                       (persp-buffers-from-savelist-0 dbufs))
-                (setf (persp/ll/persp-window-conf-m persp)
+                (setf (persp/ll/macro/persp-window-conf persp)
                           (persp-window-conf-from-savelist-0 dwc))
                 (modify-persp-parameters (persp-parameters-from-savelist-0 dparams)
                                          persp)
 
-                (setf (persp/ll/persp-weak-m persp) weak
-                      (persp/ll/persp-auto-m persp) auto)
+                (setf (persp/ll/macro/persp-weak persp) weak
+                      (persp/ll/macro/persp-auto persp) auto)
 
-                (setf (persp/ll/persp-hidden-m persp) hidden)
+                (setf (persp/ll/macro/persp-hidden persp) hidden)
 
                 (when persp-file
                   (set-persp-parameter 'persp-file persp-file persp))))))
-    (persp-car-as-fun-cdr-as-args savelist)))
+    (persp/macro/apply-car-to-cdr savelist)))
 
 (defun persps-from-savelist-0 (savelist phash persp-file set-persp-file names-regexp)
   (mapc #'(lambda (pd)
@@ -2244,7 +2249,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
     (let ((persp (get-frame-persp frame)))
       (persp-frame-save-state frame
                               (if persp/custom/frame/set-last-persp-for-new-frames
-                                  (string= (persp/ll/persp-name-m persp) persp/var/last-persp-name)
+                                  (string= (persp/ll/macro/persp-name persp) persp/var/last-persp-name)
                                 (null persp))))))
 
 (defun persp/hook/find-file ()
@@ -2286,7 +2291,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
 ;; Auto persp macro:
 
 ;;;###autoload
-(defmacro* def-auto-persp
+(defmacro* persp/macro/define-auto-perspective
     (name
      &key buffer-name file-name mode mode-name predicate
      on-match after-match hooks dyn-env
@@ -2298,7 +2303,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
                    `(funcall ,on-match ,name buffer ,after-match hook hook-args)
                  `(let ((,mkap-persp ,get-persp-expr))
                     (when (and (not ,noauto) ,mkap-persp)
-                      (setf (persp/ll/persp-auto-m ,mkap-persp) t))
+                      (setf (persp/ll/macro/persp-auto ,mkap-persp) t))
                     (modify-persp-parameters ,parameters ,mkap-persp)
                     (persp/ui/add-buffer buffer ,mkap-persp)
                     ,(when after-match
@@ -2345,7 +2350,7 @@ It will be removed from every perspective and then killed.\nWhat do you really w
                                 ,@dyn-env)
                             ,body))))
                   ret)
-               (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook)))
+               (message "[persp-mode] Warning: persp/macro/define-auto-perspective -- no such hook %s." hook)))
            ret))))
 
 
