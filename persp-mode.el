@@ -744,20 +744,24 @@ is 2, 2.5, 3 or 3.5."
 
 (eval-and-compile
   (dolist (slot '(name buffers window-conf parameters weak auto hidden))
-    (let* ((maccessor (intern (concat "persp/ll/macro/persp-" (symbol-name slot))))
-           (internal-accessor (intern (concat "persp/ll/persp--internal-" (symbol-name slot)))))
+    (let ((internal-accessor (intern (concat "persp/ll/persp--internal-" (symbol-name slot))))
+          (maccessor (intern (concat "persp/ll/macro/persp-" (symbol-name slot)))))
       (eval
        `(progn
           (defmacro ,maccessor (p)
             (let ((ina ',internal-accessor))
               `(,ina (or ,p persp/var/nil-persp)))))))))
 (dolist (slot '(name buffers window-conf parameters weak auto hidden))
-  (let* ((faccessor (intern (concat "persp/ll/get-" (symbol-name slot))))
-         (internal-accessor (intern (concat "persp/ll/persp--internal-" (symbol-name slot)))))
+  (let ((fgetter (intern (concat "persp/ll/get-" (symbol-name slot))))
+        (fsetter (intern (concat "persp/ll/set-" (symbol-name slot))))
+        (maccessor (intern (concat "persp/ll/macro/persp-" (symbol-name slot)))))
     (eval
      `(progn
-        (defun ,faccessor (p)
-          (,internal-accessor (or p persp/var/nil-persp)))))))
+        (defun ,fgetter (p)
+          (,maccessor p))
+        (defun ,fsetter (p val)
+          (setf (,maccessor p) val))))))
+
 
 (defun persp/persp-buffers (p)
   (if p (persp/ll/macro/persp-buffers p)
