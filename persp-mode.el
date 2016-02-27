@@ -762,6 +762,30 @@ is 2, 2.5, 3 or 3.5."
         (defun ,fsetter (p val)
           (setf (,maccessor p) val))))))
 
+(defun* modify-persp-parameters (alist &optional (persp (get-current-persp)))
+  (loop for (name . value) in alist
+        do (set-persp-parameter name value persp)))
+
+(defun* set-persp-parameter (param-name value
+                                        &optional (persp (get-current-persp)))
+  (let* ((params (persp/ll/macro/persp-parameters persp))
+         (old-cons (assoc param-name params)))
+    (if old-cons
+        (setf (cdr old-cons) value)
+      (setf (persp/ll/macro/persp-parameters persp)
+            (acons param-name value params)))))
+
+(defun* persp-parameter (param-name &optional (persp (get-current-persp)))
+  (cdr-safe (assoc param-name (persp/ll/macro/persp-parameters persp))))
+
+(defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
+  (when (and (not (null param-name)) (symbolp param-name))
+    (setf (persp/ll/macro/persp-parameters persp)
+          (delete (assoc param-name (persp/ll/macro/persp-parameters persp))
+                  (persp/ll/macro/persp-parameters persp)))))
+
+
+;; Perspective and buffers
 
 (defun persp/persp-buffers (p)
   (if p (persp/ll/macro/persp-buffers p)
@@ -848,116 +872,6 @@ is 2, 2.5, 3 or 3.5."
        ,@body)))
 
 
-(defun* modify-persp-parameters (alist &optional (persp (get-current-persp)))
-  (loop for (name . value) in alist
-        do (set-persp-parameter name value persp)))
-
-(defun* set-persp-parameter (param-name value
-                                        &optional (persp (get-current-persp)))
-  (let* ((params (persp/ll/macro/persp-parameters persp))
-         (old-cons (assoc param-name params)))
-    (if old-cons
-        (setf (cdr old-cons) value)
-      (setf (persp/ll/macro/persp-parameters persp)
-            (acons param-name value params)))))
-
-(defun* persp-parameter (param-name &optional (persp (get-current-persp)))
-  (cdr-safe (assoc param-name (persp/ll/macro/persp-parameters persp))))
-
-(defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
-  (when (and (not (null param-name)) (symbolp param-name))
-    (setf (persp/ll/macro/persp-parameters persp)
-          (delete (assoc param-name (persp/ll/macro/persp-parameters persp))
-                  (persp/ll/macro/persp-parameters persp)))))
-
-
-
-
-
-;; Misc funcs:
-
-(defsubst persp-is-frame-daemons-frame (f)
-  (and (daemonp) (eq f terminal-frame)))
-
-(defun persp-frame-list-without-daemon ()
-  "Return a list of frames without the daemon's frame."
-  (if (daemonp)
-      (filtered-frame-list #'(lambda (f) (not (persp-is-frame-daemons-frame f))))
-    (frame-list)))
-
-(defun set-frame-persp (persp &optional frame)
-  (set-frame-parameter frame 'persp persp))
-
-(defun get-frame-persp (&optional frame)
-  (frame-parameter frame 'persp))
-
-(defun* persp-names (&optional (phash persp/var/*persp-hash*) (reverse t))
-  (let ((ret nil))
-    (maphash #'(lambda (k p)
-                 (push k ret))
-             phash)
-    (if reverse
-        (reverse ret)
-      ret)))
-
-(defun set-window-persp (persp &optional window)
-  (let ((frame (window-frame window)))
-    (if (eq persp (get-frame-persp frame))
-        (clear-window-persp window)
-      (set-window-parameter window 'persp (persp/ll/macro/persp-name persp)))))
-(defun window-persp-set-p (&optional window)
-  (window-parameter window 'persp))
-(defun get-window-persp (&optional window)
-  (let ((pn (window-parameter window 'persp)))
-    (when pn (persp-get-by-name pn))))
-(defun clear-window-persp (&optional window)
-  (set-window-parameter window 'persp nil))
-
-(defun get-current-persp (&optional frame window)
-  (with-selected-frame (or frame (selected-frame))
-    (if (window-persp-set-p window)
-        (get-window-persp window)
-      (get-frame-persp frame))))
-
-(defun set-current-persp (persp)
-  (if (window-persp-set-p)
-      (set-window-persp persp)
-    (set-frame-persp persp)))
-
-(defun persp-names-current-frame-fast-ordered ()
-  (mapcar #'caddr (cddddr persp/var/menu)))
-
-(defun* persp-get-by-name (name &optional (phash persp/var/*persp-hash*) default)
-  (gethash name phash default))
-
-
-(defsubst* persp-names-sorted (&optional (phash persp/var/*persp-hash*))
-  (sort (persp-names phash nil) #'string<))
-
-(defun persp-group-by (keyf lst)
-  (let (result)
-    (mapc #'(lambda (pd)
-              (let* ((key (funcall keyf pd))
-                     (kv (assoc key result)))
-                (if kv
-                    (setcdr kv (cons pd (cdr kv)))
-                  (push (list key pd) result))))
-          lst)
-    result))
-
-(defun* persp-persps (&optional (phash persp/var/*persp-hash*) &optional names-regexp)
-  (let (ret)
-    (maphash #'(lambda (k p)
-                 (if names-regexp
-                     (when (string-match-p names-regexp k)
-                       (push p ret))
-                   (push p ret)))
-             phash)
-    ret))
-
-(defun* persp-other-not-hidden-persps (&optional persp (phash persp/var/*persp-hash*))
-  (delete-if #'persp/ll/get-hidden (delq persp (persp-persps phash))))
-
 (defun* persp-other-persps-with-buffer-except-nil
     (buff-or-name
      &optional persp (phash persp/var/*persp-hash*) del-weak)
@@ -989,22 +903,6 @@ is 2, 2.5, 3 or 3.5."
   (persp-other-persps-with-buffer-except-nil* buff-or-name persp del-weak))
 
 
-(defun* persp-frames-with-persp (&optional (persp (get-frame-persp)))
-  (delete-if-not #'(lambda (f)
-                     (eq persp (get-frame-persp f)))
-                 (persp-frame-list-without-daemon)))
-(defun* persp-frames-and-windows-with-persp (&optional (persp (get-current-persp)))
-  (let (frames windows)
-    (dolist (frame (persp-frame-list-without-daemon))
-      (when (eq persp (get-frame-persp frame))
-        (push frame frames))
-      (dolist (window (window-list frame 'no-minibuf))
-        (when (and (window-persp-set-p window)
-                   (eq persp (get-window-persp window)))
-          (push window windows))))
-    (cons frames windows)))
-
-
 (defun* persp/ui/do-buffer-list-by-regexp (&key func regexp blist noask
                                              (rest-args nil rest-args-p))
   (interactive)
@@ -1032,92 +930,6 @@ is 2, 2.5, 3 or 3.5."
                                                  (mapconcat 'identity reslist "\n")))))
             (mapc #'(lambda (b) (apply func b rest-args)) reslist)))))))
 
-
-;; Perspective funcs:
-
-(defun persp/ui/next ()
-  "Switch to next perspective (to the right)."
-  (interactive)
-  (let* ((persp-list (persp-names-current-frame-fast-ordered))
-         (persp-list-length (length persp-list))
-         (only-perspective? (equal persp-list-length 1))
-         (pos (position (persp/ll/macro/persp-name (get-current-persp)) persp-list)))
-    (cond
-     ((null pos) nil)
-     (only-perspective? nil)
-     ((= pos (1- persp-list-length))
-      (if persp/custom/switch-wrap (persp/ui/switch (nth 0 persp-list))))
-     (t (persp/ui/switch (nth (1+ pos) persp-list))))))
-
-(defun persp/ui/prev ()
-  "Switch to previous perspective (to the left)."
-  (interactive)
-  (let* ((persp-list (persp-names-current-frame-fast-ordered))
-         (persp-list-length (length persp-list))
-         (only-perspective? (equal persp-list-length 1))
-         (pos (position (persp/ll/macro/persp-name (get-current-persp)) persp-list)))
-    (cond
-     ((null pos) nil)
-     (only-perspective? nil)
-     ((= pos 0)
-      (if persp/custom/switch-wrap
-          (persp/ui/switch (nth (1- persp-list-length) persp-list))))
-     (t (persp/ui/switch (nth (1- pos) persp-list))))))
-
-(defun* persp-add (persp &optional (phash persp/var/*persp-hash*))
-  "Insert `PERSP' to `PHASH'.
-If we adding to the `persp/var/*persp-hash*' add entries to the mode menu.
-Return `PERSP'."
-  (let ((name (persp/ll/macro/persp-name persp)))
-    (puthash name persp phash)
-    (when (eq phash persp/var/*persp-hash*)
-      (persp/menu/add-persp persp)))
-  persp)
-
-(defun* persp/ui/remove-by-name (name &optional (phash persp/var/*persp-hash*))
-  "Remove a perspective with name `NAME' from `PHASH'.
-Save it's state before removing.
-If we removing from the `persp/var/*persp-hash*' remove also the menu entries.
-Switch all frames with that perspective to another one.
-Return the removed perspective."
-  (interactive "i")
-  (unless name
-    (setq name (persp/cr/persp nil "to remove"
-                             (and (eq phash persp/var/*persp-hash*) (persp/ll/macro/persp-name (get-current-persp)))
-                             t t)))
-  (let ((persp (persp-get-by-name name phash persp/const/does-not-exists))
-        (persp-to-switch persp/custom/persp/nil-name))
-    (unless (eq persp persp/const/does-not-exists)
-      (persp-save-state persp)
-      (if (and (eq phash persp/var/*persp-hash*) (null persp))
-          (message "[persp-mode] Error: Can't remove the 'nil' perspective")
-        (remhash name phash)
-        (when (eq phash persp/var/*persp-hash*)
-          (persp/menu/remove-persp persp)
-          (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
-                 (frames (car frames-windows))
-                 (windows (cdr frames-windows)))
-            (dolist (w windows) (clear-window-persp w))
-            ;;(setq persp-to-switch (or (car (persp-names phash nil)) persp/custom/persp/nil-name))
-            (dolist (f frames)
-              (persp/ui/frame-switch persp-to-switch f))))))
-    persp))
-
-(defun* persp/ui/add-new (name &optional (phash persp/var/*persp-hash*))
-  "Create a new perspective with the given `NAME'. Add it to `PHASH'.
-Return the created perspective."
-  (interactive "sA name for the new perspective: ")
-  (if (and name (not (string= "" name)))
-      (if (member name (persp-names phash nil))
-          (persp-get-by-name name phash)
-        (let ((persp (if (string= persp/custom/persp/nil-name name)
-                         nil
-                       (persp/ll/make-persp :name name))))
-          (run-hook-with-args 'persp/custom/persp/created-functions persp phash)
-          (persp-add persp phash)))
-    (message "[persp-mode] Error: Can't create or switch to a perspective \
-with empty name.")
-    nil))
 
 (defun* persp-contain-buffer-p (buff-or-name
                                 &optional (persp (get-current-persp)))
@@ -1334,6 +1146,195 @@ Return that old buffer."
   ;; filter out killed buffers
   (when persp
     (delete-if-not #'buffer-live-p (persp/persp-buffers persp))))
+
+
+
+;; Misc funcs:
+
+(defsubst persp-is-frame-daemons-frame (f)
+  (and (daemonp) (eq f terminal-frame)))
+
+(defun persp-frame-list-without-daemon ()
+  "Return a list of frames without the daemon's frame."
+  (if (daemonp)
+      (filtered-frame-list #'(lambda (f) (not (persp-is-frame-daemons-frame f))))
+    (frame-list)))
+
+(defun set-frame-persp (persp &optional frame)
+  (set-frame-parameter frame 'persp persp))
+
+(defun get-frame-persp (&optional frame)
+  (frame-parameter frame 'persp))
+
+(defun* persp-names (&optional (phash persp/var/*persp-hash*) (reverse t))
+  (let ((ret nil))
+    (maphash #'(lambda (k p)
+                 (push k ret))
+             phash)
+    (if reverse
+        (reverse ret)
+      ret)))
+
+(defun set-window-persp (persp &optional window)
+  (let ((frame (window-frame window)))
+    (if (eq persp (get-frame-persp frame))
+        (clear-window-persp window)
+      (set-window-parameter window 'persp (persp/ll/macro/persp-name persp)))))
+(defun window-persp-set-p (&optional window)
+  (window-parameter window 'persp))
+(defun get-window-persp (&optional window)
+  (let ((pn (window-parameter window 'persp)))
+    (when pn (persp-get-by-name pn))))
+(defun clear-window-persp (&optional window)
+  (set-window-parameter window 'persp nil))
+
+(defun get-current-persp (&optional frame window)
+  (with-selected-frame (or frame (selected-frame))
+    (if (window-persp-set-p window)
+        (get-window-persp window)
+      (get-frame-persp frame))))
+
+(defun set-current-persp (persp)
+  (if (window-persp-set-p)
+      (set-window-persp persp)
+    (set-frame-persp persp)))
+
+(defun persp-names-current-frame-fast-ordered ()
+  (mapcar #'caddr (cddddr persp/var/menu)))
+
+(defun* persp-get-by-name (name &optional (phash persp/var/*persp-hash*) default)
+  (gethash name phash default))
+
+
+(defsubst* persp-names-sorted (&optional (phash persp/var/*persp-hash*))
+  (sort (persp-names phash nil) #'string<))
+
+(defun persp-group-by (keyf lst)
+  (let (result)
+    (mapc #'(lambda (pd)
+              (let* ((key (funcall keyf pd))
+                     (kv (assoc key result)))
+                (if kv
+                    (setcdr kv (cons pd (cdr kv)))
+                  (push (list key pd) result))))
+          lst)
+    result))
+
+(defun* persp-persps (&optional (phash persp/var/*persp-hash*) &optional names-regexp)
+  (let (ret)
+    (maphash #'(lambda (k p)
+                 (if names-regexp
+                     (when (string-match-p names-regexp k)
+                       (push p ret))
+                   (push p ret)))
+             phash)
+    ret))
+
+(defun* persp-other-not-hidden-persps (&optional persp (phash persp/var/*persp-hash*))
+  (delete-if #'persp/ll/get-hidden (delq persp (persp-persps phash))))
+
+(defun* persp-frames-with-persp (&optional (persp (get-frame-persp)))
+  (delete-if-not #'(lambda (f)
+                     (eq persp (get-frame-persp f)))
+                 (persp-frame-list-without-daemon)))
+(defun* persp-frames-and-windows-with-persp (&optional (persp (get-current-persp)))
+  (let (frames windows)
+    (dolist (frame (persp-frame-list-without-daemon))
+      (when (eq persp (get-frame-persp frame))
+        (push frame frames))
+      (dolist (window (window-list frame 'no-minibuf))
+        (when (and (window-persp-set-p window)
+                   (eq persp (get-window-persp window)))
+          (push window windows))))
+    (cons frames windows)))
+
+
+;; Perspective funcs:
+
+(defun persp/ui/next ()
+  "Switch to next perspective (to the right)."
+  (interactive)
+  (let* ((persp-list (persp-names-current-frame-fast-ordered))
+         (persp-list-length (length persp-list))
+         (only-perspective? (equal persp-list-length 1))
+         (pos (position (persp/ll/macro/persp-name (get-current-persp)) persp-list)))
+    (cond
+     ((null pos) nil)
+     (only-perspective? nil)
+     ((= pos (1- persp-list-length))
+      (if persp/custom/switch-wrap (persp/ui/switch (nth 0 persp-list))))
+     (t (persp/ui/switch (nth (1+ pos) persp-list))))))
+
+(defun persp/ui/prev ()
+  "Switch to previous perspective (to the left)."
+  (interactive)
+  (let* ((persp-list (persp-names-current-frame-fast-ordered))
+         (persp-list-length (length persp-list))
+         (only-perspective? (equal persp-list-length 1))
+         (pos (position (persp/ll/macro/persp-name (get-current-persp)) persp-list)))
+    (cond
+     ((null pos) nil)
+     (only-perspective? nil)
+     ((= pos 0)
+      (if persp/custom/switch-wrap
+          (persp/ui/switch (nth (1- persp-list-length) persp-list))))
+     (t (persp/ui/switch (nth (1- pos) persp-list))))))
+
+(defun* persp-add (persp &optional (phash persp/var/*persp-hash*))
+  "Insert `PERSP' to `PHASH'.
+If we adding to the `persp/var/*persp-hash*' add entries to the mode menu.
+Return `PERSP'."
+  (let ((name (persp/ll/macro/persp-name persp)))
+    (puthash name persp phash)
+    (when (eq phash persp/var/*persp-hash*)
+      (persp/menu/add-persp persp)))
+  persp)
+
+(defun* persp/ui/remove-by-name (name &optional (phash persp/var/*persp-hash*))
+  "Remove a perspective with name `NAME' from `PHASH'.
+Save it's state before removing.
+If we removing from the `persp/var/*persp-hash*' remove also the menu entries.
+Switch all frames with that perspective to another one.
+Return the removed perspective."
+  (interactive "i")
+  (unless name
+    (setq name (persp/cr/persp nil "to remove"
+                             (and (eq phash persp/var/*persp-hash*) (persp/ll/macro/persp-name (get-current-persp)))
+                             t t)))
+  (let ((persp (persp-get-by-name name phash persp/const/does-not-exists))
+        (persp-to-switch persp/custom/persp/nil-name))
+    (unless (eq persp persp/const/does-not-exists)
+      (persp-save-state persp)
+      (if (and (eq phash persp/var/*persp-hash*) (null persp))
+          (message "[persp-mode] Error: Can't remove the 'nil' perspective")
+        (remhash name phash)
+        (when (eq phash persp/var/*persp-hash*)
+          (persp/menu/remove-persp persp)
+          (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
+                 (frames (car frames-windows))
+                 (windows (cdr frames-windows)))
+            (dolist (w windows) (clear-window-persp w))
+            ;;(setq persp-to-switch (or (car (persp-names phash nil)) persp/custom/persp/nil-name))
+            (dolist (f frames)
+              (persp/ui/frame-switch persp-to-switch f))))))
+    persp))
+
+(defun* persp/ui/add-new (name &optional (phash persp/var/*persp-hash*))
+  "Create a new perspective with the given `NAME'. Add it to `PHASH'.
+Return the created perspective."
+  (interactive "sA name for the new perspective: ")
+  (if (and name (not (string= "" name)))
+      (if (member name (persp-names phash nil))
+          (persp-get-by-name name phash)
+        (let ((persp (if (string= persp/custom/persp/nil-name name)
+                         nil
+                       (persp/ll/make-persp :name name))))
+          (run-hook-with-args 'persp/custom/persp/created-functions persp phash)
+          (persp-add persp phash)))
+    (message "[persp-mode] Error: Can't create or switch to a perspective \
+with empty name.")
+    nil))
+
 
 (defun persp/ui/hide (name)
   (interactive "i")
