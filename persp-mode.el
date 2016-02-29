@@ -785,7 +785,7 @@ to a wrong one.")
       (let ((bl
              (case option
                (-1 (funcall persp-buffer-list-function frame))
-               (0 (append (safe-persp-buffers cpersp) nil))
+               (0 (safe-persp-buffers cpersp))
                (1 (let ((ret (set-difference
                               (funcall persp-buffer-list-function frame)
                               (safe-persp-buffers cpersp))))
@@ -805,10 +805,11 @@ to a wrong one.")
                                               b cpersp persp-dont-count-weaks-in-restricted-buffer-list)))
                                         (funcall persp-buffer-list-function frame))))
                     ret)))))
-        (setq bl (delete-if #'(lambda (b)
-                                (persp-buffer-filtered-out-p
-                                 b persp-buffer-list-restricted-filter-functions))
-                            bl))
+        (unless (= option 0)
+          (setq bl (delete-if #'(lambda (b)
+                                  (persp-buffer-filtered-out-p
+                                   b persp-buffer-list-restricted-filter-functions))
+                              bl)))
         (when (and
                (not sure-not-killing) cpersp
                persp-kill-foreign-buffer-action
@@ -1888,12 +1889,17 @@ Return `NAME'."
               (number
                `(let ((*persp-restrict-buffers-to* ,opt))
                   (memq b (persp-buffer-list-restricted
-                           (selected-frame) ,opt))))
+                           (selected-frame) ,opt
+                           persp-restrict-buffers-to-if-foreign-buffer t))))
               (symbol
                (case opt
                  ('nil t)
                  ('restricted-buffer-list
-                  '(memq b (persp-buffer-list-restricted (selected-frame))))
+                  '(memq b (persp-buffer-list-restricted
+                            (selected-frame)
+                            *persp-restrict-buffers-to*
+                            persp-restrict-buffers-to-if-foreign-buffer
+                            t)))
                  (t '(memq b (safe-persp-buffers (get-current-persp))))))
               (t t))))
      nil)))
