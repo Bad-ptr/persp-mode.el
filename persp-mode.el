@@ -2273,13 +2273,12 @@ does not exists or not a directory %S." p-save-dir)
 ;; Load funcs
 
 (defsubst persp-update-frames-window-confs (&optional names-regexp)
-  (persp-preserve-frame
-   (mapc #'(lambda (f) (if names-regexp
-                      (when (string-match-p names-regexp
-                                            (safe-persp-name (get-frame-persp f)))
-                        (persp-restore-window-conf f))
-                    (persp-restore-window-conf f)))
-         (persp-frame-list-without-daemon))))
+  (mapc #'(lambda (f) (if names-regexp
+                     (when (string-match-p names-regexp
+                                           (safe-persp-name (get-frame-persp f)))
+                       (persp-restore-window-conf f))
+                   (persp-restore-window-conf f)))
+        (persp-frame-list-without-daemon)))
 
 (defmacro persp-car-as-fun-cdr-as-args (lst)
   (let ((kar (gensym)))
@@ -2292,18 +2291,6 @@ does not exists or not a directory %S." p-save-dir)
        (if (functionp fun)
            (apply fun args)
          (message "[persp-mode] Error: %s is not a function." fun)))))
-
-(defmacro persp-preserve-frame (&rest body)
-  (let ((c-frame (gensym))
-        (ret (gensym)))
-    `(let* ((,c-frame (selected-frame))
-            ,ret)
-       (unwind-protect
-           (setq ,ret (progn ,@body))
-         (unless (eq (selected-frame) ,c-frame)
-           (when (frame-live-p ,c-frame)
-             (select-frame ,c-frame))))
-       ,ret)))
 
 
 (defun persp-buffers-from-savelist-0 (savelist)
