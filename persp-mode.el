@@ -1023,10 +1023,9 @@ named collections of buffers and window configurations."
           (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
           (add-hook 'delete-frame-functions      #'persp-delete-frame)
           (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+          (add-hook 'server-switch-hook          #'persp-server-switch)
           (when persp-add-buffer-on-after-change-major-mode
             (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
-          (when (daemonp)
-            (add-hook 'server-switch-hook #'persp-server-switch))
 
           (mapc #'persp-init-frame (persp-frame-list-without-daemon))
 
@@ -1056,10 +1055,9 @@ named collections of buffers and window configurations."
     (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions      #'persp-delete-frame)
     (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+    (remove-hook 'server-switch-hook          #'persp-server-switch)
     (when persp-add-buffer-on-after-change-major-mode
       (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
-    (when (daemonp)
-      (remove-hook 'server-switch-hook #'persp-server-switch))
 
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
