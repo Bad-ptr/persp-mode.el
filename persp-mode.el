@@ -1724,24 +1724,15 @@ If there is no perspective with that name it will be created.
 Return `NAME'."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil "to switch to" nil nil nil t)))
+    (setq name (persp-prompt nil "to switch" nil nil nil t)))
   (unless frame (setq frame (window-frame window)))
-  (let* ((switch-for-window (window-persp-set-p window))
-         (aarg (or (and switch-for-window window)
-                   frame)))
-    (run-hook-with-args 'persp-before-switch-functions name aarg)
-    (if (string= name (safe-persp-name (get-current-persp frame window)))
-        name
-      (let ((persp (or (gethash name *persp-hash*)
-                       (persp-add-new name))))
-        (unless switch-for-window
-          (persp-frame-save-state frame))
-        (persp-activate persp aarg))))
-  name)
+  (if (window-persp-set-p window)
+      (persp-window-switch name window)
+    (persp-frame-switch name frame)))
 (defun* persp-frame-switch (name &optional (frame (selected-frame)))
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil "to switch to" nil nil nil t)))
+    (setq name (persp-prompt nil "to switch" nil nil nil t)))
   (run-hook-with-args 'persp-before-switch-functions name frame)
   (if (string= name (safe-persp-name (get-frame-persp frame)))
       name
@@ -1753,7 +1744,7 @@ Return `NAME'."
 (defun* persp-window-switch (name &optional (window (selected-window)))
   (interactive "i")
   (unless name
-    (setq name (persp-prompt nil "to switch this window to" nil nil nil t)))
+    (setq name (persp-prompt nil "to switch for this window" nil nil nil t)))
   (run-hook-with-args 'persp-before-switch-functions name window)
   (if (and (window-persp-set-p window)
            (string= name (safe-persp-name (get-window-persp window))))
@@ -1774,22 +1765,44 @@ Return `NAME'."
                         &optional (frame-or-window (selected-frame)) new-frame)
   (when frame-or-window
     (setq persp-last-persp-name (safe-persp-name persp))
-    (typecase frame-or-window
-      (frame
-       (set-frame-persp persp frame-or-window)
-       (persp-restore-window-conf frame-or-window persp new-frame)
-       (with-selected-frame frame-or-window
-         (run-hook-with-args 'persp-activated-functions 'frame)))
-      (window
-       (set-window-persp persp frame-or-window)
-       (let ((cbuf (window-buffer frame-or-window)))
-         (unless (persp-contain-buffer-p cbuf persp)
-           (set-window-buffer
-            frame-or-window
-            (persp-get-another-buffer-for-window
-             cbuf frame-or-window persp))))
-       (with-selected-window frame-or-window
-         (run-hook-with-args 'persp-activated-functions 'window))))))
+    (let ((old-persp))
+      (typecase frame-or-window
+        (frame
+         (setq old-persp (get-frame-persp frame-or-window))
+         (set-frame-persp persp frame-or-window)
+         (persp-restore-window-conf frame-or-window persp new-frame)
+         (with-selected-frame frame-or-window
+           (run-hook-with-args 'persp-activated-functions 'frame)))
+        (window
+         (setq old-persp (get-window-persp frame-or-window))
+         (set-window-persp persp frame-or-window)
+         (let ((cbuf (window-buffer frame-or-window)))
+           (unless (persp-contain-buffer-p cbuf persp)
+             (set-window-buffer
+              frame-or-window
+              (persp-get-another-buffer-for-window
+               cbuf frame-or-window persp))))
+         (with-selected-window frame-or-window
+           (run-hook-with-args 'persp-activated-functions 'window))))
+      (when (and old-persp (not (eq old-persp persp))
+                 (persp-auto old-persp)
+                 (null (persp-buffers old-persp))
+                 persp-autokill-persp-when-removed-last-buffer)
+        (cond
+         ((functionp persp-autokill-persp-when-removed-last-buffer)
+          (funcall persp-autokill-persp-when-removed-last-buffer old-persp))
+         ((or
+           (eq 'hide persp-autokill-persp-when-removed-last-buffer)
+           (and (eq 'hide-auto persp-autokill-persp-when-removed-last-buffer)
+                (persp-auto old-persp)))
+          (persp-hide (persp-name old-persp)))
+         ((or
+           (eq t persp-autokill-persp-when-removed-last-buffer)
+           (eq 'kill persp-autokill-persp-when-removed-last-buffer)
+           (and
+            (eq 'kill-auto persp-autokill-persp-when-removed-last-buffer)
+            (persp-auto old-persp)))
+          (persp-kill (persp-name old-persp))))))))
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame frame t))
