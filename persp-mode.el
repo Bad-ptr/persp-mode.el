@@ -303,7 +303,7 @@ to interactivly read user input with completion.")
   :set #'(lambda (sym val)
            (if persp-mode
                (persp-update-completion-system val)
-             (set-default 'persp-interactive-completion-system val))))
+             (set-default sym val))))
 
 (defcustom persp-switch-to-added-buffer t
   "If t then after you add a buffer to the current perspective
@@ -429,6 +429,11 @@ after the `after-change-major-mode-hook' is fired."
                      ,(persp-tramp-save-buffer-file-name b)
                      ,(buffer-local-value 'major-mode b)))
               nil))
+        #'(lambda (b)
+            (when (eq 'dired-mode (buffer-local-value 'major-mode b))
+              `(def-buffer ,(buffer-name b)
+                 ,(buffer-local-value 'default-directory b)
+                 ,(buffer-local-value 'major-mode b))))
         #'(lambda (b)
             `(def-buffer ,(buffer-name b)
                ,(buffer-file-name b)
