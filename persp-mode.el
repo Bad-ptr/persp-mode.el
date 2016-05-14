@@ -1172,6 +1172,12 @@ but just removed from a perspective."
 
 ;; Misc funcs:
 
+(defun* persp-gen-random-name (&optional name (phash *persp-hash*))
+  (unless name (setq name (number-to-string (random))))
+  (macrolet ((namegen () `(format "%s:%s" name (random 9))))
+    (do ((nname name (namegen)))
+        ((eq :+-123emptynooo (persp-get-by-name nname phash :+-123emptynooo)) nname))))
+
 (defsubst persp-is-frame-daemons-frame (f)
   (and (daemonp) (eq f terminal-frame)))
 
