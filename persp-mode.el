@@ -565,12 +565,13 @@ second -- a root window(default is the root window of the selected frame)."
       #'(lambda (pwc &optional frame rwin)
           (when (or frame (setq frame (selected-frame)))
             (with-selected-frame frame
-              (flet ((wg-switch-to-window-buffer (win)
-                       "Switch to a buffer determined from WIN's fname and bname.
+              (flet ((wg-switch-to-window-buffer
+                      (win)
+                      "Switch to a buffer determined from WIN's fname and bname.
 Return the buffer if it was found, nil otherwise."
-                       (wg-abind win (fname bname)
-                         (cond ((wg-awhen (get-buffer bname) (switch-to-buffer it)))
-                               (t (switch-to-buffer wg-default-buffer) nil)))))
+                      (wg-abind win (fname bname)
+                                (cond ((wg-awhen (get-buffer bname) (switch-to-buffer it)))
+                                      (t (switch-to-buffer wg-default-buffer) nil)))))
                 (wg-restore-wconfig pwc)))))
     #'(lambda (pwc &optional frame rwin)
         (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
@@ -751,7 +752,7 @@ to a wrong one.")
   (name "")
   (buffers nil)
   (window-conf nil)
-  ;; reserved parameters: dont-save-to-file.
+  ;; reserved parameters: dont-save-to-file, persp-file.
   (parameters nil)
   (weak nil)
   (auto nil)
@@ -829,13 +830,21 @@ to a wrong one.")
     ((&key (buffer-list-function persp-buffer-list-function)
            (restriction *persp-restrict-buffers-to*)
            (restriction-foreign-override persp-restrict-buffers-to-if-foreign-buffer)
-           (frame (selected-frame)))
+           (frame (selected-frame))
+           (sortp nil) (cache nil))
      &rest body)
-  `(let ((*persp-restrict-buffers-to* ,restriction)
-         (persp-restrict-buffers-to-if-foreign-buffer ,restriction-foreign-override))
-     (flet ((buffer-list (&optional frame)
-                         (persp-buffer-list-restricted ,frame ,restriction ,restriction-foreign-override)))
-       ,@body)))
+  (let ((pblf-body `(persp-buffer-list-restricted ,frame ,restriction ,restriction-foreign-override)))
+    (when sortp (setq pblf-body `(sort ,pblf-body ,sortp)))
+    `(let ((*persp-restrict-buffers-to* ,restriction)
+           (persp-restrict-buffers-to-if-foreign-buffer ,restriction-foreign-override)
+           ,@(if cache `(persp-buffer-list-cache) nil))
+       (flet ((buffer-list (&optional frame)
+                           ,(if cache
+                                `(if persp-buffer-list-cache
+                                     persp-buffer-list-cache
+                                   (setq persp-buffer-list-cache ,pblf-body))
+                              pblf-body)))
+         ,@body))))
 
 (defun safe-persp-name (p)
   (if p (persp-name p)
