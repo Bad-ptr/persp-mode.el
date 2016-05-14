@@ -1824,7 +1824,8 @@ Return `NAME'."
     (persp-activate persp frame new-frame)))
 
 (defun persp-delete-frame (frame)
-  (unless (frame-parameter frame 'persp-ignore-wconf)
+  (unless (or (frame-parameter frame 'persp-ignore-wconf)
+              (frame-parameter frame 'persp-ignore-wconf-once))
     (let ((persp (get-frame-persp frame)))
       (persp-frame-save-state frame
                               (if persp-set-last-persp-for-new-frames
@@ -1839,7 +1840,8 @@ Return `NAME'."
      #'(lambda (f)
          (and f
               (if for-save
-                  (not (frame-parameter f 'persp-ignore-wconf))
+                  (and (not (frame-parameter f 'persp-ignore-wconf))
+                       (not (frame-parameter f 'persp-ignore-wconf-once)))
                 t)
               (eq persp (get-frame-persp f))))
      flist)))
@@ -2088,7 +2090,10 @@ Return `NAME'."
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
                                              new-frame)
-  (when (and frame (not (frame-parameter frame 'persp-ignore-wconf)))
+  (when (and frame (not (frame-parameter frame 'persp-ignore-wconf))
+             (not (let ((old-piw (frame-parameter frame 'persp-ignore-wconf-once)))
+                    (when old-piw (set-frame-parameter frame 'persp-ignore-wconf-once nil))
+                    old-piw)))
     (when new-frame (sit-for 0.01))
     (with-selected-frame frame
       (let ((pwc (safe-persp-window-conf persp))
@@ -2126,7 +2131,8 @@ Return `NAME'."
   (let ((persp (get-frame-persp frame)))
     (when (and frame
                (not (persp-is-frame-daemons-frame frame))
-               (not (frame-parameter frame 'persp-ignore-wconf)))
+               (not (frame-parameter frame 'persp-ignore-wconf))
+               (not (frame-parameter frame 'persp-ignore-wconf-once)))
       (with-selected-frame frame
         (when set-persp-special-last-buffer
           (persp-special-last-buffer-make-current))
