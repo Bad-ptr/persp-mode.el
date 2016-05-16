@@ -336,6 +336,13 @@ otherwise let  the emacs deside what to do."
   :group 'persp-mode
   :type 'persp-init-frame-behaviour-choices)
 
+(defcustom persp-init-new-frame-behaviour-override -1
+  "Override the `persp-init-frame-behaviour` for new frames."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "Do not override" : value -1)
+          persp-init-frame-behaviour-choices))
+
 (defcustom persp-interactive-init-frame-behaviour-override -1
   "Override the `persp-init-frame-behaviour' when the `make-frame' was called interactively."
   :group 'persp-mode
@@ -1866,14 +1873,15 @@ Return `NAME'."
    (not (null (funcall persp-backtrace-frame-function 0 'server-create-window-system-frame)))))
 (defun* persp-init-frame (frame &optional new-frame client)
   (let ((persp-init-frame-behaviour
-         (if client
-             (if (not (eq -1 persp-emacsclient-init-frame-behaviour-override))
-                 persp-emacsclient-init-frame-behaviour-override
-               persp-init-frame-behaviour)
-           (if (and (eq this-command 'make-frame)
-                    (not (eq -1 persp-interactive-init-frame-behaviour-override)))
-               persp-interactive-init-frame-behaviour-override
-             persp-init-frame-behaviour))))
+         (cond
+          ((and client (not (eq -1 persp-emacsclient-init-frame-behaviour-override)))
+           persp-emacsclient-init-frame-behaviour-override)
+          ((and (eq this-command 'make-frame)
+                (not (eq -1 persp-interactive-init-frame-behaviour-override)))
+           persp-interactive-init-frame-behaviour-override)
+          ((and new-frame (not (eq -1 persp-init-new-frame-behaviour-override)))
+           persp-init-new-frame-behaviour-override)
+          (t persp-init-frame-behaviour))))
     (if (functionp persp-init-frame-behaviour)
         (funcall persp-init-frame-behaviour frame new-frame)
       (modify-frame-parameters frame `((persp . nil)))
