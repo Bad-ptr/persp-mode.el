@@ -329,6 +329,7 @@ otherwise let  the emacs deside what to do."
           (const :tag "Set persp-ignore-wconf-once flag for frame" :value persp-ignore-wconf-once)
           (const :tag "Create a new random auto-perspective for the new frame" :value auto-temp)
           (const :tag "Create a new perspective for the new frame and prompt for it's name" :value prompt)
+          (string :tag "Use/create the perspective with a name" :value "pfnf")
           (function :tag "Run this function" :value (lambda (frame &optional new-frame) nil))))
 
 (defcustom persp-init-frame-behaviour t
@@ -1902,29 +1903,39 @@ Return `NAME'."
           ((and new-frame (not (eq -1 persp-init-new-frame-behaviour-override)))
            persp-init-new-frame-behaviour-override)
           (t persp-init-frame-behaviour))))
-    (if (functionp persp-init-frame-behaviour)
-        (funcall persp-init-frame-behaviour frame new-frame)
-      (modify-frame-parameters frame `((persp . nil)))
-      (when persp-set-frame-buffer-predicate
-        (persp-set-frame-buffer-predicate frame))
-      (persp-set-frame-server-switch-hook frame)
-      (let (persp-name persp)
-        (case persp-init-frame-behaviour
-          (auto-temp (setq persp-name (persp-gen-random-name)
-                           persp (persp-add-new persp-name))
-                     (when persp
-                       (setf (persp-auto persp) t)))
-          (prompt (select-frame frame)
-                  (setq persp-name
-                        (persp-prompt nil "to switch" nil nil nil t)
-                        persp (persp-add-new persp-name)))
-          (t (setq persp-name (or (and persp-set-last-persp-for-new-frames
-                                       persp-last-persp-name)
-                                  persp-nil-name)
-                   persp (persp-get-by-name persp-name *persp-hash* :+-123emptynooo))
-             (when (eq persp :+-123emptynooo)
-               (setq persp-name persp-nil-name
-                     persp (persp-add-new persp-name)))))
+    (let (persp-name persp)
+      (macrolet ((set-default-persp
+                  () `(progn
+                        (setq persp-name (or (and persp-set-last-persp-for-new-frames
+                                                  persp-last-persp-name)
+                                             persp-nil-name)
+                              persp (persp-get-by-name persp-name *persp-hash* :+-123emptynooo))
+                        (when (eq persp :+-123emptynooo)
+                          (setq persp-name persp-nil-name
+                                persp (persp-add-new persp-name))))))
+        (typecase persp-init-frame-behaviour
+          (function
+           (funcall persp-init-frame-behaviour frame new-frame))
+          (string
+           (setq persp-name persp-init-frame-behaviour
+                 persp (persp-add-new persp-name)))
+          (symbol
+           (case persp-init-frame-behaviour
+             (auto-temp (setq persp-name (persp-gen-random-name)
+                              persp (persp-add-new persp-name))
+                        (when persp
+                          (setf (persp-auto persp) t)))
+             (prompt (select-frame frame)
+                     (setq persp-name
+                           (persp-prompt nil "to switch" nil nil nil t)
+                           persp (persp-add-new persp-name)))
+             (t (set-default-persp))))
+          (t (set-default-persp))))
+      (when persp-name
+        (modify-frame-parameters frame `((persp . nil)))
+        (when persp-set-frame-buffer-predicate
+          (persp-set-frame-buffer-predicate frame))
+        (persp-set-frame-server-switch-hook frame)
         (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
                   (eq persp-init-frame-behaviour 'persp-ignore-wconf-once))
           (set-frame-parameter frame persp-init-frame-behaviour t))
