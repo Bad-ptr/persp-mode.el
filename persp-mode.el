@@ -579,6 +579,15 @@ The activated perspective is available with (get-current-persp)."
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-before-deactivate-functions nil
+  "Functions that runs before the current perspecive has been deactivated for selected frame or window.
+These functions must take one argument -- a symbol,
+if it is eq 'frame -- then the perspective will be deactivated for the current frame,
+if it is eq 'window -- then the perspective will be deactivated for the current window.
+The perspective is available with (get-current-persp)."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-use-workgroups (and (version< emacs-version "24.4")
                                      (locate-library "workgroups.el"))
   "If t -- use the workgroups.el package for saving/restoring windows configurations."
@@ -1551,23 +1560,7 @@ Return the removed buffer."
       (let (persp-autokill-buffer-on-remove
             persp-kill-foreign-buffer-action)
         (kill-buffer buffer)))
-    (when (and persp-autokill-persp-when-removed-last-buffer
-               (null (safe-persp-buffers persp)))
-      (cond
-       ((functionp persp-autokill-persp-when-removed-last-buffer)
-        (funcall persp-autokill-persp-when-removed-last-buffer persp))
-       ((or
-         (eq 'hide persp-autokill-persp-when-removed-last-buffer)
-         (and (eq 'hide-auto persp-autokill-persp-when-removed-last-buffer)
-              (safe-persp-auto persp)))
-        (persp-hide (safe-persp-name persp)))
-       ((or
-         (eq t persp-autokill-persp-when-removed-last-buffer)
-         (eq 'kill persp-autokill-persp-when-removed-last-buffer)
-         (and
-          (eq 'kill-auto persp-autokill-persp-when-removed-last-buffer)
-          (safe-persp-auto persp)))
-        (persp-kill (safe-persp-name persp)))))
+    (persp--do-auto-action-if-needed persp)
     buffer))
 
 (defun persp-kill-buffer (&optional buf-or-name)
@@ -1820,6 +1813,46 @@ Return `NAME'."
       (setq persp (persp-add-new persp-nil-name)))
     (persp-save-state persp nil t)))
 
+(defsubst persp--do-auto-action-if-needed (persp)
+  (when (and (safe-persp-auto persp)
+             persp-autokill-persp-when-removed-last-buffer
+             (null (safe-persp-buffers persp)))
+    (cond
+     ((functionp persp-autokill-persp-when-removed-last-buffer)
+      (funcall persp-autokill-persp-when-removed-last-buffer persp))
+     ((or
+       (eq 'hide persp-autokill-persp-when-removed-last-buffer)
+       (and (eq 'hide-auto persp-autokill-persp-when-removed-last-buffer)
+            (safe-persp-auto persp)))
+      (persp-hide (safe-persp-name persp)))
+     ((or
+       (eq t persp-autokill-persp-when-removed-last-buffer)
+       (eq 'kill persp-autokill-persp-when-removed-last-buffer)
+       (and
+        (eq 'kill-auto persp-autokill-persp-when-removed-last-buffer)
+        (safe-persp-auto persp)))
+      (persp-kill (safe-persp-name persp))))))
+
+(defsubst persp--deactivate (frame-or-window &optional new-persp)
+  (let (persp)
+    (typecase frame-or-window
+      (frame
+       (setq persp (get-frame-persp frame-or-window))
+       (unless (eq persp new-persp)
+         (with-selected-frame frame-or-window
+           (run-hook-with-args 'persp-before-deactivate-functions 'frame))
+         (persp-frame-save-state frame-or-window
+                                 (if persp-set-last-persp-for-new-frames
+                                     (string= (safe-persp-name persp) persp-last-persp-name)
+                                   (null persp)))))
+      (window
+       (setq persp (get-window-persp frame-or-window))
+       (unless (eq persp new-persp)
+         (with-selected-window frame-or-window
+           (run-hook-with-args 'persp-before-deactivate-functions 'window)))))
+    (let ((persp-inhibit-switch-for (cons frame-or-window persp-inhibit-switch-for)))
+      (persp--do-auto-action-if-needed persp))))
+
 (defun* persp-activate (persp
                         &optional (frame-or-window (selected-frame)) new-frame)
   (when frame-or-window
@@ -1909,13 +1942,7 @@ Return `NAME'."
         (persp-activate persp frame new-frame)))))
 
 (defun persp-delete-frame (frame)
-  (unless (or (frame-parameter frame 'persp-ignore-wconf)
-              (frame-parameter frame 'persp-ignore-wconf-once))
-    (let ((persp (get-frame-persp frame)))
-      (persp-frame-save-state frame
-                              (if persp-set-last-persp-for-new-frames
-                                  (string= (safe-persp-name persp) persp-last-persp-name)
-                                (null persp))))))
+  (persp--deactivate frame :+-123emptynooo))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
@@ -2261,11 +2288,11 @@ Return `NAME'."
 
 
 (defun* persp-frame-save-state (&optional (frame (selected-frame)) set-persp-special-last-buffer)
-  (let ((persp (get-frame-persp frame)))
-    (when (and frame
-               (not (persp-is-frame-daemons-frame frame))
-               (not (frame-parameter frame 'persp-ignore-wconf))
-               (not (frame-parameter frame 'persp-ignore-wconf-once)))
+  (when (and frame
+             (not (persp-is-frame-daemons-frame frame))
+             (not (frame-parameter frame 'persp-ignore-wconf))
+             (not (frame-parameter frame 'persp-ignore-wconf-once)))
+    (let ((persp (get-frame-persp frame)))
       (with-selected-frame frame
         (when set-persp-special-last-buffer
           (persp-special-last-buffer-make-current))
