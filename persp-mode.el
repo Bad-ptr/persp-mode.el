@@ -1856,46 +1856,36 @@ Return `NAME'."
 (defun* persp-activate (persp
                         &optional (frame-or-window (selected-frame)) new-frame)
   (when frame-or-window
-    (setq persp-last-persp-name (safe-persp-name persp))
-    (let ((old-persp))
+    (let (old-persp type)
       (typecase frame-or-window
         (frame
-         (setq old-persp (get-frame-persp frame-or-window))
-         (set-frame-persp persp frame-or-window)
-         (when persp-init-frame-behaviour
-           (persp-restore-window-conf frame-or-window persp new-frame))
-         (with-selected-frame frame-or-window
-           (run-hook-with-args 'persp-activated-functions 'frame)))
+         (setq old-persp (get-frame-persp frame-or-window)
+               type 'frame))
         (window
-         (setq old-persp (get-window-persp frame-or-window))
-         (set-window-persp persp frame-or-window)
-         (let ((cbuf (window-buffer frame-or-window)))
-           (unless (persp-contain-buffer-p cbuf persp)
-             (set-window-buffer
-              frame-or-window
-              (persp-get-another-buffer-for-window
-               cbuf frame-or-window persp))))
-         (with-selected-window frame-or-window
-           (run-hook-with-args 'persp-activated-functions 'window))))
-      (when (and old-persp (not (eq old-persp persp))
-                 (persp-auto old-persp)
-                 (null (persp-buffers old-persp))
-                 persp-autokill-persp-when-removed-last-buffer)
-        (cond
-         ((functionp persp-autokill-persp-when-removed-last-buffer)
-          (funcall persp-autokill-persp-when-removed-last-buffer old-persp))
-         ((or
-           (eq 'hide persp-autokill-persp-when-removed-last-buffer)
-           (and (eq 'hide-auto persp-autokill-persp-when-removed-last-buffer)
-                (persp-auto old-persp)))
-          (persp-hide (persp-name old-persp)))
-         ((or
-           (eq t persp-autokill-persp-when-removed-last-buffer)
-           (eq 'kill persp-autokill-persp-when-removed-last-buffer)
-           (and
-            (eq 'kill-auto persp-autokill-persp-when-removed-last-buffer)
-            (persp-auto old-persp)))
-          (persp-kill (persp-name old-persp))))))))
+         (setq old-persp (get-window-persp frame-or-window)
+               type 'window)))
+      (when  (or new-frame
+                 (not (eq old-persp persp)))
+        (unless new-frame
+          (persp--deactivate frame-or-window persp))
+        (case type
+          (frame
+           (setq persp-last-persp-name (safe-persp-name persp))
+           (set-frame-persp persp frame-or-window)
+           (when persp-init-frame-behaviour
+             (persp-restore-window-conf frame-or-window persp new-frame))
+           (with-selected-frame frame-or-window
+             (run-hook-with-args 'persp-activated-functions 'frame)))
+          (window
+           (set-window-persp persp frame-or-window)
+           (let ((cbuf (window-buffer frame-or-window)))
+             (unless (persp-contain-buffer-p cbuf persp)
+               (set-window-buffer
+                frame-or-window
+                (persp-get-another-buffer-for-window
+                 cbuf frame-or-window persp))))
+           (with-selected-window frame-or-window
+             (run-hook-with-args 'persp-activated-functions 'window))))))))
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame
