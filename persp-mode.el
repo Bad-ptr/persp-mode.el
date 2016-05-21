@@ -1210,7 +1210,8 @@ but just removed from a perspective."
 
 (defun persp-kill-buffer-h ()
   (let (persp-autokill-buffer-on-remove)
-    (persp-remove-buffer (current-buffer) nil t)))
+    (persp-remove-buffer (current-buffer) nil t
+                         persp-when-kill-switch-to-buffer-in-perspective)))
 
 (defun persp-add-or-not-on-find-file ()
   (when persp-add-buffer-on-find-file
@@ -1547,14 +1548,12 @@ Return the removed buffer."
           (mapc #'(lambda (p)
                     (persp-remove-buffer buffer p))
                 (persp-other-persps-with-buffer-except-nil buffer persp)))
-      (if (memq buffer (persp-buffers persp))
-          (progn
-            (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
-            (with-current-buffer buffer
-              (setq persp-buffer-in-persps (delete (persp-name persp) persp-buffer-in-persps)))
-            (if noswitch
-                buffer
-              (persp-switchto-prev-buf buffer persp)))))
+      (when (memq buffer (persp-buffers persp))
+        (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
+        (with-current-buffer buffer
+          (setq persp-buffer-in-persps (delete (persp-name persp) persp-buffer-in-persps)))
+        (unless noswitch
+          (persp-switchto-prev-buf buffer persp))))
     (when (and persp-autokill-buffer-on-remove
                (persp-buffer-free-p
                 buffer (eq 'kill-weak persp-autokill-buffer-on-remove)))
@@ -1653,17 +1652,19 @@ perspective buffers or nil."
     (old-buff-or-name window
                       &optional
                       (persp (get-current-persp nil window)))
-  (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
-         (p-bs (safe-persp-buffers persp))
-         (buffers (delete-if #'(lambda (bc)
-                                 (or
-                                  (eq (car bc) old-buf)
-                                  (not (find (car bc) p-bs))))
-                             (append (window-prev-buffers window)
-                                     (window-next-buffers window)))))
-    (or (persp-get-buffer (and buffers (car (first buffers))) persp)
-        (car (persp-buffer-list-restricted (window-frame window) 2.5))
-        (car (buffer-list)))))
+  (if persp-set-frame-buffer-predicate
+      (switch-to-prev-buffer window)
+    (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
+           (p-bs (safe-persp-buffers persp))
+           (buffers (delete-if #'(lambda (bc)
+                                   (or
+                                    (eq (car bc) old-buf)
+                                    (not (find (car bc) p-bs))))
+                               (append (window-prev-buffers window)
+                                       (window-next-buffers window)))))
+      (or (persp-get-buffer (and buffers (car (first buffers))) persp)
+          (car (persp-buffer-list-restricted (window-frame window) 2.5))
+          (car (buffer-list))))))
 
 (defun* persp-switchto-prev-buf (old-buff-or-name
                                  &optional (persp (get-current-persp)))
@@ -1671,19 +1672,18 @@ perspective buffers or nil."
 to some previous buffer in the perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
-    (when persp-when-kill-switch-to-buffer-in-perspective
-      (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
-             (frames (car frames-windows))
-             (windows (cdr frames-windows)))
-        (dolist (w windows)
+    (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
+           (frames (car frames-windows))
+           (windows (cdr frames-windows)))
+      (dolist (w windows)
+        (set-window-buffer
+         w
+         (persp-get-another-buffer-for-window old-buf w)))
+      (dolist (f frames)
+        (dolist (w (get-buffer-window-list old-buf 'no-minibuf f))
           (set-window-buffer
            w
-           (persp-get-another-buffer-for-window old-buf w)))
-        (dolist (f frames)
-          (dolist (w (get-buffer-window-list old-buf 'no-minibuf f))
-            (set-window-buffer
-             w
-             (persp-get-another-buffer-for-window old-buf w))))))
+           (persp-get-another-buffer-for-window old-buf w)))))
     old-buf))
 
 (defsubst* persp-filter-out-bad-buffers (&optional (persp (get-current-persp)))
