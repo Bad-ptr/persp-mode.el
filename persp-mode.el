@@ -1924,7 +1924,8 @@ Return `NAME'."
                            persp (persp-add-new persp-name))
                      (when persp
                        (setf (persp-auto persp) t)))
-          (prompt (setq persp-name
+          (prompt (select-frame frame)
+                  (setq persp-name
                         (persp-prompt nil "to switch" nil nil nil t)
                         persp (persp-get-by-name persp-name *persp-hash* :+-123emptynooo))
                   (when (eq persp :+-123emptynooo)
