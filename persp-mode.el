@@ -1927,9 +1927,7 @@ Return `NAME'."
           (prompt (select-frame frame)
                   (setq persp-name
                         (persp-prompt nil "to switch" nil nil nil t)
-                        persp (persp-get-by-name persp-name *persp-hash* :+-123emptynooo))
-                  (when (eq persp :+-123emptynooo)
-                    (setq (persp-add-new persp-name))))
+                        persp (persp-add-new persp-name)))
           (t (setq persp-name (or (and persp-set-last-persp-for-new-frames
                                        persp-last-persp-name)
                                   persp-nil-name)
@@ -2521,8 +2519,7 @@ does not exists or not a directory %S." p-save-dir)
   (let ((def-persp
           #'(lambda (name dbufs dwc &optional dparams weak auto hidden)
               (let* ((pname (or name persp-nil-name))
-                     (persp (or (gethash pname phash)
-                                (persp-add-new pname phash))))
+                     (persp (persp-add-new pname phash)))
                 (mapc #'(lambda (b)
                           (persp-add-buffer b persp nil))
                       (persp-buffers-from-savelist-0 dbufs))
