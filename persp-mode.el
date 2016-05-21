@@ -1700,7 +1700,7 @@ Return that old buffer."
     (setq name (persp-prompt nil "to hide" (safe-persp-name (get-current-persp)) t)))
   (let* ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
          (persp-to-switch (get-current-persp)))
-    (unless (eq persp :+-123emptynooo)
+    (unless (or (eq persp :+-123emptynooo) (safe-persp-hidden persp))
       (when (eq persp persp-to-switch)
         (setq persp-to-switch (car (persp-other-not-hidden-persps persp))))
       (if persp
