@@ -716,6 +716,9 @@ to a wrong one.")
 (defvar persp-disable-buffer-restriction-once nil
   "The flag used for toggling buffer filtering during read-buffer.")
 
+(defvar persp-inhibit-switch-for nil
+  "List of frames and windows for which the switching of perspectives is inhibited.")
+
 (make-variable-buffer-local
  (defvar persp-buffer-in-persps nil
    "Buffer-local list of perspective names this buffer belongs to."))
@@ -1794,25 +1797,20 @@ Return `NAME'."
   (interactive "i")
   (unless name
     (setq name (persp-prompt nil "to switch" nil nil nil t)))
-  (run-hook-with-args 'persp-before-switch-functions name frame)
-  (if (string= name (safe-persp-name (get-frame-persp frame)))
-      name
-    (let ((persp (or (gethash name *persp-hash*)
-                     (persp-add-new name))))
-      (persp-frame-save-state frame)
-      (persp-activate persp frame)))
+  (unless (memq frame persp-inhibit-switch-for)
+    (run-hook-with-args 'persp-before-switch-functions name frame)
+    (let ((persp-inhibit-switch-for (cons frame persp-inhibit-switch-for)))
+      (persp-activate (persp-add-new name) frame)))
   name)
 (defun* persp-window-switch (name &optional (window (selected-window)))
   (interactive "i")
   (unless name
     (setq name (persp-prompt nil "to switch for this window" nil nil nil t)))
-  (run-hook-with-args 'persp-before-switch-functions name window)
-  (if (and (window-persp-set-p window)
-           (string= name (safe-persp-name (get-window-persp window))))
-      name
-    (let ((persp (or (gethash name *persp-hash*)
-                     (persp-add-new name))))
-      (persp-activate persp window))))
+  (unless (memq window persp-inhibit-switch-for)
+    (run-hook-with-args 'persp-before-switch-functions name window)
+    (let ((persp-inhibit-switch-for (cons window persp-inhibit-switch-for)))
+      (persp-activate (persp-add-new name) window)))
+  name)
 
 (defun persp-before-make-frame ()
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
