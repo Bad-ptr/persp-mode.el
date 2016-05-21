@@ -127,7 +127,7 @@
   :type 'string)
 
 (defface persp-face-lighter-buffer-not-in-persp
-  '((t :inherit error))
+  '((default . (:background "#F00" :foreground "#00F" :weight bold)))
   "Face for the ligher when the current buffer is not in a perspective."
   :group 'persp-mode)
 (defface persp-face-lighter-nil-persp
