@@ -1238,7 +1238,8 @@ but just removed from a perspective."
   (let* ((frame (selected-frame))
          (persp-server-switch-hook (frame-parameter frame 'persp-server-switch-hook)))
     (when persp-server-switch-hook
-      (funcall persp-server-switch-hook frame))))
+      (funcall persp-server-switch-hook frame)
+      (set-frame-parameter frame 'persp-server-switch-hook nil))))
 
 
 ;; Misc funcs:
@@ -1893,7 +1894,7 @@ Return `NAME'."
 (defun persp-init-new-frame (frame)
   (persp-init-frame
    frame t
-   (not (null (funcall persp-backtrace-frame-function 0 'server-create-window-system-frame)))))
+   (not (null (frame-parameter frame 'client)))))
 (defun* persp-init-frame (frame &optional new-frame client)
   (let ((persp-init-frame-behaviour
          (cond
@@ -2123,14 +2124,13 @@ Return `NAME'."
      nil)))
 
 (defun persp-set-frame-server-switch-hook (frame)
-  (set-frame-parameter frame 'persp-server-switch-hook persp-frame-server-switch-hook))
+  (when (frame-parameter frame 'client)
+    (set-frame-parameter frame 'persp-server-switch-hook persp-frame-server-switch-hook)))
 
 (defun persp-update-frame-server-switch-hook ()
   (setq persp-frame-server-switch-hook
         (persp-generate-frame-server-switch-hook persp-server-switch-behaviour))
-  (mapc #'(lambda (f)
-            (when (frame-parameter f 'persp-server-switch-hook)
-              (persp-set-frame-server-switch-hook f)))
+  (mapc #'(lambda (f) (persp-set-frame-server-switch-hook f))
         (persp-frame-list-without-daemon)))
 
 
