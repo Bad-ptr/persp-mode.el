@@ -485,7 +485,9 @@ after the `after-change-major-mode-hook' is fired."
                    b persp-filter-save-buffers-functions)
               'skip))
         #'(lambda (b)
-            (if (or (featurep 'tramp) (require 'tramp nil t))
+            (if (and
+                 (or (featurep 'tramp-sh) (require 'tramp-sh nil t))
+                 (fboundp 'tramp-compute-multi-hops))
                 (when (tramp-tramp-file-p (buffer-file-name b))
                   `(def-buffer ,(buffer-name b)
                      ,(persp-tramp-save-buffer-file-name b)
