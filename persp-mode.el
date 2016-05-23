@@ -1238,7 +1238,8 @@ but just removed from a perspective."
   (let* ((frame (selected-frame))
          (persp-server-switch-hook (frame-parameter frame 'persp-server-switch-hook)))
     (when persp-server-switch-hook
-      (funcall persp-server-switch-hook frame)
+      (unless (string-match-p "^.*magit.*$" (symbol-name last-command))
+        (funcall persp-server-switch-hook frame))
       (set-frame-parameter frame 'persp-server-switch-hook nil))))
 
 
