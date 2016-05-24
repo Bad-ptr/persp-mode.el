@@ -484,15 +484,7 @@ after the `after-change-major-mode-hook' is fired."
             (when (persp-buffer-filtered-out-p
                    b persp-filter-save-buffers-functions)
               'skip))
-        #'(lambda (b)
-            (if (and
-                 (or (featurep 'tramp-sh) (require 'tramp-sh nil t))
-                 (fboundp 'tramp-compute-multi-hops))
-                (when (tramp-tramp-file-p (buffer-file-name b))
-                  `(def-buffer ,(buffer-name b)
-                     ,(persp-tramp-save-buffer-file-name b)
-                     ,(buffer-local-value 'major-mode b)))
-              nil))
+        #'persp-tramp-save-buffer
         #'(lambda (b)
             (when (eq 'dired-mode (buffer-local-value 'major-mode b))
               `(def-buffer ,(buffer-name b)
@@ -2453,24 +2445,41 @@ does not exists or not a directory %S." p-save-dir)
       (persp-save-state-to-file fname temphash nil)
       (mapc #'kill-buffer bufferlist-diff))))
 
-(defun persp-tramp-save-buffer-file-name (b)
-  (let ((persp-tramp-file-name tramp-prefix-format)
-        (tmh (tramp-compute-multi-hops (tramp-dissect-file-name (buffer-file-name b)))))
-    (while tmh
-      (let* ((hop (car tmh))
-             (method   (tramp-file-name-method hop))
-             (user     (tramp-file-name-user hop))
-             (host     (tramp-file-name-host hop))
-             (filename (tramp-file-name-localname hop)))
-        (setq persp-tramp-file-name (concat
-                                     persp-tramp-file-name
-                                     method tramp-postfix-method-format
-                                     user tramp-postfix-user-format
-                                     host (if (= (string-width filename) 0)
-                                              tramp-postfix-hop-format
-                                            (concat tramp-postfix-host-format filename)))
-              tmh (cdr tmh))))
-    persp-tramp-file-name))
+(defun persp-tramp-save-buffer (b)
+  (let* ((buf-f-name (buffer-file-name b))
+         (persp-tramp-file-name
+          (when (and (or (featurep 'tramp) (require 'tramp nil t))
+                     (tramp-tramp-file-p buf-f-name))
+            (let ((dissected-f-name (tramp-dissect-file-name buf-f-name))
+                  tmh)
+              (if (tramp-file-name-hop dissected-f-name)
+                  (when (and
+                         (or (featurep 'tramp-sh) (require 'tramp-sh nil t))
+                         (fboundp 'tramp-compute-multi-hops)
+                         (setq tmh (condition-case err
+                                       (tramp-compute-multi-hops dissected-f-name)
+                                     (error nil))))
+                    (let ((persp-tramp-file-name tramp-prefix-format))
+                      (while tmh
+                        (let* ((hop (car tmh))
+                               (method   (tramp-file-name-method hop))
+                               (user     (tramp-file-name-user hop))
+                               (host     (tramp-file-name-host hop))
+                               (filename (tramp-file-name-localname hop)))
+                          (setq persp-tramp-file-name (concat
+                                                       persp-tramp-file-name
+                                                       method tramp-postfix-method-format
+                                                       user (when user tramp-postfix-user-format)
+                                                       host (if (= (string-width filename) 0)
+                                                                tramp-postfix-hop-format
+                                                              (concat tramp-postfix-host-format filename)))
+                                tmh (cdr tmh))))
+                      persp-tramp-file-name))
+                buf-f-name)))))
+    (when persp-tramp-file-name
+      `(def-buffer ,(buffer-name b)
+         ,persp-tramp-file-name
+         ,(buffer-local-value 'major-mode b)))))
 
 ;; Load funcs
 
