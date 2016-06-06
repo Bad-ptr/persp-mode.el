@@ -195,6 +195,7 @@ Other arguments is a key - value pairs:
 `:hooks` -- the list of hooks (or symbol) to which you want to add checks.  
   `def-auto-persp` tries to be smart about hooks to which it'll add checks, but sometimes you need more control.  
 `:dyn-env` -- the list of variables and values to dynamically bind when the checks and action takes place. The format is the same as in the `let` form.  
+`:get-name-expr` -- expression to get a perspecive name.  
 `:get-buffer-expr` -- expression to get the buffer.  
 `:get-persp-expr` -- expression to get the perspective.  
 `:parametes` -- list of parameters for perspective(see the `modify-persp-parameters` function).  

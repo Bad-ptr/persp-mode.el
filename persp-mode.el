@@ -995,13 +995,16 @@ to a wrong one.")
     (name
      &key buffer-name file-name mode mode-name predicate
      on-match after-match hooks dyn-env
-     get-buffer-expr get-persp-expr parameters noauto)
+     get-name-expr get-buffer-expr get-persp-expr parameters noauto)
+  (unless get-name-expr
+    (setq get-name-expr name))
   (unless get-persp-expr
-    (setq get-persp-expr `(persp-add-new ,name)))
+    (setq get-persp-expr `(persp-add-new persp-name)))
   (let* ((mkap-persp (gensym "persp-"))
          (body (if on-match
-                   `(funcall ,on-match ,name buffer ,after-match hook hook-args)
-                 `(let ((,mkap-persp ,get-persp-expr))
+                   `(funcall ,on-match ,get-name-expr buffer ,after-match hook hook-args)
+                 `(let* ((persp-name ,get-name-expr)
+                         (,mkap-persp ,get-persp-expr))
                     (when (and (not ,noauto) ,mkap-persp)
                       (setf (persp-auto ,mkap-persp) t))
                     (modify-persp-parameters ,parameters ,mkap-persp)
@@ -1036,22 +1039,21 @@ to a wrong one.")
                    (t 'after-change-major-mode-hook))))
     (unless (consp hooks) (setq hooks (list hooks)))
 
-    `(progn
-       ,@(let (ret)
-           (dolist (hook hooks)
-             (if (and hook (boundp hook))
-                 (push
-                  `(add-hook
-                    ',hook
-                    #'(lambda (&rest hook-args)
-                        (when persp-mode
-                          (let ((buffer ,get-buffer-expr)
-                                (hook ',hook)
-                                ,@dyn-env)
-                            ,body))))
-                  ret)
-               (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook)))
-           ret))))
+    (let (ret)
+      (dolist (hook hooks)
+        (if (and hook (boundp hook))
+            (push
+             `(add-hook
+               ',hook
+               #'(lambda (&rest hook-args)
+                   (when persp-mode
+                     (let ((buffer ,get-buffer-expr)
+                           (hook ',hook)
+                           ,@dyn-env)
+                       ,body))))
+             ret)
+          (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook)))
+      `(progn ,@ret))))
 
 
 ;; Mode itself:
