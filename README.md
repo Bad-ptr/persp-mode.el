@@ -163,7 +163,7 @@ After that you can add functions to `after-switch-to-buffer-functions` and `afte
 
 ## Auto perpectives  
 
-You can now define an auto perspective using the `def-auto-persp` macro.  
+You can now define an auto perspective using the `def-auto-persp` function.  
 This kind of perspectives is intended to be dynamically created/destroyed/hided/unhided when a specific kind of buffers appears/disappiars.  
 
 The argument list of the `def-auto-persp` macro:  
@@ -176,46 +176,61 @@ Other arguments is a key - value pairs:
 `:file-name` -- regexp to match against a filename of the buffer.  
 `:mode` -- symbol to compare with the major-mode of the buffer.  
 `:mode-name` -- regexp to compare against mode-name of the buffer.  
+`:minor-mode` -- check if a minor mode is active for the buffer.  
+`:minor-mode-name` -- check if minor mode with name matching this regexp is active for the buffer.  
 `:predicate` -- function to check if the buffer is a good one(return nil if not).  
-`:on-match` -- function to run when the buffer passed all checks, instead of standard actions(create/get perspective, add buffer to it).  
-  arguments passed to that function:  
-  1. the name of perspective;  
-  2. the buffer;  
-  3. `after-match` argument;  
-  4. the hook that was triggered;  
-  5. arguments passed to that hook.  
-
-`:after-match` -- function to run after the buffer match and standard or custom action.  
-  arguments passed to that function:  
-  1. the perspective  
-  2. the buffer  
-  3. the hook  
-  4. the hook arguments  
 
 `:hooks` -- the list of hooks (or symbol) to which you want to add checks.  
   `def-auto-persp` tries to be smart about hooks to which it'll add checks, but sometimes you need more control.  
 `:dyn-env` -- the list of variables and values to dynamically bind when the checks and action takes place. The format is the same as in the `let` form.  
-`:get-name-expr` -- expression to get a perspecive name.  
-`:get-buffer-expr` -- expression to get the buffer.  
-`:get-persp-expr` -- expression to get the perspective.  
+`:get-name-expr` -- expression or function to get a perspecive name.  
+`:get-buffer-expr` -- expression or function to get the buffer.  
+`:get-persp-expr` -- expression or function to get the perspective.  
 `:parametes` -- list of parameters for perspective(see the `modify-persp-parameters` function).  
 `:noauto` -- if non nil then do not set the auto field of the perspective.  
 
+`:on-match` -- function to run when the buffer passed all checks, instead of standard actions(create/get perspective, add buffer to it).  
+  arguments passed to that function:  
+  1. the name of perspective;  
+  2. the perspective;  
+  3. the buffer;  
+  4. the hook that was triggered;  
+  5. arguments passed to that hook.  
+  6. `parameters` argument;
+  7. `noauto` argument;
+  8. `after-match` argument;  
+if this function return another function it will be run as `:after-match` action.  
+
+`:after-match` -- function to run after the buffer has passed all checks and standard or custom action finished their work.  
+  arguments passed to that function:  
+  1. the name of perspective;  
+  2. the perspecive;  
+  3. the buffer;  
+  4. the hook;  
+  5. the hook arguments;  
+  6. `parameters` argument;  
+  7. `noauto` argument;  
+if this function return not nil -- the default after-match action will be run, which will set perspective parameters and an auto flag if needed.  
+
 Only the name string(first argument) is required. All other arguments could be ommited or combined in any way you like.  
 
-Example of usage:
-```lisp
+The `def-auto-persp` function creates an auto persp definition and adds it to the `persp-auto-persp-alist`. If a definition with same name already exists it will be replaced. If you want to delete a definition pass `t` as the `:delete` parameter.  
+Unless you pass `t` as the `:dont-pick-up-buffers` argument all existing buffers will be checked against the new auto persp definition.  
+
+Example of usage:  
+
+```elisp
 (with-eval-after-load "persp-mode-autoload"
   (with-eval-after-load "dired"
     (def-auto-persp "dired"
       :parameters '((dont-save-to-file . t))
-      :mode dired-mode
-      :dyn-env (after-switch-to-buffer-functions ;; prevent recursion
-                (persp-add-buffer-on-find-file nil)
-                persp-add-buffer-on-after-change-major-mode)
-      :hooks (after-switch-to-buffer-functions)
-      :after-match #'(lambda (p b h ha)
-                       (persp-window-switch (safe-persp-name p))))))
+      :mode 'dired-mode
+      :dyn-env '(after-switch-to-buffer-functions ;; prevent recursion
+                 (persp-add-buffer-on-find-file nil)
+                 persp-add-buffer-on-after-change-major-mode)
+      :hooks '(after-switch-to-buffer-functions)
+      :after-match #'(lambda (pn p b h ha ps noa)
+                       (persp-window-switch pn)))))
 ```
 
 ## Interaction with side packages  
