@@ -2025,32 +2025,31 @@ Return `NAME'."
           (call-pif))))))
 
 (defun persp-generate-frame-buffer-predicate (opt)
-  (eval
-   (if opt
-       `(function
-         (lambda (b)
-           (if (string-prefix-p " " (buffer-name (current-buffer)))
-               t
-             ,(typecase opt
-                (function
-                 `(funcall ,opt b))
-                (number
-                 `(let ((*persp-restrict-buffers-to* ,opt))
-                    (memq b (persp-buffer-list-restricted
-                             (selected-frame) ,opt
-                             persp-restrict-buffers-to-if-foreign-buffer t))))
-                (symbol
-                 (case opt
-                   ('nil t)
-                   ('restricted-buffer-list
-                    '(memq b (persp-buffer-list-restricted
-                              (selected-frame)
-                              *persp-restrict-buffers-to*
-                              persp-restrict-buffers-to-if-foreign-buffer
-                              t)))
-                   (t '(memq b (safe-persp-buffers (get-current-persp))))))
-                (t t)))))
-     nil)))
+  (if opt
+      (eval
+       `(lambda (b)
+          (if (string-prefix-p " " (buffer-name (current-buffer)))
+              t
+            ,(typecase opt
+               (function
+                `(funcall ,opt b))
+               (number
+                `(let ((*persp-restrict-buffers-to* ,opt))
+                   (memq b (persp-buffer-list-restricted
+                            (selected-frame) ,opt
+                            persp-restrict-buffers-to-if-foreign-buffer t))))
+               (symbol
+                (case opt
+                  ('nil t)
+                  ('restricted-buffer-list
+                   '(memq b (persp-buffer-list-restricted
+                             (selected-frame)
+                             *persp-restrict-buffers-to*
+                             persp-restrict-buffers-to-if-foreign-buffer
+                             t)))
+                  (t '(memq b (safe-persp-buffers (get-current-persp))))))
+               (t t)))))
+    nil))
 
 (defun persp-set-frame-buffer-predicate (frame &optional off)
   (lexical-let ((old-pred (frame-parameter frame 'buffer-predicate-old)))
@@ -2076,7 +2075,7 @@ Return `NAME'."
                           (funcall persp-frame-buffer-predicate b)
                           (funcall old-pred b)))
                    old-pred)))))
-      (set-frame-parameter frame 'buffer-predicate new-pred))))
+      (set-frame-parameter frame 'buffer-predicate (byte-compile new-pred)))))
 
 (defun persp-update-frames-buffer-predicate (&optional off)
   (setq persp-frame-buffer-predicate
@@ -2087,39 +2086,38 @@ Return `NAME'."
 
 
 (defun persp-generate-frame-server-switch-hook (opt)
-  (eval
-   (if opt
-       `(function
-         (lambda (frame)
-           ,(if (functionp opt)
-                `(funcall ,opt frame)
-              `(let* ((frame-client (frame-parameter frame 'client))
-                      (frame-client-bl (when frame-client (process-get frame-client 'buffers))))
-                 ,(case opt
-                    ('only-file-windows
-                     `(if frame-client
-                          (when frame-client-bl
-                            (mapc #'(lambda (w)
-                                      (unless (memq (window-buffer w) frame-client-bl)
-                                        (delete-window w)))
-                                  (window-list frame 'no-minibuf)))
-                        (let (frame-server-bl)
-                          (mapc #'(lambda (proc)
-                                    (setq frame-server-bl (append frame-server-bl (process-get proc 'buffers))))
-                                (server-clients-with 'frame nil))
-                          (when frame-server-bl
-                            (mapc #'(lambda (w)
-                                      (unless (memq (window-buffer w) frame-server-bl)
-                                        (delete-window w)))
-                                  (window-list frame 'no-minibuf))))))
-                    ('only-file-windows-for-client-frame
-                     `(when frame-client-bl
-                        (mapc #'(lambda (w)
-                                  (unless (memq (window-buffer w) frame-client-bl)
-                                    (delete-window w)))
-                              (window-list frame 'no-minibuf))))
-                    (t 'nil))))))
-     nil)))
+  (if opt
+      (eval
+       `(lambda (frame)
+          ,(if (functionp opt)
+               `(funcall ,opt frame)
+             `(let* ((frame-client (frame-parameter frame 'client))
+                     (frame-client-bl (when frame-client (process-get frame-client 'buffers))))
+                ,(case opt
+                   ('only-file-windows
+                    `(if frame-client
+                         (when frame-client-bl
+                           (mapc #'(lambda (w)
+                                     (unless (memq (window-buffer w) frame-client-bl)
+                                       (delete-window w)))
+                                 (window-list frame 'no-minibuf)))
+                       (let (frame-server-bl)
+                         (mapc #'(lambda (proc)
+                                   (setq frame-server-bl (append frame-server-bl (process-get proc 'buffers))))
+                               (server-clients-with 'frame nil))
+                         (when frame-server-bl
+                           (mapc #'(lambda (w)
+                                     (unless (memq (window-buffer w) frame-server-bl)
+                                       (delete-window w)))
+                                 (window-list frame 'no-minibuf))))))
+                   ('only-file-windows-for-client-frame
+                    `(when frame-client-bl
+                       (mapc #'(lambda (w)
+                                 (unless (memq (window-buffer w) frame-client-bl)
+                                   (delete-window w)))
+                             (window-list frame 'no-minibuf))))
+                   (t 'nil))))))
+    nil))
 
 (defun persp-set-frame-server-switch-hook (frame)
   (when (frame-parameter frame 'client)
