@@ -124,7 +124,15 @@
 (defcustom persp-nil-name "none"
   "Name for the nil perspective."
   :group 'persp-mode
-  :type 'string)
+  :type 'string
+  :set #'(lambda (sym val)
+           (when val
+             (when persp-mode
+               (destructuring-bind (frames . windows)
+                   (persp-frames-and-windows-with-persp (persp-get-by-name persp-nil-name))
+                 (dolist (win windows)
+                   (set-window-parameter win 'persp val))))
+             (set-default sym val))))
 
 (defface persp-face-lighter-buffer-not-in-persp
   '((default . (:background "#F00" :foreground "#00F" :weight bold)))
@@ -603,7 +611,9 @@ The perspective is available with (get-current-persp)."
   "Defines how to restore window configurations for the new frames:
 t -- the standard action.
 function -- run that function."
-  :group 'persp-mode)
+  :group 'persp-mode
+  :type '(choice (const :tag "Standard action" :value t)
+                 (function :tag "Run function" :value (lambda (frame persp new-frame) nil))))
 
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
@@ -1463,9 +1473,8 @@ Return the removed perspective."
         (remhash name phash)
         (when (eq phash *persp-hash*)
           (persp-remove-from-menu persp)
-          (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
-                 (frames (car frames-windows))
-                 (windows (cdr frames-windows)))
+          (destructuring-bind (frames . windows)
+              (persp-frames-and-windows-with-persp persp)
             (dolist (w windows) (clear-window-persp w))
             ;;(setq persp-to-switch (or (car (persp-names phash nil)) persp-nil-name))
             (dolist (f frames)
@@ -1673,9 +1682,8 @@ perspective buffers or nil."
 to some previous buffer in the perspective.
 Return that old buffer."
   (let ((old-buf (persp-get-buffer-or-null old-buff-or-name)))
-    (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
-           (frames (car frames-windows))
-           (windows (cdr frames-windows)))
+    (destructuring-bind (frames . windows)
+        (persp-frames-and-windows-with-persp persp)
       (dolist (w windows)
         (persp-set-another-buffer-for-window old-buf w))
       (dolist (f frames)
@@ -1700,9 +1708,8 @@ Return that old buffer."
       (if persp
           (setf (persp-hidden persp) t)
         (setq persp-nil-hidden t))
-      (let* ((frames-windows (persp-frames-and-windows-with-persp persp))
-             (frames (car frames-windows))
-             (windows (cdr frames-windows)))
+      (destructuring-bind (frames . windows)
+          (persp-frames-and-windows-with-persp persp)
         (dolist (w windows) (clear-window-persp w))
         (dolist (f frames)
           (persp-frame-switch (safe-persp-name persp-to-switch) f))))))
