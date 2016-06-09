@@ -2187,7 +2187,7 @@ Return `NAME'."
                           (funcall persp-frame-buffer-predicate b)
                           (funcall old-pred b)))
                    old-pred)))))
-      (set-frame-parameter frame 'buffer-predicate (byte-compile new-pred)))))
+      (set-frame-parameter frame 'buffer-predicate (when new-pred (byte-compile new-pred))))))
 
 (defun persp-update-frames-buffer-predicate (&optional off)
   (setq persp-frame-buffer-predicate
