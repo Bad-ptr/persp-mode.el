@@ -2187,7 +2187,8 @@ Return `NAME'."
           (progn
             (set-frame-parameter frame 'persp-buffer-predicate-old nil)
             (set-frame-parameter frame 'persp-buffer-predicate-generated nil)
-            (setq new-pred (if (eq cur-pred last-persp-pred) old-pred cur-pred)))
+            (setq new-pred (if (eq cur-pred last-persp-pred) old-pred cur-pred))
+            (set-frame-parameter frame 'buffer-predicate new-pred))
         (unless persp-frame-buffer-predicate
           (setq persp-frame-buffer-predicate
                 (persp-generate-frame-buffer-predicate
