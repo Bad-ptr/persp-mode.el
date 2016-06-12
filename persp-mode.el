@@ -2410,7 +2410,12 @@ Return `NAME'."
                   (if (functionp persp-reset-windows-on-nil-window-conf)
                       (funcall persp-reset-windows-on-nil-window-conf)
                     (delete-other-windows)
-                    (set-window-dedicated-p nil nil))))))
+                    (set-window-dedicated-p nil nil)
+                    (let* ((pbs (safe-persp-buffers persp))
+                           (w (selected-window))
+                           (wb (window-buffer w)))
+                      (when (and pbs (memq wb pbs))
+                        (persp-set-another-buffer-for-window wb w persp))))))))
           (when gr-mode
             (golden-ratio-mode 1)))))))
 
