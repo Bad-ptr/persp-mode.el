@@ -243,9 +243,19 @@ which take buffer as argument."
                     :value (lambda (b) b)))
   :set #'(lambda (sym val)
            (set-default sym val)
-           (if persp-mode
-               (persp-update-frames-buffer-predicate)
-             (add-hook 'persp-mode-hook #'persp-update-frames-buffer-predicate))))
+           (if val
+               (if persp-mode
+                   (persp-update-frames-buffer-predicate)
+                 (if (and (not (daemonp)) (null (cdr (frame-list))))
+                     (lexical-let (th)
+                       (setq th #'(lambda ()
+                                    (run-at-time
+                                     10 nil #'(lambda ()
+                                                (remove-hook 'emacs-startup-hook th)
+                                                (persp-update-frames-buffer-predicate)))))
+                       (add-hook 'emacs-startup-hook th))
+                   (add-hook 'persp-mode-hook #'persp-update-frames-buffer-predicate)))
+             (persp-update-frames-buffer-predicate t))))
 
 (defvar persp-interactive-completion-function
   (cond (ido-mode      #'ido-completing-read)
@@ -2164,35 +2174,43 @@ Return `NAME'."
     nil))
 
 (defun persp-set-frame-buffer-predicate (frame &optional off)
-  (lexical-let ((old-pred (frame-parameter frame 'buffer-predicate-old)))
+  (let* ((old-pred (frame-parameter frame 'persp-buffer-predicate-old))
+         (cur-pred (frame-parameter frame 'buffer-predicate))
+         (last-persp-pred (frame-parameter frame 'persp-buffer-predicate-generated)))
     (let (new-pred)
       (if off
           (progn
-            (when (eq :null old-pred) (setq old-pred nil))
-            (set-frame-parameter frame 'buffer-predicate-old nil)
-            (setq new-pred old-pred))
-        (setq new-pred
-              (case old-pred
-                ('nil
-                 (set-frame-parameter frame 'buffer-predicate-old
-                                      (or (frame-parameter frame 'buffer-predicate)
-                                          :null))
-                 persp-frame-buffer-predicate)
-                (:null
-                 persp-frame-buffer-predicate)
-                (t
-                 (if persp-frame-buffer-predicate
-                     #'(lambda (b)
-                         (and
-                          (funcall persp-frame-buffer-predicate b)
-                          (funcall old-pred b)))
-                   old-pred)))))
-      (set-frame-parameter frame 'buffer-predicate (when new-pred (byte-compile new-pred))))))
+            (set-frame-parameter frame 'persp-buffer-predicate-old nil)
+            (set-frame-parameter frame 'persp-buffer-predicate-generated nil)
+            (setq new-pred (if (eq cur-pred last-persp-pred) old-pred cur-pred)))
+        (unless persp-frame-buffer-predicate
+          (setq persp-frame-buffer-predicate
+                (persp-generate-frame-buffer-predicate
+                 persp-set-frame-buffer-predicate)))
+        (if persp-frame-buffer-predicate
+            (progn
+              (set-frame-parameter frame 'persp-buffer-predicate-old
+                                   (if (eq cur-pred last-persp-pred)
+                                       old-pred (setq old-pred cur-pred)))
+              (setq new-pred
+                    (case old-pred
+                      ('nil persp-frame-buffer-predicate)
+                      (t `(lambda (b)
+                            (and
+                             (funcall ,persp-frame-buffer-predicate b)
+                             (funcall ,(if (symbolp old-pred)
+                                           `(quote ,old-pred) old-pred)
+                                      b))))))
+              (unless (symbolp new-pred)
+                (setq new-pred (byte-compile new-pred)))
+              (set-frame-parameter frame 'persp-buffer-predicate-generated new-pred)
+              (set-frame-parameter frame 'buffer-predicate new-pred))
+          (persp-set-frame-buffer-predicate frame t))))))
 
 (defun persp-update-frames-buffer-predicate (&optional off)
-  (setq persp-frame-buffer-predicate
-        (persp-generate-frame-buffer-predicate
-         persp-set-frame-buffer-predicate))
+  (unless off
+    (setq persp-frame-buffer-predicate nil)
+    (persp-update-frames-buffer-predicate t))
   (mapc #'(lambda (f) (persp-set-frame-buffer-predicate f off))
         (persp-frame-list-without-daemon)))
 
