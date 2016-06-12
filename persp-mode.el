@@ -1074,7 +1074,7 @@ to a wrong one.")
              ((or mode-name predicate buffer-name) 'after-change-major-mode-hook)
              (file-name 'find-file-hook)
              (t 'after-change-major-mode-hook))))
-    (unless (consp hooks) (setq hooks (list hooks)))
+    (when (and hooks (not (consp hooks))) (setq hooks (list hooks)))
 
     (let (auto-persp-parameters
           (predicate-body t) hook-body
