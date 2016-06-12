@@ -186,6 +186,7 @@ Other arguments is a key - value pairs:
 `:get-name-expr` -- expression or function to get a perspecive name.  
 `:get-buffer-expr` -- expression or function to get the buffer.  
 `:get-persp-expr` -- expression or function to get the perspective.  
+`:switch` -- how to switch to the auto perspective: `nil` -- do not switch, `'window` -- switch in window, `'frame` -- switch for frame.  
 `:parametes` -- list of parameters for perspective(see the `modify-persp-parameters` function).  
 `:noauto` -- if non nil then do not set the auto field of the perspective.  
 
@@ -229,8 +230,7 @@ Example of usage:
                  (persp-add-buffer-on-find-file nil)
                  persp-add-buffer-on-after-change-major-mode)
       :hooks '(after-switch-to-buffer-functions)
-      :after-match #'(lambda (pn p b h ha ps noa)
-                       (persp-window-switch pn)))))
+      :switch 'window)))
 ```
 
 ## Interaction with side packages  
