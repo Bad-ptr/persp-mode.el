@@ -1108,11 +1108,14 @@ to a wrong one.")
                                      (when (not noauto)
                                        (setf (persp-auto persp) t))
                                      (modify-persp-parameters parameters persp))
+                                   (persp-unhide persp-name)
                                    (case switch
                                      ('nil nil)
                                      ('window (persp-window-switch persp-name))
                                      ('frame (persp-frame-switch persp-name))
-                                     (t (persp-switch persp-name))))))
+                                     (t (persp-switch persp-name)))
+                                   (when switch
+                                     (switch-to-buffer buffer)))))
 
       (loop for (key val) on keyargs by #'cddr
             when (and val (not (or (eq key :dont-pick-up-buffers))))
@@ -1176,19 +1179,20 @@ to a wrong one.")
                                                         `(funcall ,get-buffer-expr)
                                                       get-buffer-expr)))
                               (when (funcall ,generated-predicate buffer)
-                                (let* ((persp-name ,(if (functionp get-name-expr)
-                                                        `(funcall ,get-name-expr)
-                                                      get-name-expr))
-                                       (persp ,(if (functionp get-persp-expr)
-                                                   `(funcall ,get-persp-expr persp-name)
-                                                 get-persp-expr))
-                                       (after-match
-                                        (funcall ,on-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,after-match))
-                                       (do-def-after-match
-                                        (when (functionp after-match)
-                                          (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto))))
-                                  (when do-def-after-match
-                                    (funcall ,default-after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto))))))))
+                                (with-current-buffer buffer
+                                  (let* ((persp-name ,(if (functionp get-name-expr)
+                                                          `(funcall ,get-name-expr)
+                                                        get-name-expr))
+                                         (persp ,(if (functionp get-persp-expr)
+                                                     `(funcall ,get-persp-expr persp-name)
+                                                   get-persp-expr))
+                                         (after-match
+                                          (funcall ,on-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,after-match))
+                                         (do-def-after-match
+                                          (when (functionp after-match)
+                                            (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto))))
+                                    (when do-def-after-match
+                                      (funcall ,default-after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto)))))))))
       (push (cons :main-action main-action) auto-persp-parameters)
 
       (when hooks
