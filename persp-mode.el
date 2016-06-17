@@ -600,6 +600,18 @@ The perspective is available with (get-current-persp)."
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-after-load-state-functions
+  (list #'(lambda (file phash names-regexp)
+            (when (eq phash *persp-hash*)
+              (persp-update-frames-window-confs names-regexp))))
+  "Functions that run after perspectives state was loaded.
+These functions must take 3 arguments:
+1) a file from which the state was loaded;
+2) a hash in which loaded perspectives were placed;
+3) a regexp that was used to match against perspective names to be loaded."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-use-workgroups (and (version< emacs-version "24.4")
                                      (locate-library "workgroups.el"))
   "If t -- use the workgroups.el package for saving/restoring windows configurations."
@@ -2753,7 +2765,9 @@ does not exists or not a directory %S." p-save-dir)
   (destructuring-bind (fun s-list)
       (persp-dispatch-loadf-version 'persps-from-savelist savelist)
     (if fun
-        (funcall fun s-list phash persp-file set-persp-file names-regexp)
+        (prog1
+            (funcall fun s-list phash persp-file set-persp-file names-regexp)
+          (run-hook-with-args 'persp-after-load-state-functions persp-file phash names-regexp))
       (message "[persp-mode] Error: Can not load perspectives from savelist: %s\n\tloaded from %s"
                savelist persp-file))))
 
@@ -2787,9 +2801,7 @@ does not exists or not a directory %S." p-save-dir)
             (setq readed-list (read (current-buffer)))
             (kill-buffer))
           (persps-from-savelist
-           readed-list phash p-save-file set-persp-file names-regexp))))
-    (when (eq phash *persp-hash*)
-      (persp-update-frames-window-confs names-regexp))))
+           readed-list phash p-save-file set-persp-file names-regexp))))))
 
 (defun* persp-load-from-file-by-names (&optional (fname persp-auto-save-fname)
                                                  (phash *persp-hash*)
