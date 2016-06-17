@@ -2420,7 +2420,7 @@ Return `NAME'."
                     (let* ((pbs (safe-persp-buffers persp))
                            (w (selected-window))
                            (wb (window-buffer w)))
-                      (when (and pbs (memq wb pbs))
+                      (when (and pbs (not (memq wb pbs)))
                         (persp-set-another-buffer-for-window wb w persp))))))))
           (when gr-mode
             (golden-ratio-mode 1)))))))
