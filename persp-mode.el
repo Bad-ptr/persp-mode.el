@@ -1690,9 +1690,10 @@ Return the removed buffer."
     (when (and persp-autokill-buffer-on-remove
                (persp-buffer-free-p
                 buffer (eq 'kill-weak persp-autokill-buffer-on-remove)))
-      (let (persp-autokill-buffer-on-remove
-            persp-kill-foreign-buffer-action)
-        (kill-buffer buffer)))
+      (unless (funcall persp-backtrace-frame-function 0 'kill-buffer)
+        (let (persp-autokill-buffer-on-remove
+              persp-kill-foreign-buffer-action)
+          (kill-buffer buffer))))
     (persp--do-auto-action-if-needed persp)
     buffer))
 
