@@ -413,7 +413,10 @@ variable is depricated. Use the `persp-emacsclient-frame-to-edit-file-behavoiur`
 (defcustom persp-add-buffer-on-find-file t
   "If t -- add a buffer with opened file to current perspective."
   :group 'persp-mode
-  :type 'boolean)
+  :type '(choice
+          (const :tag "Always add" :value t)
+          (const :tag "Newer add" :value nil)
+          (const :tag "Add if not matching any predicate from `persp-auto-persp-alist'" :value if-not-autopersp)))
 
 (defcustom persp-add-buffer-on-after-change-major-mode nil
   "t -- add the current buffer to the current perspective when
@@ -1373,15 +1376,24 @@ but just removed from a perspective."
     (persp-remove-buffer (current-buffer) nil t
                          persp-when-kill-switch-to-buffer-in-perspective)))
 
+(defun persp--restore-buffer-on-find-file ()
+  (set-window-buffer (or (get-buffer-window) (selected-window))
+                     persp-special-last-buffer)
+  (setq persp-special-last-buffer nil)
+  (remove-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
 (defun persp-add-or-not-on-find-file ()
-  (when persp-add-buffer-on-find-file
-    (let ((no-select
-           (funcall persp-backtrace-frame-function
-                    0 'find-file-noselect)))
-      (if no-select
-          (let ((persp-switch-to-added-buffer nil))
-            (persp-add-buffer (current-buffer)))
-        (persp-add-buffer (current-buffer))))))
+  (let ((no-select
+         (funcall persp-backtrace-frame-function 0 'find-file-noselect)))
+    (and (case persp-add-buffer-on-find-file
+           ('nil nil)
+           ('if-not-autopersp
+            (let ((ret (not (persp-buffer-match-autopersp-p (current-buffer)))))
+              (unless (or ret no-select)
+                (setq persp-special-last-buffer (window-buffer))
+                (add-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
+              ret))
+           (t t))
+         (persp-add-buffer (current-buffer) (not no-select)))))
 
 (defun persp-after-change-major-mode-h ()
   (let ((buf (current-buffer)))
