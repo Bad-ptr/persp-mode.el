@@ -1036,6 +1036,18 @@ to a wrong one.")
   (interactive)
   (persp-auto-persps-pickup-bufferlist (funcall persp-buffer-list-function)))
 
+(defun persp-buffer-match-autopersp-p (buffer-or-name)
+  (let ((buffer (get-buffer buffer-or-name))
+        (a-p-list persp-auto-persp-alist)
+        ret pred)
+    (while (and (null ret) a-p-list)
+      (destructuring-bind (name . def) (car a-p-list)
+        (setq pred (cdr (assoc :generated-predicate def)))
+        (if (and pred (funcall pred buffer))
+            (setq ret name)
+          (setq a-p-list (cdr a-p-list)))))
+    ret))
+
 ;;;###autoload
 (defun* def-auto-persp (name
                         &rest keyargs
