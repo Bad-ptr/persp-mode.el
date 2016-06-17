@@ -1641,7 +1641,7 @@ with empty name.")
       (push buffer (persp-buffers persp))
       (with-current-buffer buffer
         (push (persp-name persp) persp-buffer-in-persps)))
-    (when (and buffer switchorno)
+    (when (and buffer switchorno (eq persp (get-current-persp)))
       (switch-to-buffer buffer))
     buffer))
 
