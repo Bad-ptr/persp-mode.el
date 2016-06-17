@@ -1383,7 +1383,7 @@ but just removed from a perspective."
   (remove-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
 (defun persp-add-or-not-on-find-file ()
   (let ((no-select
-         (funcall persp-backtrace-frame-function 0 'find-file-noselect)))
+         (not (funcall persp-backtrace-frame-function 0 'find-file))))
     (and (case persp-add-buffer-on-find-file
            ('nil nil)
            ('if-not-autopersp
