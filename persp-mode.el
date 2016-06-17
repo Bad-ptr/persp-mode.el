@@ -1,4 +1,4 @@
-;;; persp-mode.el --- "perspectives" shared among frames + save/load - bugs.
+;;; persp-mode.el --- windows/buffers sets shared among frames + save/load.
 
 ;; Copyright (C) 2012 Constantin Kulikov
 
@@ -1312,8 +1312,8 @@ named collections of buffers and window configurations."
           (buffer-list))
 
     (setq window-persistent-parameters
-          (delete* (assoc 'persp window-persistent-parameters)
-                   window-persistent-parameters))
+          (delq (assoc 'persp window-persistent-parameters)
+                window-persistent-parameters))
 
     (setq *persp-hash* nil)))
 
@@ -1666,7 +1666,7 @@ with empty name.")
 
 (defun* persp-contain-buffer-p (buff-or-name
                                 &optional (persp (get-current-persp)))
-  (find (persp-get-buffer-or-null buff-or-name) (safe-persp-buffers persp)))
+  (memq (persp-get-buffer-or-null buff-or-name) (safe-persp-buffers persp)))
 
 (defun* persp-add-buffer (buff-or-name
                           &optional (persp (get-current-persp))
@@ -2058,9 +2058,7 @@ Return `NAME'."
              (run-hook-with-args 'persp-activated-functions 'window))))))))
 
 (defun persp-init-new-frame (frame)
-  (persp-init-frame
-   frame t
-   (not (null (frame-parameter frame 'client)))))
+  (persp-init-frame frame t (frame-parameter frame 'client)))
 (defun* persp-init-frame (frame &optional new-frame client)
   (let ((persp-init-frame-behaviour
          (cond
