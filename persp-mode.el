@@ -1393,7 +1393,7 @@ but just removed from a perspective."
                 (add-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
               ret))
            (t t))
-         (persp-add-buffer (current-buffer) (not no-select)))))
+         (persp-add-buffer (current-buffer) (get-current-persp) (not no-select)))))
 
 (defun persp-after-change-major-mode-h ()
   (let ((buf (current-buffer)))
