@@ -1867,8 +1867,8 @@ perspective buffers or nil."
                                (car (persp-buffer-list-restricted (window-frame window) 2.5))
                                (car (buffer-list))))))))
 
-(defun* persp-switchto-prev-buf (old-buff-or-name
-                                 &optional (persp (get-current-persp)))
+(defun* persp-switch-to-prev-buffer (old-buff-or-name
+                                     &optional (persp (get-current-persp)))
   "Switch all windows in all frames with a perspective displaying that buffer
 to some previous buffer in the perspective.
 Return that old buffer."
