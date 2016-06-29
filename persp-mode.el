@@ -1728,7 +1728,9 @@ with empty name.")
       (switch-to-buffer buffer t))))
 
 (defun* persp-remove-buffer (buff-or-name
-                             &optional (persp (get-current-persp)) noask-to-remall noswitch)
+                             &optional (persp (get-current-persp)) noask-to-remall (switch t)
+                             (called-from-kill-buffer-hook
+                              (funcall persp-backtrace-frame-function 0 'persp-kill-buffer-h)))
   "Remove a buffer from a perspective. Switch all windows displaying that buffer
 to another one. If `PERSP' is nil -- remove the buffer from all perspectives.
 Return the removed buffer."
@@ -1740,20 +1742,20 @@ Return the removed buffer."
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (if (null persp)
         (when (or noask-to-remall
-                  (yes-or-no-p "Remove buffer from all perspectives?"))
+                  (yes-or-no-p "Remove the buffer from all perspectives?"))
           (mapc #'(lambda (p)
-                    (persp-remove-buffer buffer p))
+                    (persp-remove-buffer buffer p nil switch called-from-kill-buffer-hook))
                 (persp-other-persps-with-buffer-except-nil buffer persp)))
       (when (memq buffer (persp-buffers persp))
         (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
         (with-current-buffer buffer
           (setq persp-buffer-in-persps (delete (persp-name persp) persp-buffer-in-persps)))
-        (unless noswitch
-          (persp-switchto-prev-buf buffer persp))))
-    (when (and persp-autokill-buffer-on-remove
-               (persp-buffer-free-p
-                buffer (eq 'kill-weak persp-autokill-buffer-on-remove)))
-      (unless (funcall persp-backtrace-frame-function 0 'kill-buffer)
+        (when switch
+          (persp-switch-to-prev-buffer buffer persp))))
+    (unless called-from-kill-buffer-hook
+      (when (and persp-autokill-buffer-on-remove
+                 (persp-buffer-free-p
+                  buffer (eq 'kill-weak persp-autokill-buffer-on-remove)))
         (let (persp-autokill-buffer-on-remove
               persp-kill-foreign-buffer-action)
           (kill-buffer buffer))))
