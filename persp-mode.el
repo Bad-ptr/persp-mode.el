@@ -923,7 +923,7 @@ to a wrong one.")
       (let ((bl
              (case option
                (-1 (funcall persp-buffer-list-function frame))
-               (0 (safe-persp-buffers cpersp))
+               (0 (append (safe-persp-buffers cpersp) nil))
                (1 (let ((ret (set-difference
                               (funcall persp-buffer-list-function frame)
                               (safe-persp-buffers cpersp))))
@@ -965,7 +965,7 @@ to a wrong one.")
            (sortp nil) (cache nil))
      &rest body)
   (let ((pblf-body `(persp-buffer-list-restricted frame)))
-    (when sortp (setq pblf-body `(sort (append ,pblf-body nil) ,sortp)))
+    (when sortp (setq pblf-body `(sort ,pblf-body ,sortp)))
     `(let ((*persp-restrict-buffers-to* ,restriction)
            (persp-restrict-buffers-to-if-foreign-buffer ,restriction-foreign-override)
            ,@(if cache `(persp-buffer-list-cache) nil))
