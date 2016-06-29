@@ -1660,7 +1660,6 @@ Return the removed perspective."
       (persp-save-state persp)
       (if (and (eq phash *persp-hash*) (null persp))
           (message "[persp-mode] Error: Can't remove the 'nil' perspective")
-        (remhash name phash)
         (when (eq phash *persp-hash*)
           (persp-remove-from-menu persp)
           (destructuring-bind (frames . windows)
@@ -1668,7 +1667,8 @@ Return the removed perspective."
             (dolist (w windows) (clear-window-persp w))
             ;;(setq persp-to-switch (or (car (persp-names phash nil)) persp-nil-name))
             (dolist (f frames)
-              (persp-frame-switch persp-to-switch f))))))
+              (persp-frame-switch persp-to-switch f))))
+        (remhash name phash)))
     persp))
 
 (defun* persp-add-new (name &optional (phash *persp-hash*))
