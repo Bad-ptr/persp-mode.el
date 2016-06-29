@@ -184,9 +184,9 @@ in the `persp-file' perspective parameter."
 2 -- save on the persp-mode deactivation or the emacs shutdown."
   :group 'persp-mode
   :type '(choice
-          (integer :tag "Do not save"  :value 0)
-          (integer :tag "Save on exit" :value 1)
-          (integer :tag "Save on exit and persp-mode deactivation" :value 2)))
+          (const :tag "Do not save"  :value 0)
+          (const :tag "Save on exit" :value 1)
+          (const :tag "Save on exit and persp-mode deactivation" :value 2)))
 
 (defcustom persp-auto-save-num-of-backups 3
   "How many autosave file backups to keep."
@@ -258,21 +258,18 @@ number -- the same meaning as for the `*persp-restrict-buffers-to*';
 function -- use that function as buffer-predicate."
   :group 'persp-mode
   :type '(choice
-          (const :tag "Constrain to current
-perspective's buffers."
+          (const :tag "
+Constrain to current perspective's buffers."
                  :value t)
-          (const :tag "Do not set frames'
-buffer-predicate parameter."
+          (const :tag "
+Do not set frames' buffer-predicate parameter."
                  :value nil)
-          (const :tag "Constrain with
-persp-buffer-list-restricted."
+          (const :tag "
+Constrain with persp-buffer-list-restricted."
                  :value restricted-buffer-list)
-          (number :tag "Constrain with
-persp-buffer-list-restricted and use the value of this variable as
-the restriction option (see the *persp-restrict-buffers-to* variable)."
-                  :value 0)
-          (function :tag "Constrain with function
-which take buffer as argument."
+          persp-buffer-list-restriction-choices
+          (function :tag "
+Constrain with a function which take buffer as an argument."
                     :value (lambda (b) b)))
   :set #'(lambda (sym val)
            (set-default sym val)
@@ -372,7 +369,8 @@ otherwise let  the emacs deside what to do."
 (define-widget 'persp-init-frame-behaviour-choices 'lazy
   "Choices of the init-frame behavoiurs for the persp-mode."
   :offset 4
-  :tag "persp-init-frame-behaviour-choices"
+  :tag "
+Control how frames initialized by persp-mode"
   :type '(choice
           (const :tag "Restore window-configuration" :value t)
           (const :tag "Do not restore window-configuration" :value nil)
@@ -449,7 +447,8 @@ variable is depricated. Use the `persp-emacsclient-frame-to-edit-file-behavoiur`
   :type '(choice
           (const :tag "Always add" :value t)
           (const :tag "Newer add" :value nil)
-          (const :tag "Add if not matching any predicate from `persp-auto-persp-alist'" :value if-not-autopersp)))
+          (const :tag "
+Add if not matching any predicate from `persp-auto-persp-alist'" :value if-not-autopersp)))
 
 (defcustom persp-add-buffer-on-after-change-major-mode nil
   "t -- add the current buffer to the current perspective when
@@ -461,7 +460,8 @@ function -- run that function."
   :type '(choice
           (const :tag "Always add" :value t)
           (const :tag "Don't add" :value nil)
-          (const :tag "Add if the buffer is not already in any other persp" :value free)
+          (const :tag "
+Add if the buffer is not already in any other persp" :value free)
           (function :tag "Run this function" :value (lambda () nil)))
   :set #'(lambda (sym val)
            (set-default sym val)
@@ -480,11 +480,13 @@ nil        -- do not include the current buffer to buffer list if it not in the 
   :group 'persp-mode
   :type '(choice
           (const    :tag "Ask what to do" :value ask)
-          (const    :tag "Don't ask if a buffer belongs only to weak perspectives"
+          (const    :tag "
+Don't ask if a buffer belongs only to weak perspectives"
                     :value dont-ask-weak)
           (const    :tag "Just kill"      :value kill)
           (function :tag "Run function"   :value (lambda () t))
-          (const    :tag "do not suggest foreign buffer to the user(kill buffer)" :value nil)))
+          (const    :tag "
+do not suggest foreign buffer to the user(kill buffer)" :value nil)))
 
 (defcustom persp-autokill-buffer-on-remove nil
   "Kill the buffer if it removed from every(or non weak) perspecive."
@@ -503,7 +505,8 @@ nil        -- do not include the current buffer to buffer list if it not in the 
           (const :tag "Hide" :value hide)
           (const :tag "Hide auto perspectives" :value hide-auto)
           (const :tag "Do not kill" :value nil)
-          (function :tag "Run that function with persp as an argument"
+          (function :tag "
+Run this function with persp as an argument"
                     :value (lambda (p) p))))
 
 (defcustom persp-common-buffer-filter-functions
@@ -513,24 +516,24 @@ nil        -- do not include the current buffer to buffer list if it not in the 
 The list of functions wich takes a buffer as an argument.
 If one of these functions returns a non nil value the buffer considered as 'filtered out'."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-buffer-list-restricted-filter-functions nil
   "Additional filters for use inside pthe `persp-buffer-list-restricted'."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-add-buffer-on-after-change-major-mode-filter-functions nil
   "Additional filters to know which buffers we dont want to add to the current perspective
 after the `after-change-major-mode-hook' is fired."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
   "Additional filters to not save unneded buffers."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-save-buffer-functions
   (list #'(lambda (b)
@@ -551,7 +554,7 @@ after the `after-change-major-mode-hook' is fired."
 If a function return nil -- follow to the next function in the list.
 If a function return 'skip -- don't save a buffer."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-load-buffer-functions
   (list #'(lambda (savelist)
@@ -585,7 +588,7 @@ If a function return 'skip -- don't save a buffer."
 If a function return nil -- follow to the next function in the list.
 If a function return 'skip -- don't restore a buffer."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-mode-hook nil
   "The hook that's run after the `persp-mode' has been activated."
@@ -602,13 +605,13 @@ If a function return 'skip -- don't restore a buffer."
 It must accept two argument -- the created perspecive and the hash to which this perspective
 will be placed, you could be interested if that hash is the `*persp-hash*' or some other."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-before-kill-functions nil
   "The list of functions that runs just before a perspective will be destroyed.
 It's single argument is the perspective that will be killed."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-before-switch-functions nil
   "The list of functions that runs before actually switching to a perspective.
@@ -616,7 +619,7 @@ These functions must take two arguments -- a name of a perspective to switch
 (it could be a name of an unexistent perspective or it could be the same as current)
 and a frame or a window for which the switching takes place."
   :group 'persp-mode
-  :type '(repeat (function :tag "Function")))
+  :type 'hook)
 
 (defcustom persp-activated-functions nil
   "Functions that runs after a perspective has been activated.
