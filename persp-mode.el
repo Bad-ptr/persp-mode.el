@@ -1887,7 +1887,8 @@ Return that old buffer."
 (defsubst* persp-filter-out-bad-buffers (&optional (persp (get-current-persp)))
   ;; filter out killed buffers
   (when persp
-    (delete-if-not #'buffer-live-p (persp-buffers persp))))
+    (setf (persp-buffers persp)
+          (delete-if-not #'buffer-live-p (persp-buffers persp)))))
 
 (defun persp-hide (name)
   (interactive "i")
@@ -1933,8 +1934,7 @@ Return that old buffer."
                              (safe-persp-name (get-current-persp)) t)))
   (when (or (not (string= name persp-nil-name))
             (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
-    (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
-          (cpersp (get-current-persp)))
+    (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo)))
       (unless (eq persp :+-123emptynooo)
         (run-hook-with-args 'persp-before-kill-functions persp)
         (unless dont-kill-buffers
@@ -1962,8 +1962,7 @@ Return that old buffer."
                           (with-current-buffer b
                             (setq persp-buffer-in-persps
                                   (cons newname
-                                        (delete* old-name persp-buffer-in-persps
-                                                 :test #'string=)))))
+                                        (delete old-name persp-buffer-in-persps)))))
                       (persp-buffers persp)))
             (message "[persp-mode] Info: You can't rename the `nil' perspective, use \
 M-x: customize-variable RET persp-nil-name RET"))
