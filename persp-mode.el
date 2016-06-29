@@ -348,7 +348,7 @@ otherwise let  the emacs deside what to do."
           (const :tag "Create a new random auto-perspective for the new frame" :value auto-temp)
           (const :tag "Create a new perspective for the new frame and prompt for it's name" :value prompt)
           (string :tag "Use/create the perspective with a name" :value "pfnf")
-          (function :tag "Run this function" :value (lambda (frame &optional new-frame) nil))))
+          (function :tag "Run this function" :value (lambda (frame &optional new-frame-p) nil))))
 
 (defcustom persp-init-frame-behaviour t
   "Control the behaviour of how frames initialized."
@@ -638,7 +638,7 @@ t -- the standard action.
 function -- run that function."
   :group 'persp-mode
   :type '(choice (const :tag "Standard action" :value t)
-                 (function :tag "Run function" :value (lambda (frame persp new-frame) nil))))
+                 (function :tag "Run function" :value (lambda (frame persp new-frame-p) nil))))
 
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
@@ -2027,7 +2027,7 @@ Return `NAME'."
       (persp--do-auto-action-if-needed persp))))
 
 (defun* persp-activate (persp
-                        &optional (frame-or-window (selected-frame)) new-frame)
+                        &optional (frame-or-window (selected-frame)) new-frame-p)
   (when frame-or-window
     (let (old-persp type)
       (typecase frame-or-window
@@ -2037,16 +2037,16 @@ Return `NAME'."
         (window
          (setq old-persp (get-window-persp frame-or-window)
                type 'window)))
-      (when  (or new-frame
+      (when  (or new-frame-p
                  (not (eq old-persp persp)))
-        (unless new-frame
+        (unless new-frame-p
           (persp--deactivate frame-or-window persp))
         (case type
           (frame
            (setq persp-last-persp-name (safe-persp-name persp))
            (set-frame-persp persp frame-or-window)
            (when persp-init-frame-behaviour
-             (persp-restore-window-conf frame-or-window persp new-frame))
+             (persp-restore-window-conf frame-or-window persp new-frame-p))
            (with-selected-frame frame-or-window
              (run-hook-with-args 'persp-activated-functions 'frame)))
           (window
@@ -2059,7 +2059,7 @@ Return `NAME'."
 
 (defun persp-init-new-frame (frame)
   (persp-init-frame frame t (frame-parameter frame 'client)))
-(defun* persp-init-frame (frame &optional new-frame client)
+(defun* persp-init-frame (frame &optional new-frame-p client)
   (let ((persp-init-frame-behaviour
          (cond
           ((and client (not (eq -1 persp-emacsclient-init-frame-behaviour-override)))
@@ -2067,7 +2067,7 @@ Return `NAME'."
           ((and (eq this-command 'make-frame)
                 (not (eq -1 persp-interactive-init-frame-behaviour-override)))
            persp-interactive-init-frame-behaviour-override)
-          ((and new-frame (not (eq -1 persp-init-new-frame-behaviour-override)))
+          ((and new-frame-p (not (eq -1 persp-init-new-frame-behaviour-override)))
            persp-init-new-frame-behaviour-override)
           (t persp-init-frame-behaviour))))
     (let (persp-name persp)
@@ -2082,7 +2082,7 @@ Return `NAME'."
                                 persp (persp-add-new persp-name))))))
         (typecase persp-init-frame-behaviour
           (function
-           (funcall persp-init-frame-behaviour frame new-frame))
+           (funcall persp-init-frame-behaviour frame new-frame-p))
           (string
            (setq persp-name persp-init-frame-behaviour
                  persp (persp-add-new persp-name)))
@@ -2106,7 +2106,7 @@ Return `NAME'."
         (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
                   (eq persp-init-frame-behaviour 'persp-ignore-wconf-once))
           (set-frame-parameter frame persp-init-frame-behaviour t))
-        (persp-activate persp frame new-frame)))))
+        (persp-activate persp frame new-frame-p)))))
 
 (defun persp-delete-frame (frame)
   (persp--deactivate frame :+-123emptynooo))
@@ -2422,12 +2422,12 @@ Return `NAME'."
 
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
-                                             new-frame)
+                                             new-frame-p)
   (when (and frame (not (frame-parameter frame 'persp-ignore-wconf))
              (not (let ((old-piw (frame-parameter frame 'persp-ignore-wconf-once)))
                     (when old-piw (set-frame-parameter frame 'persp-ignore-wconf-once nil))
                     old-piw)))
-    (when new-frame (sit-for 0.01))
+    (when new-frame-p (sit-for 0.01))
     (with-selected-frame frame
       (let ((pwc (safe-persp-window-conf persp))
             (split-width-threshold 0)
@@ -2440,7 +2440,7 @@ Return `NAME'."
         (unwind-protect
             (cond
              ((functionp persp-restore-window-conf-method)
-              (funcall persp-restore-window-conf-method frame persp new-frame))
+              (funcall persp-restore-window-conf-method frame persp new-frame-p))
              (t
               (if pwc
                   (progn
@@ -2449,7 +2449,7 @@ Return `NAME'."
                     (condition-case err
                         (funcall persp-window-state-put-function pwc frame)
                       (error (message "[persp-mode] Warning: Can not restore the window configuration, because of the error -- %s" err)))
-                    (when (and new-frame persp-is-ibc-as-f-supported)
+                    (when (and new-frame-p persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
                   (if (functionp persp-reset-windows-on-nil-window-conf)
