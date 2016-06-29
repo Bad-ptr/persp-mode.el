@@ -775,6 +775,9 @@ to a wrong one.")
 (defvar persp-frame-buffer-predicate nil
   "Current buffer-predicate.")
 
+(defvar persp-frame-buffer-predicate-buffer-list-cache nil
+  "Variable to cache the perspective buffer list for buffer-predicate.")
+
 (defvar persp-frame-server-switch-hook nil
   "Current persp-server-switch-hook.")
 
@@ -2210,30 +2213,53 @@ Return `NAME'."
                     (push cp retlst)))))
           (call-pif))))))
 
+(defsubst persp--set-frame-buffer-predicate-buffer-list-cache (buflist)
+  (prog1
+      (setq persp-frame-buffer-predicate-buffer-list-cache buflist)
+    (run-at-time 1 nil #'(lambda () (setq persp-frame-buffer-predicate-buffer-list-cache nil)))))
+(defmacro persp--get-frame-buffer-predicate-buffer-list-cache (buflist)
+  `(if persp-frame-buffer-predicate-buffer-list-cache
+       persp-frame-buffer-predicate-buffer-list-cache
+     (persp--set-frame-buffer-predicate-buffer-list-cache ,buflist)))
 (defun persp-generate-frame-buffer-predicate (opt)
   (if opt
       (eval
        `(lambda (b)
-          (if (string-prefix-p " " (buffer-name (current-buffer)))
+          (if (string-prefix-p " *temp*" (buffer-name (current-buffer)))
               t
             ,(typecase opt
                (function
                 `(funcall ,opt b))
                (number
                 `(let ((*persp-restrict-buffers-to* ,opt))
-                   (memq b (persp-buffer-list-restricted
-                            (selected-frame) ,opt
-                            persp-restrict-buffers-to-if-foreign-buffer t))))
+                   (memq b
+                         (persp--get-frame-buffer-predicate-buffer-list-cache
+                          (let ((ret (persp-buffer-list-restricted
+                                      (selected-frame) ,opt
+                                      persp-restrict-buffers-to-if-foreign-buffer t)))
+                            (if (get-current-persp)
+                                ret
+                              (delete-if #'persp-buffer-filtered-out-p ret)))))))
                (symbol
                 (case opt
                   ('nil t)
                   ('restricted-buffer-list
-                   '(memq b (persp-buffer-list-restricted
-                             (selected-frame)
-                             *persp-restrict-buffers-to*
-                             persp-restrict-buffers-to-if-foreign-buffer
-                             t)))
-                  (t '(memq b (safe-persp-buffers (get-current-persp))))))
+                   '(progn
+                      (memq b
+                            (persp--get-frame-buffer-predicate-buffer-list-cache
+                             (let ((ret (persp-buffer-list-restricted
+                                         (selected-frame)
+                                         *persp-restrict-buffers-to*
+                                         persp-restrict-buffers-to-if-foreign-buffer
+                                         t)))
+                               (if (get-current-persp)
+                                   ret
+                                 (delete-if #'persp-buffer-filtered-out-p ret)))))))
+                  (t '(memq b (persp--get-frame-buffer-predicate-buffer-list-cache
+                               (let ((ret (safe-persp-buffers (get-current-persp))))
+                                 (if (get-current-persp)
+                                     ret
+                                   (delete-if #'persp-buffer-filtered-out-p ret))))))))
                (t t)))))
     nil))
 
@@ -2267,7 +2293,8 @@ Return `NAME'."
                                            `(quote ,old-pred) old-pred)
                                       b))))))
               (unless (symbolp new-pred)
-                (setq new-pred (byte-compile new-pred)))
+                (setq new-pred (let (byte-compile-warnings)
+                                 (byte-compile new-pred))))
               (set-frame-parameter frame 'persp-buffer-predicate-generated new-pred)
               (set-frame-parameter frame 'buffer-predicate new-pred))
           (persp-set-frame-buffer-predicate frame t))))))
