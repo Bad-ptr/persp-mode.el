@@ -215,6 +215,39 @@ nil -- do nothing."
           (const    :tag "Do nothing"         :value nil)
           (function :tag "Run function"       :value (lambda () nil))))
 
+
+(define-widget 'persp-buffer-list-restriction-choices 'lazy
+  "Variants of how the buffer-list can be restricted."
+  :offset 4
+  :tag "
+Control the persp-buffer-list-restricted behaviour"
+  :type '(choice
+          (const :tag "Show all buffers" :value -1)
+          (const :tag "Show current perspecive buffers" :value 0)
+          (const :tag "Show buffers that aren't in the perspective" :value 1)
+          (const :tag "Show buffers which unique to the perspecive" :value 2)
+          (const :tag "Show unique buffers, but show all for the nil perspective" :value 2.5)
+          (const :tag "Show free buffers" :value 3)
+          (const :tag "Show free buffers, but show all for the nil perspecive" :value 3.5)))
+
+(defcustom *persp-restrict-buffers-to* 0
+  "Controls the behaviour of the `persp-buffer-list-restricted' function."
+  :group 'persp-mode
+  :type '(choice
+          persp-buffer-list-restriction-choices
+          (function :tag "
+Run function with frame as an argument" :value (lambda (f) (buffer-list f)))))
+
+(defcustom persp-restrict-buffers-to-if-foreign-buffer nil
+  "Override the *persp-restrict-buffers-to* if the current buffer is not in the
+current perspective. If nil -- do not override."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "Do not override" :value nil)
+          persp-buffer-list-restriction-choices
+          (function :tag "
+Run function with frame as an argument" :value (lambda (f) (buffer-list f)))))
+
 (defcustom persp-set-frame-buffer-predicate 'restricted-buffer-list
   "t -- set the frame's buffer-predicate parameter to a function returning `t'
     for buffers in current persp;
@@ -721,22 +754,6 @@ otherwise nil.")
 
 (defvar *persp-hash* nil
   "The hash table that contain perspectives")
-
-(defvar *persp-restrict-buffers-to* 0
-  "The global variable that controls the behaviour of the `persp-buffer-list-restricted'
-function (Must be used only for the local rebinding):
--1 -- show all buffers;
- 0 -- restrict to current perspective's buffers;
- 1 -- restrict to buffers that is not in the current perspective;
- 2 -- show all buffers which are not in any _other_ perspective;
- 2.5 -- same as 2, but show all buffers if the current perspective is nil;
- 3 -- list only _free_ buffers, that do not belong to any perspective;
- 3.5 -- same as 3, but show all buffers if the current perspecive is nil;
- function -- run that function with a frame as an argument.")
-
-(defvar persp-restrict-buffers-to-if-foreign-buffer nil
-  "Override the *persp-restrict-buffers-to* if the current buffer is not in the
-current perspective. If nil -- do not override.")
 
 (defvar persp-temporarily-display-buffer nil
   "This variable dynamically bound to t inside the `persp-temporarily-display-buffer'")
