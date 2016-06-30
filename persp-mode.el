@@ -1397,7 +1397,7 @@ but just removed from a perspective."
 (defun persp-kill-buffer-h ()
   (let (persp-autokill-buffer-on-remove)
     (persp-remove-buffer (current-buffer) nil t
-                         persp-when-kill-switch-to-buffer-in-perspective)))
+                         persp-when-kill-switch-to-buffer-in-perspective t)))
 
 (defun persp--restore-buffer-on-find-file ()
   (set-window-buffer (or (get-buffer-window) (selected-window))
