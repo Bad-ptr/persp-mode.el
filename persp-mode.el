@@ -157,7 +157,7 @@
                   (safe-persp-name (get-current-persp))))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
-  :type 'list)
+  :type 'sexp)
 
 (defcustom persp-save-dir (expand-file-name "persp-confs/" user-emacs-directory)
   "The directory to/from where perspectives saved/loaded by default.
@@ -736,8 +736,9 @@ is 2, 2.5, 3 or 3.5."
   "Alist of auto-persp definitions."
   :group 'persp-mode
   :tag "Auto perspectives"
-  :type '(repeat
-          (cons (string :tag "Name") (alist :tag "Parameters"))))
+  :type '(alist :key-type (string :tag "Name")
+                :value-type (alist :tag "Parameters"
+                                   :key-type (symbol :tag "Keyword"))))
 
 ;; Global variables:
 
