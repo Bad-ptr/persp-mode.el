@@ -2217,7 +2217,7 @@ Return `NAME'."
 (defsubst persp--set-frame-buffer-predicate-buffer-list-cache (buflist)
   (prog1
       (setq persp-frame-buffer-predicate-buffer-list-cache buflist)
-    (run-at-time 1 nil #'(lambda () (setq persp-frame-buffer-predicate-buffer-list-cache nil)))))
+    (run-at-time 2 nil #'(lambda () (setq persp-frame-buffer-predicate-buffer-list-cache nil)))))
 (defmacro persp--get-frame-buffer-predicate-buffer-list-cache (buflist)
   `(if persp-frame-buffer-predicate-buffer-list-cache
        persp-frame-buffer-predicate-buffer-list-cache
