@@ -517,18 +517,24 @@ Run this function with persp as an argument"
 The list of functions wich takes a buffer as an argument.
 If one of these functions returns a non nil value the buffer considered as 'filtered out'."
   :group 'persp-mode
-  :type 'hook)
+  :type 'hook
+  :set #'(lambda (sym val)
+           (set-default sym (mapcar #'byte-compile val))))
 
 (defcustom persp-buffer-list-restricted-filter-functions nil
   "Additional filters for use inside pthe `persp-buffer-list-restricted'."
   :group 'persp-mode
-  :type 'hook)
+  :type 'hook
+  :set #'(lambda (sym val)
+           (set-default sym (mapcar #'byte-compile val))))
 
 (defcustom persp-add-buffer-on-after-change-major-mode-filter-functions nil
   "Additional filters to know which buffers we dont want to add to the current perspective
 after the `after-change-major-mode-hook' is fired."
   :group 'persp-mode
-  :type 'hook)
+  :type 'hook
+  :set #'(lambda (sym val)
+           (set-default sym (mapcar #'byte-compile val))))
 
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
@@ -928,17 +934,23 @@ to a wrong one.")
       (let ((bl
              (case option
                (-1 (funcall persp-buffer-list-function frame))
-               (0 (append (safe-persp-buffers cpersp) nil))
-               (1 (let ((ret (set-difference
-                              (funcall persp-buffer-list-function frame)
-                              (safe-persp-buffers cpersp))))
+               (0 (if cpersp
+                      (append (persp-buffers cpersp) nil)
+                    (funcall persp-buffer-list-function frame)))
+               (1 (let ((ret (if cpersp
+                                 (set-difference
+                                  (funcall persp-buffer-list-function frame)
+                                  (safe-persp-buffers cpersp))
+                               nil)))
                     (unless (persp-contain-buffer-p curbuf cpersp)
                       (setq ret (cons curbuf (delete curbuf ret))))
                     ret))
                (2 (let ((ret (delete-if #'(lambda (b)
                                             (persp-buffer-in-other-p*
                                              b cpersp persp-dont-count-weaks-in-restricted-buffer-list))
-                                        (funcall persp-buffer-list-function frame))))
+                                        (if cpersp
+                                            (append (persp-buffers cpersp) nil)
+                                          (funcall persp-buffer-list-function frame)))))
                     ret))
                (3 (let ((ret (delete-if #'(lambda (b)
                                             (or
@@ -948,15 +960,15 @@ to a wrong one.")
                                               b cpersp persp-dont-count-weaks-in-restricted-buffer-list)))
                                         (funcall persp-buffer-list-function frame))))
                     ret)))))
-        (unless (= option 0)
+        (when persp-buffer-list-restricted-filter-functions
           (setq bl (delete-if #'(lambda (b)
                                   (persp-buffer-filtered-out-p
                                    b persp-buffer-list-restricted-filter-functions))
                               bl)))
         (when (and
                (not sure-not-killing) cpersp
-               persp-kill-foreign-buffer-action
                (symbolp this-command)
+               persp-kill-foreign-buffer-action
                (string-match-p "^.*?kill-buffer.*?$" (symbol-name this-command))
                (not (memq curbuf bl))
                (not (persp-buffer-filtered-out-p curbuf)))
@@ -1821,9 +1833,11 @@ perspective buffers or nil."
     (otherwise nil)))
 
 (defun persp-buffer-filtered-out-p (buff-or-name &rest filters)
-  (setq filters (append
-                 persp-common-buffer-filter-functions
-                 filters))
+  (setq filters (if filters
+                    (cons
+                     persp-common-buffer-filter-functions
+                     filters)
+                  persp-common-buffer-filter-functions))
   (block pbfop
     (let ((buf (get-buffer buff-or-name))
           filter f)
@@ -2725,7 +2739,7 @@ does not exists or not a directory %S." p-save-dir)
         (persp-frame-list-without-daemon)))
 
 (defmacro persp-car-as-fun-cdr-as-args (lst)
-  (let ((kar (gensym)))
+  (let ((kar (gensym "lst-car")))
     `(let* ((,kar (car-safe ,lst))
             (args (cdr-safe ,lst))
             (fun (or (condition-case err
