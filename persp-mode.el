@@ -1966,10 +1966,13 @@ Return that old buffer."
     (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo)))
       (unless (eq persp :+-123emptynooo)
         (run-hook-with-args 'persp-before-kill-functions persp)
-        (unless dont-kill-buffers
-          (let (persp-autokill-persp-when-removed-last-buffer)
-            (mapc #'kill-buffer (safe-persp-buffers persp))))
-        (persp-remove-by-name name)))))
+        (let (persp-autokill-persp-when-removed-last-buffer)
+          (if dont-kill-buffers
+              (let (persp-autokill-buffer-on-remove)
+                (mapc #'(lambda (b) (persp-remove-buffer b persp)) (safe-persp-buffers persp)))
+            (mapc #'(lambda (b) (persp-remove-buffer b persp)) (safe-persp-buffers persp))))
+        (when persp
+          (persp-remove-by-name name))))))
 
 (defun persp-kill-without-buffers (name)
   (interactive)
