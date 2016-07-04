@@ -222,13 +222,13 @@ nil -- do nothing."
   :tag "
 Control the persp-buffer-list-restricted behaviour"
   :type '(choice
-          (const :tag "Show all buffers" :value -1)
-          (const :tag "Show current perspecive buffers" :value 0)
-          (const :tag "Show buffers that aren't in the perspective" :value 1)
-          (const :tag "Show buffers which unique to the perspecive" :value 2)
-          (const :tag "Show unique buffers, but show all for the nil perspective" :value 2.5)
-          (const :tag "Show free buffers" :value 3)
-          (const :tag "Show free buffers, but show all for the nil perspecive" :value 3.5)))
+          (const :tag "List all buffers" :value -1)
+          (const :tag "List current perspecive buffers" :value 0)
+          (const :tag "List buffers that aren't in the perspective" :value 1)
+          (const :tag "List buffers which unique to the perspecive" :value 2)
+          (const :tag "List unique buffers, but show all for the nil perspective" :value 2.5)
+          (const :tag "List free buffers" :value 3)
+          (const :tag "List free buffers, but show all for the nil perspecive" :value 3.5)))
 
 (defcustom *persp-restrict-buffers-to* 0
   "Controls the behaviour of the `persp-buffer-list-restricted' function."
@@ -353,19 +353,6 @@ to interactivly read user input with completion.")
                (persp-update-completion-system val)
              (set-default sym val))))
 
-(defcustom persp-switch-to-added-buffer t
-  "If t then after you add a buffer to the current perspective
-the currently selected window will be switched to that buffer."
-  :group 'persp-mode
-  :type 'boolean)
-
-(defcustom persp-when-kill-switch-to-buffer-in-perspective nil
-  "If t -- then after a buffer is killed the current window
-will be switched to some previous buffer in the current perspective,
-otherwise let  the emacs deside what to do."
-  :group 'persp-mode
-  :type 'boolean)
-
 (define-widget 'persp-init-frame-behaviour-choices 'lazy
   "Choices of the init-frame behavoiurs for the persp-mode."
   :offset 4
@@ -469,6 +456,20 @@ Add if the buffer is not already in any other persp" :value free)
              (if val
                  (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h t)
                (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)))))
+
+(defcustom persp-switch-to-added-buffer t
+  "If t then after you add a buffer to the current perspective
+the currently selected window will be switched to that buffer."
+  :group 'persp-mode
+  :type 'boolean)
+
+(defcustom persp-when-kill-switch-to-buffer-in-perspective nil
+  "If t -- then after a buffer is killed the current window
+will be switched to some previous buffer in the current perspective,
+otherwise let  the emacs deside what to do."
+  :group 'persp-mode
+  :type 'boolean)
+
 
 (defcustom persp-kill-foreign-buffer-action 'dont-ask-weak
   "What to do when manually killing a buffer that is not in the current persp:
