@@ -1106,7 +1106,7 @@ to a wrong one.")
                         &key buffer-name file-name mode mode-name minor-mode minor-mode-name
                         predicate hooks dyn-env
                         get-name-expr get-buffer-expr get-persp-expr
-                        switch parameters noauto
+                        switch parameters noauto weak
                         on-match after-match
                         dont-pick-up-buffers delete)
 
@@ -1143,10 +1143,12 @@ to a wrong one.")
     (let (auto-persp-parameters
           (predicate-body t) hook-body
           generated-predicate generated-hook main-action
-          (default-after-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto)
+          (default-after-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto weak)
                                    (when persp
                                      (when (not noauto)
                                        (setf (persp-auto persp) t))
+                                     (when weak
+                                       (setf (persp-weak persp) t))
                                      (modify-persp-parameters parameters persp))
                                    (persp-unhide persp-name)
                                    (case switch
@@ -1204,11 +1206,11 @@ to a wrong one.")
       (push (cons :generated-predicate generated-predicate) auto-persp-parameters)
 
       (unless on-match
-        (setq on-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto after-match)
+        (setq on-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto weak after-match)
                            (persp-add-buffer buffer persp)
                            after-match)))
       (unless after-match
-        (setq after-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto)
+        (setq after-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto weak)
                               t)))
 
       (setq main-action (eval
@@ -1227,12 +1229,12 @@ to a wrong one.")
                                                      `(funcall ,get-persp-expr persp-name)
                                                    get-persp-expr))
                                          (after-match
-                                          (funcall ,on-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,after-match))
+                                          (funcall ,on-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,weak ,after-match))
                                          (do-def-after-match
                                           (when (functionp after-match)
-                                            (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto))))
+                                            (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,weak))))
                                     (when do-def-after-match
-                                      (funcall ,default-after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto)))))))))
+                                      (funcall ,default-after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,weak)))))))))
       (push (cons :main-action main-action) auto-persp-parameters)
 
       (when hooks
