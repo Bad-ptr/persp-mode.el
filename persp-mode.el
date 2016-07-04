@@ -435,7 +435,11 @@ variable is depricated. Use the `persp-emacsclient-frame-to-edit-file-behavoiur`
           (const :tag "Always add" :value t)
           (const :tag "Newer add" :value nil)
           (const :tag "
-Add if not matching any predicate from `persp-auto-persp-alist'" :value if-not-autopersp)))
+Add if not matching any predicate from `persp-auto-persp-alist'" :value if-not-autopersp)
+          (const :tag "
+Always add but do not switch if the buffer matches any predicate from `persp-auto-persp-alist'"
+                 :value add-but-not-switch-if-autopersp)))
+
 
 (defcustom persp-add-buffer-on-after-change-major-mode nil
   "t -- add the current buffer to the current perspective when
@@ -1431,6 +1435,13 @@ but just removed from a perspective."
                 (setq persp-special-last-buffer (window-buffer))
                 (add-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
               ret))
+           ('add-but-not-switch-if-autopersp
+            (when (and (not no-select)
+                       (persp-buffer-match-autopersp-p (current-buffer)))
+              (setq no-select t)
+              (setq persp-special-last-buffer (window-buffer))
+              (add-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
+            t)
            (t t))
          (persp-add-buffer (current-buffer) (get-current-persp) (not no-select)))))
 
