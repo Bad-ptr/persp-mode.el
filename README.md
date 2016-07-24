@@ -54,13 +54,14 @@ Ability to save/restore window configurations from/to a file for emacs < 24.4 de
 `r` -- rename perspective.  
 `c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
 `a` -- add buffer to perspective.  
+`b` -- switch to buffer in perspecive.  
 `t` -- switch to buffer without adding it to the current perspective.  
 `i` -- import all buffers from another perspective.  
 `k` -- remove buffer from perspective.  
 `K` -- kill buffer.  
 `w` -- save perspectives to file.  
 `l` -- load perspectives from file.  
-`o` -- switch off persp-mode.  (you can quickly switch off persp-mode after emacs start and before autoresuming previous perspectives state if you only need to edit a single file.)  
+`o` -- switch off persp-mode(you can quickly switch off persp-mode after emacs start and before autoresuming previous perspectives state if you only need to edit a single file).  
 
 These key sequences must follow the `persp-keymap-prefix` which you can customize(by default it is `C-c p` in older releases it was `C-x x`), so if you want to invoke the \< `s` - create/switch perspective \> command you must first type the prefix(`C-c p`) and then `s`(full sequence is `C-c p s`).  
 If you want to bind a new key for persp-mode, use `persp-key-map`:  
@@ -74,7 +75,7 @@ But if you kill a buffer from the 'none'(nil) perspective -- it will be removed 
 
 ## Custom save/load buffer function example  
 Suppose you want to save the `*ielm*`(M-x ielm RET -- elisp repl) buffers.  
-Then the save function would be:
+Then the save function would be:  
 ```lisp
 (lambda (b)
   (with-current-buffer b
@@ -83,7 +84,7 @@ Then the save function would be:
 ```
 You must prepend that function to the `persp-save-buffer-functions` list (before the standard filtering functions couse it filters buffers starting with the '*').  
 
-The load function:
+The load function:  
 ```lisp
 (lambda (savelist)
   (when (eq (car savelist) 'def-ielm-buffer)
@@ -95,7 +96,7 @@ The load function:
 Add load function to the `persp-load-buffer-functions` list.  
 That's it. Now the persp-mode could save and restore ielm buffers.  
 
-Python shell example:
+Python shell example:  
 ```lisp
 (with-eval-after-load "persp-mode-autoloads"
   (add-to-list 'persp-save-buffer-functions
@@ -121,10 +122,10 @@ Python shell example:
                          (current-buffer)))))))
 ```
 
-## switch-to-buffer, display-buffer hook, and other advices:  
+## switch-to-buffer, display-buffer hook, and other advices  
 
-Some time ago there were switch-to-buffer and display-buffer advices in the persp-mode.
-If you still need them, I can suggest you the way:
+Some time ago there were switch-to-buffer and display-buffer advices in the persp-mode.  
+If you still need them, I can suggest you the way:  
 
 ```lisp
 (with-eval-after-load "persp-mode"
@@ -152,8 +153,7 @@ If you still need them, I can suggest you the way:
     (ad-activate #'display-buffer)))
 ```
 
-After that you can add functions to `after-switch-to-buffer-functions` and `after-display-buffer-functions`:
-
+After that you can add functions to `after-switch-to-buffer-functions` and `after-display-buffer-functions`:  
 ```lisp
 (add-hook 'after-switch-to-buffer-functions
     #'(lambda (bn) (when (and persp-mode
@@ -235,12 +235,8 @@ Example of usage:
 
 ## Interaction with side packages  
 
-### Speedbar  
-```lisp
-(add-to-list 'speedbar-frame-parameters (cons 'persp-ignore-wconf t))
-```
-
 ### Buffer lists  
+See the `persp-hook-up-emacs-buffer-completion` variable if you want the `persp-mode` to try to restrict buffer lists completion for emacs commands commands.  
 
 #### Universal  
 This must work for most buffer listing commands that internally use the `buffer-list` function, just wrap 'your function' with the `with-persp-buffer-list`:  
@@ -264,10 +260,18 @@ This must work for most buffer listing commands that internally use the `buffer-
 
 And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/7644606).  
 
-##### helm  
+#### ido/iswitchb  
+`M-x customize-variable RET persp-interactive-completion-system RET`.  
+
+#### helm  
+(Note that `helm-buffer-list`, `helm-mini` are using `ido`'s `ido-make-buffer-list` internally).  
 Buffer filtering support: [gist](https://gist.github.com/Bad-ptr/304ada85c9ba15013303).  
 Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and especially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bwindow-management/spacemacs-layouts/funcs.el).  
 
+### Speedbar  
+```lisp
+(add-to-list 'speedbar-frame-parameters (cons 'persp-ignore-wconf t))
+```
 
 ## Hints  
 If you often launch emacs to edit a single file and you don't want to wait the persp-mode 
@@ -277,7 +281,7 @@ resuming process(and don't want to use the emacs daemon) -- you can create a scr
  emacs --eval '(setq persp-auto-resume-time -1.0 persp-auto-save-opt 0)' $@;
 ```
 call it editor.sh, save somewhere in the $PATH, and add `export EDITOR="editor.sh"` to your .bashrc.  
-Or add
+Or add  
 ```lisp
 (add-to-list 'command-switch-alist
                (cons "persp-q"
@@ -285,7 +289,7 @@ Or add
                          (setq persp-auto-resume-time -1
                                persp-auto-save-opt 0))))
 ```
-To your emacs config. Then the editor.sh would be:
+To your emacs config. Then the editor.sh would be:  
 ```shell
  #!/bin/bash
  emacs -persp-q $@;
@@ -308,9 +312,7 @@ replace
     (switch-to-buffer (get-buffer-create "*scratch*")
                       'norecord)))
 ```
-
 by  
-
 ```lisp
 (unless (or files commands)
   (let ((buf
