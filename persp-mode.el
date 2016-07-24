@@ -62,17 +62,22 @@
 
 ;; Keys:
 
-;; s -- create/switch to perspective.
+;; n -- switch to next perspective.
+;; p -- switch to previous perspecive.
+;; s -- create/switch to perspective in frame.
+;; S -- create/switch to perspecive in window.
 ;; r -- rename perspective.
 ;; c -- kill perspective
 ;;   (if you kill nil('none') persp -- it'll kill all opened buffers).
 ;; a -- add buffer to perspective.
+;; b -- switch to buffer in perspecive.
 ;; t -- switch to buffer without adding it to current perspective.
 ;; i -- import all buffers from another perspective.
 ;; k -- remove buffer from perspective.
+;; K -- kill buffer
 ;; w -- save perspectives to file.
 ;; l -- load perspectives from file.
-;; o -- switch off persp-mode
+;; o -- switch off persp-mode.
 ;;   (This may be usefull when you launch emacs just to edit a single file and don't want to
 ;; restore buffers)
 
