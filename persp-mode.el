@@ -841,6 +841,7 @@ to a wrong one.")
 (define-key persp-key-map (kbd "r") #'persp-rename)
 (define-key persp-key-map (kbd "c") #'persp-kill)
 (define-key persp-key-map (kbd "a") #'persp-add-buffer)
+(define-key persp-key-map (kbd "b") #'persp-switch-to-buffer)
 (define-key persp-key-map (kbd "t") #'persp-temporarily-display-buffer)
 (define-key persp-key-map (kbd "i") #'persp-import-buffers)
 (define-key persp-key-map (kbd "k") #'persp-remove-buffer)
@@ -1814,6 +1815,17 @@ Return the removed buffer."
   (when (and buf-or-name
              (buffer-live-p (get-buffer buf-or-name)))
     (kill-buffer buf-or-name)))
+(defun persp-switch-to-buffer (buffer-or-name &optional norecord force-same-window)
+  "Switch to buffer, read buffer with restriction to current perspective."
+  (interactive (list
+                (if persp-mode
+                    (let ((*persp-restrict-buffers-to* 0)
+                          persp-restrict-buffers-to-if-foreign-buffer)
+                      (persp-read-buffer "Switch to buffer: " (current-buffer) t))
+                  (read-buffer "Switch to buffer: " (current-buffer) t))))
+  (when (and buffer-or-name
+             (buffer-live-p (get-buffer buffer-or-name)))
+    (switch-to-buffer buffer-or-name norecord force-same-window)))
 
 (defun* persp-remove-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
   (interactive)
