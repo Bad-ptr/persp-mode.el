@@ -287,6 +287,11 @@ Constrain with a function which take buffer as an argument."
                    (add-hook 'persp-mode-hook #'persp-update-frames-buffer-predicate)))
              (persp-update-frames-buffer-predicate t))))
 
+(defcustom persp-hook-up-emacs-buffer-completion nil
+  "If t -- try to restrict read-buffer function of the current completion system."
+  :group 'persp-mode
+  :type 'boolean)
+
 (defvar persp-interactive-completion-function
   (cond (ido-mode      #'ido-completing-read)
         (iswitchb-mode #'persp-iswitchb-completing-read)
@@ -304,39 +309,41 @@ to interactivly read user input with completion.")
                "Set the completion system for persp-mode: "
                '("ido" "iswitchb" "completing-read")
                nil t))))
-
-  (setq persp-interactive-completion-function #'completing-read)
-  (when (boundp 'persp-interactive-completion-system)
-    (case persp-interactive-completion-system
-      ('ido
-       (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-       (remove-hook 'ido-setup-hook              #'persp-ido-setup))
-      ('iswitchb
-       (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
-       (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
-       (remove-hook 'iswitchb-define-mode-map-hook  #'persp-iswitchb-define-mode-map))
-      (t
-       (setq read-buffer-function persp-saved-read-buffer-function))))
-
-  (when system
-    (set-default 'persp-interactive-completion-system system))
-
-  (unless remove
-    (case persp-interactive-completion-system
-      ('ido
-       (add-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-       (add-hook 'ido-setup-hook              #'persp-ido-setup)
-       (setq persp-interactive-completion-function #'ido-completing-read))
-      ('iswitchb
-       (add-hook 'iswitchb-minibuffer-setup-hook   #'persp-iswitchb-setup)
-       (add-hook 'iswitchb-make-buflist-hook       #'persp-iswitchb-filter-buflist)
-       (setq persp-interactive-completion-function #'persp-iswitchb-completing-read)
-       (add-hook 'iswitchb-define-mode-map-hook    #'persp-iswitchb-define-mode-map))
-      (t
-       (setq persp-saved-read-buffer-function read-buffer-function)
-       (setq read-buffer-function #'persp-read-buffer)))
-    (persp-set-toggle-read-persp-filter-keys
-     persp-toggle-read-persp-filter-keys)))
+  (if remove
+      (progn
+        (when (boundp 'persp-interactive-completion-system)
+          (when persp-hook-up-emacs-buffer-completion
+            (case persp-interactive-completion-system
+              (ido
+               (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+               (remove-hook 'ido-setup-hook              #'persp-ido-setup))
+              (iswitchb
+               (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
+               (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
+               (remove-hook 'iswitchb-define-mode-map-hook  #'persp-iswitchb-define-mode-map))
+              (t
+               (when (eq read-buffer-function #'persp-read-buffer)
+                 (setq read-buffer-function persp-saved-read-buffer-function))))))
+        (setq persp-interactive-completion-function #'completing-read)
+        (set-default 'persp-interactive-completion-system 'completing-read))
+    (persp-update-completion-system nil t)
+    (when system
+      (set-default 'persp-interactive-completion-system system)
+      (when persp-hook-up-emacs-buffer-completion
+        (case persp-interactive-completion-system
+          (ido
+           (add-hook 'ido-make-buffer-list-hook        #'persp-restrict-ido-buffers)
+           (add-hook 'ido-setup-hook                   #'persp-ido-setup)
+           (setq persp-interactive-completion-function #'ido-completing-read))
+          (iswitchb
+           (add-hook 'iswitchb-minibuffer-setup-hook   #'persp-iswitchb-setup)
+           (add-hook 'iswitchb-make-buflist-hook       #'persp-iswitchb-filter-buflist)
+           (setq persp-interactive-completion-function #'persp-iswitchb-completing-read)
+           (add-hook 'iswitchb-define-mode-map-hook    #'persp-iswitchb-define-mode-map))
+          (t
+           (setq persp-saved-read-buffer-function read-buffer-function)
+           (setq read-buffer-function #'persp-read-buffer)))
+        (persp-set-toggle-read-persp-filter-keys persp-toggle-read-persp-filter-keys)))))
 
 (defcustom persp-interactive-completion-system
   (cond (ido-mode      'ido)
