@@ -942,9 +942,9 @@ to a wrong one.")
                       (append (persp-buffers cpersp) nil)
                     (funcall persp-buffer-list-function frame)))
                (1 (let ((ret (if cpersp
-                                 (set-difference
-                                  (funcall persp-buffer-list-function frame)
-                                  (safe-persp-buffers cpersp))
+                                 (let ((pbs (persp-buffers cpersp)))
+                                   (delete-if #'(lambda (b) (memq b pbs))
+                                              (funcall persp-buffer-list-function frame)))
                                nil)))
                     (unless (persp-contain-buffer-p curbuf cpersp)
                       (setq ret (cons curbuf (delete curbuf ret))))
