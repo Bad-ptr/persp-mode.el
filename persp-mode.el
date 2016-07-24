@@ -2460,56 +2460,43 @@ Return `NAME'."
   (exit-minibuffer))
 
 
-(defun persp-read-buffer (prompt &optional def require-match)
-  "Support for the standard read-buffer."
+(defun persp-read-buffer (prompt &optional def require-match predicate)
+  "Read buffer with restriction."
   (setq persp-disable-buffer-restriction-once nil)
   (let ((persp-read-buffer-reread 'reread)
         ret)
     (while persp-read-buffer-reread
       (setq persp-read-buffer-reread nil)
-      (let* ((read-buffer-function nil)
-             (rb-completion-table (persp-complete-buffer))
-             (persp-minibuffer-setup
-              #'(lambda ()
-                  (setq minibuffer-completion-table
-                        rb-completion-table)
-                  (define-key minibuffer-local-map
-                    persp-toggle-read-persp-filter-keys
-                    #'persp-read-buffer-toggle-persp-filter)))
-             (persp-minibuffer-exit
-              #'(lambda ()
-                  (unless persp-read-buffer-reread
-                    (define-key minibuffer-local-map
-                      persp-toggle-read-persp-filter-keys nil)))))
+      (let ((persp-minibuffer-setup
+             #'(lambda ()
+                 (define-key minibuffer-local-map
+                   persp-toggle-read-persp-filter-keys
+                   #'(lambda () (interactive)
+                       (setq persp-disable-buffer-restriction-once
+                             (not persp-disable-buffer-restriction-once)
+                             persp-read-buffer-reread t)
+                       (exit-minibuffer)))))
+            (persp-minibuffer-exit
+             #'(lambda ()
+                 (unless persp-read-buffer-reread
+                   (define-key minibuffer-local-map
+                     persp-toggle-read-persp-filter-keys nil))))
+            (persp-buf-list (if persp-disable-buffer-restriction-once
+                                (funcall persp-buffer-list-function)
+                              (if persp-buffer-list-restricted-filter-functions
+                                  (persp-buffer-list-restricted)
+                                (delete-if #'persp-buffer-filtered-out-p
+                                           (persp-buffer-list-restricted))))))
         (unwind-protect
             (progn
               (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
               (add-hook 'minibuffer-exit-hook persp-minibuffer-exit t)
-              (setq ret (read-buffer prompt def require-match)))
+              (setq ret (funcall persp-interactive-completion-function
+                                 prompt (mapcar #'buffer-name persp-buf-list)
+                                 nil require-match nil nil def)))
           (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
           (remove-hook 'minibuffer-exit-hook persp-minibuffer-exit))))
     ret))
-
-(defun persp-read-buffer-toggle-persp-filter ()
-  (interactive)
-  (setq persp-disable-buffer-restriction-once
-        (not persp-disable-buffer-restriction-once)
-        persp-read-buffer-reread t)
-  (exit-minibuffer))
-
-(defun persp-complete-buffer ()
-  "Complete buffer."
-  (lexical-let ((buffer-names-sorted
-                 (mapcar #'buffer-name
-                         (if persp-disable-buffer-restriction-once
-                             (persp-buffer-list-restricted nil -1 nil)
-                           (persp-buffer-list-restricted)))))
-    (apply-partially #'completion-table-with-predicate
-                     (or minibuffer-completion-table 'internal-complete-buffer)
-                     #'(lambda (name)
-                         (member (if (consp name) (car name) name)
-                                 buffer-names-sorted ))
-                     nil)))
 
 
 ;; Save/Load funcs:
