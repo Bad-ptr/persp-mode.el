@@ -1715,8 +1715,22 @@ with empty name.")
     nil))
 
 (defun* persp-contain-buffer-p (buff-or-name
-                                &optional (persp (get-current-persp)))
-  (memq (persp-get-buffer-or-null buff-or-name) (safe-persp-buffers persp)))
+                                &optional (persp (get-current-persp))
+                                delweak)
+  (if (and delweak (safe-persp-weak persp))
+      nil
+    (if persp
+        (memq (persp-get-buffer-or-null buff-or-name) (persp-buffers persp))
+      t)))
+(defun* persp-contain-buffer-p* (buff-or-name
+                                 &optional (persp (get-current-persp))
+                                 delweak)
+  (if (and delweak (safe-persp-weak persp))
+      nil
+    (if persp
+        (with-current-buffer buff-or-name
+          (member (persp-name persp) persp-buffer-in-persps))
+      t)))
 
 (defun* persp-add-buffer (buff-or-name
                           &optional (persp (get-current-persp))
