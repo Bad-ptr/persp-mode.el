@@ -1738,8 +1738,8 @@ with empty name.")
                           (switchorno persp-switch-to-added-buffer))
   (interactive
    (list (let ((*persp-restrict-buffers-to* 1)
-               (persp-restrict-buffers-to-if-foreign-buffer nil))
-           (read-buffer "Add a buffer to the perspective: " (current-buffer) t))))
+               persp-restrict-buffers-to-if-foreign-buffer)
+           (persp-read-buffer "Add a buffer to the perspective: " (current-buffer) t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (when (and persp (buffer-live-p buffer)
                (null (persp-contain-buffer-p buffer persp)))
@@ -1760,9 +1760,9 @@ with empty name.")
 (defun* persp-temporarily-display-buffer (buff-or-name)
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 1)
-                      (persp-restrict-buffers-to-if-foreign-buffer nil)
+                      persp-restrict-buffers-to-if-foreign-buffer
                       (persp-temporarily-display-buffer t))
-                  (read-buffer "Temporarily display a buffer, not adding it to the current perspective: "
+                  (persp-read-buffer "Temporarily display a buffer, not adding it to the current perspective: "
                                nil t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name))
         (persp-temporarily-display-buffer t))
@@ -1779,8 +1779,8 @@ Return the removed buffer."
   (interactive
    (list
     (let ((*persp-restrict-buffers-to* 0)
-          (persp-restrict-buffers-to-if-foreign-buffer nil))
-      (read-buffer "Remove a buffer from the perspective: " (current-buffer) t))))
+          persp-restrict-buffers-to-if-foreign-buffer)
+      (persp-read-buffer "Remove a buffer from the perspective: " (current-buffer) t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name)))
     (if (null persp)
         (when (or noask-to-remall
@@ -1804,17 +1804,20 @@ Return the removed buffer."
     (persp--do-auto-action-if-needed persp)
     buffer))
 
-(defun persp-kill-buffer (&optional buf-or-name)
-  "Kill buffer, take the restriction into account."
+(defun persp-kill-buffer (&optional buffer-or-name)
+  "Kill buffer, read buffer with restriction to current perspective."
   (interactive)
-  (unless buf-or-name
+  (unless buffer-or-name
     (let ((*persp-restrict-buffers-to* 0)
-          (persp-restrict-buffers-to-if-foreign-buffer nil))
-      (setq buf-or-name
-            (read-buffer "Kill buffer: " (current-buffer) t))))
-  (when (and buf-or-name
-             (buffer-live-p (get-buffer buf-or-name)))
-    (kill-buffer buf-or-name)))
+          persp-restrict-buffers-to-if-foreign-buffer)
+      (setq buffer-or-name
+            (if persp-mode
+                (persp-read-buffer "Kill buffer: " (current-buffer) t)
+              (read-buffer "Kill buffer: " (current-buffer) t)))))
+  (when (and buffer-or-name
+             (buffer-live-p (get-buffer buffer-or-name)))
+    (kill-buffer buffer-or-name)))
+
 (defun persp-switch-to-buffer (buffer-or-name &optional norecord force-same-window)
   "Switch to buffer, read buffer with restriction to current perspective."
   (interactive (list
