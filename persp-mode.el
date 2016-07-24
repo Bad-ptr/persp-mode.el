@@ -580,33 +580,7 @@ If a function return 'skip -- don't save a buffer."
   :type 'hook)
 
 (defcustom persp-load-buffer-functions
-  (list #'(lambda (savelist)
-            (when (eq (car savelist) 'def-buffer)
-              (let (persp-add-buffer-on-find-file
-                    (def-buffer
-                      #'(lambda (name fname mode &optional parameters)
-                          (let ((buf (persp-get-buffer-or-null name)))
-                            (if (buffer-live-p buf)
-                                (if (or (null fname)
-                                        (string= fname (buffer-file-name buf)))
-                                    buf
-                                  (if (file-exists-p fname)
-                                      (setq buf (find-file-noselect fname))
-                                    (message "[persp-mode] Warning: The file %s is no longer exists." fname)
-                                    (setq buf nil)))
-                              (if (and fname (file-exists-p fname))
-                                  (setq buf (find-file-noselect fname))
-                                (when fname
-                                  (message "[persp-mode] Warning: The file %s is no longer exists." fname))
-                                (setq buf (get-buffer-create name))))
-                            (when (buffer-live-p buf)
-                              (with-current-buffer buf
-                                (typecase mode
-                                  (function (when (and (not (eq major-mode mode))
-                                                       (not (eq major-mode 'not-loaded-yet)))
-                                              (funcall mode))))))
-                            buf))))
-                (persp-car-as-fun-cdr-as-args savelist)))))
+  (list #'persp-buffer-from-savelist)
   "Restore a buffer from a saved structure.
 If a function return nil -- follow to the next function in the list.
 If a function return 'skip -- don't restore a buffer."
@@ -1117,6 +1091,41 @@ to a wrong one.")
           (setq a-p-list (cdr a-p-list)))))
     ret))
 
+(defun* persp--generate-buffer-predicate
+    (&key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate &allow-other-keys)
+  (let ((predicate-body t))
+    (when predicate
+      (setq predicate-body `(when (funcall ,predicate buffer)
+                              ,predicate-body)))
+    (when file-name
+      (setq predicate-body `(when (string-match-p ,file-name (buffer-file-name buffer))
+                              ,predicate-body)))
+    (when buffer-name
+      (setq predicate-body `(when (string-match-p ,buffer-name (buffer-name buffer))
+                              ,predicate-body)))
+    (when minor-mode-name
+      (setq predicate-body `(let ((not-found t) (mm-list minor-mode-alist)
+                                  item name)
+                              (while (and not-found mm-list)
+                                (setq item (car mm-list)
+                                      mm-list (cdr mm-list)
+                                      name (format-mode-line item))
+                                (when (string-match-p ,minor-mode-name (format-mode-line name))
+                                  (setq not-found nil)))
+                              (unless not-found ,predicate-body))))
+    (when minor-mode
+      (setq predicate-body `(when (bound-and-true-p ,minor-mode)
+                              ,predicate-body)))
+
+    (when mode-name
+      (setq predicate-body `(when (string-match-p ,mode-name (format-mode-line mode-name))
+                              ,predicate-body)))
+    (when mode
+      (setq predicate-body `(when (eq ',mode major-mode)
+                              ,predicate-body)))
+
+    (eval `(lambda (buffer) (with-current-buffer buffer ,predicate-body)))))
+
 ;;;###autoload
 (defun* def-auto-persp (name
                         &rest keyargs
@@ -1158,7 +1167,7 @@ to a wrong one.")
     (when (and hooks (not (consp hooks))) (setq hooks (list hooks)))
 
     (let (auto-persp-parameters
-          (predicate-body t) hook-body
+          hook-body
           generated-predicate generated-hook main-action
           (default-after-match #'(lambda (persp-name persp buffer hook hook-args switch parameters noauto weak)
                                    (when persp
@@ -1185,41 +1194,7 @@ to a wrong one.")
                                  val))
                      auto-persp-parameters))
 
-      (when predicate
-        (setq predicate-body `(when (funcall ,predicate buffer)
-                                ,predicate-body)))
-
-      (when file-name
-        (setq predicate-body `(when (string-match-p ,file-name (buffer-file-name buffer))
-                                ,predicate-body)))
-
-      (when buffer-name
-        (setq predicate-body `(when (string-match-p ,buffer-name (buffer-name buffer))
-                                ,predicate-body)))
-
-      (when minor-mode-name
-        (setq predicate-body `(let ((not-found t) (mm-list minor-mode-alist)
-                                    item name)
-                                (while (and not-found mm-list)
-                                  (setq item (car mm-list)
-                                        mm-list (cdr mm-list)
-                                        name (format-mode-line item))
-                                  (when (string-match-p ,minor-mode-name (format-mode-line name))
-                                    (setq not-found nil)))
-                                (unless not-found ,predicate-body))))
-      (when minor-mode
-        (setq predicate-body `(when (bound-and-true-p ,minor-mode)
-                                ,predicate-body)))
-
-      (when mode-name
-        (setq predicate-body `(when (string-match-p ,mode-name (format-mode-line mode-name))
-                                ,predicate-body)))
-      (when mode
-        (setq predicate-body `(when (eq ',mode major-mode )
-                                ,predicate-body)))
-
-
-      (setq generated-predicate (eval `(lambda (buffer) (with-current-buffer buffer ,predicate-body))))
+      (setq generated-predicate (apply #'persp--generate-buffer-predicate keyargs))
       (push (cons :generated-predicate generated-predicate) auto-persp-parameters)
 
       (unless on-match
@@ -1277,6 +1252,53 @@ to a wrong one.")
 
       (unless dont-pick-up-buffers
         (persp-auto-persp-pickup-buffers-for name)))))
+
+
+;; Custom save/load functions
+
+;;;###autoload
+(defun* def-persp-buffer-save/load
+    (&rest keyargs
+           &key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate
+           tag-symbol save-vars save-function
+           load-function after-load-function append)
+  (let ((generated-save-predicate (apply #'persp--generate-buffer-predicate keyargs))
+        save-body load-body)
+    (unless tag-symbol (setq tag-symbol 'def-buffer-with-vars))
+    (setq save-body (if save-function
+                        `(funcall ,save-function buffer)
+                      `(let (vars-list)
+                         (with-current-buffer buffer
+                           (mapc #'(lambda (var)
+                                     (when (eq (variable-binding-locus var) buffer)
+                                       (push (cons var (symbol-value var)) vars-list)))
+                                 ',save-vars))
+                         (list ',tag-symbol (buffer-name buffer) vars-list)))
+          save-body `(when (funcall ,generated-save-predicate buffer)
+                       ,save-body))
+
+    (setq load-body (if load-function
+                        `(funcall ,load-function savelist)
+                      `(destructuring-bind (buffer-name vars-list) (cdr savelist)
+                         (let ((buf-file (cdr (assoc 'buffer-file-name vars-list)))
+                               (buf-mmode (cdr (assoc 'major-mode vars-list))))
+                           (lexical-let ((persp-loaded-buffer
+                                          (persp-buffer-from-savelist
+                                           (list 'def-buffer buffer-name buf-file buf-mmode
+                                                 (list (cons 'local-vars vars-list)))))
+                                         (persp-after-load-function ,after-load-function)
+                                         persp-after-load-lambda)
+                             (when (and persp-loaded-buffer persp-after-load-function)
+                               (setq persp-after-load-lambda #'(lambda (&rest _args)
+                                                                 (funcall persp-after-load-function persp-loaded-buffer)
+                                                                 (remove-hook 'persp-after-load-state-functions
+                                                                              persp-after-load-lambda)))
+                               (add-hook 'persp-after-load-state-functions persp-after-load-lambda))
+                             persp-loaded-buffer))))
+          load-body `(when (eq (car savelist) ',tag-symbol)
+                       ,load-body))
+    (add-hook 'persp-save-buffer-functions (eval `(lambda (buffer) ,save-body)) append)
+    (add-hook 'persp-load-buffer-functions (eval `(lambda (savelist) ,load-body)) append)))
 
 
 ;; Mode itself:
@@ -2793,6 +2815,39 @@ does not exists or not a directory %S." p-save-dir)
            (apply fun args)
          (message "[persp-mode] Error: %s is not a function." fun)))))
 
+(defun persp-buffer-from-savelist (savelist)
+  (when (eq (car savelist) 'def-buffer)
+    (let (persp-add-buffer-on-find-file
+          (def-buffer
+            #'(lambda (name fname mode &optional parameters)
+                (let ((buf (persp-get-buffer-or-null name)))
+                  (if (buffer-live-p buf)
+                      (if (or (null fname)
+                              (string= fname (buffer-file-name buf)))
+                          buf
+                        (if (file-exists-p fname)
+                            (setq buf (find-file-noselect fname))
+                          (message "[persp-mode] Warning: The file %s is no longer exists." fname)
+                          (setq buf nil)))
+                    (if (and fname (file-exists-p fname))
+                        (setq buf (find-file-noselect fname))
+                      (when fname
+                        (message "[persp-mode] Warning: The file %s is no longer exists." fname))
+                      (setq buf (get-buffer-create name))))
+                  (when (buffer-live-p buf)
+                    (with-current-buffer buf
+                      (mapc #'(lambda (varcons)
+                                (destructuring-bind (vname . vvalue) varcons
+                                  (unless (or (eq vname 'buffer-file-name)
+                                              (eq vname 'major-mode))
+                                    (set (make-local-variable vname) vvalue))))
+                            (cdr (assoc 'local-vars parameters)))
+                      (typecase mode
+                        (function (when (and (not (eq major-mode mode))
+                                             (not (eq major-mode 'not-loaded-yet)))
+                                    (funcall mode))))))
+                  buf))))
+      (persp-car-as-fun-cdr-as-args savelist))))
 
 (defun persp-buffers-from-savelist-0 (savelist)
   (let (ret)
