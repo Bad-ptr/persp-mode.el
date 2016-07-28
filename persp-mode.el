@@ -2639,7 +2639,10 @@ Return `NAME'."
                       (when (eq tmp 'skip) (return-from 'persp-buffer-to-savelist))
                       (push tmp ret)
                       (return-from 'persp-buffer-to-savelist))))))
-          (safe-persp-buffers persp))
+          (if persp
+              (persp-buffers persp)
+            (delete-if-not #'persp-buffer-free-p
+                           (funcall persp-buffer-list-function))))
     ret))
 
 (defun persp-window-conf-to-savelist (persp)
