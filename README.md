@@ -18,11 +18,13 @@ If you use the [`workgroups.el`](https://github.com/tlh/workgroups.el) it is goo
 (it's clashing with the [`golden-ration-mode`](https://github.com/roman/golden-ratio.el) for example, sometimes erring when creating new frames
 and it is slow on remote network connections.)  
 You can do it with: `(setq wg-morph-on nil)`.  
+If you want buffers to be killed after they were removed from perspectives, see the `persp-autokill-buffer-on-remove` variable.  
 
 #### When installing from MELPA  
 ```lisp
 (with-eval-after-load "persp-mode-autoloads"
   (setq wg-morph-on nil) ;; switch off animation
+  (setq persp-autokill-buffer-on-remove 'kill-weak)
   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 ```
 
@@ -30,6 +32,7 @@ You can do it with: `(setq wg-morph-on nil)`.
 ```lisp
 (with-eval-after-load "persp-mode"
   (setq wg-morph-on nil)
+  (setq persp-autokill-buffer-on-remove 'kill-weak)
   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 (require 'persp-mode)
 ```
@@ -120,6 +123,25 @@ Python shell example:
                          (python-shell-send-string "import os")
                          (python-shell-send-string (format "os.chdir(%s)" dir))
                          (current-buffer)))))))
+```
+
+Also you can use the `def-persp-buffer-save/load`:  
+```lisp
+;; eshell
+(def-persp-buffer-save/load :mode 'eshell-mode :tag-symbol 'def-eshell-buffer
+  :save-vars '(major-mode default-directory))
+
+;; compile
+(def-persp-buffer-save/load :mode 'compilation-mode :tag-symbol 'def-compilation-buffer
+  :save-vars '(major-mode default-directory compilation-directory compilation-environment compilation-arguments))
+
+;; magit-status
+(with-eval-after-load "magit-autoloads"
+  (autoload 'magit-status-mode "magit")
+  (autoload 'magit-refresh "magit")
+  (def-persp-buffer-save/load :mode 'magit-status-mode :tag-symbol 'def-magit-status-buffer
+    :save-vars '(major-mode default-directory)
+    :after-load-function #'(lambda (b &rest _) (with-current-buffer b (magit-refresh)))))
 ```
 
 ## switch-to-buffer, display-buffer hook, and other advices  
@@ -237,6 +259,18 @@ Example of usage:
 
 ### Buffer lists  
 See the `persp-hook-up-emacs-buffer-completion` variable if you want the `persp-mode` to try to restrict buffer lists completion for emacs commands commands.  
+Also you can bind `persp-switch-to-buffer` and `persp-kill-buffer` to default keys:
+```lisp
+(with-eval-after-load "persp-mode"
+  (global-set-key (kbd "C-x b") #'persp-switch-to-buffer)
+  (global-set-key (kbd "C-x k") #'persp-kill-buffer))
+```
+or
+```lisp
+(with-eval-after-load "persp-mode"
+  (substitute-key-definition #'switch-to-buffer #'persp-switch-to-buffer global-map)
+  (substitute-key-definition #'kill-buffer #'persp-kill-buffer global-map))
+```
 
 #### Universal  
 This must work for most buffer listing commands that internally use the `buffer-list` function, just wrap 'your function' with the `with-persp-buffer-list`:  
