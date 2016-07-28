@@ -2512,6 +2512,8 @@ Return `NAME'."
 (defun persp-read-buffer (prompt &optional def require-match predicate)
   "Read buffer with restriction."
   (setq persp-disable-buffer-restriction-once nil)
+  (when (and (not (stringp def)) (buffer-live-p def))
+    (setq def (buffer-name def)))
   (let ((persp-read-buffer-reread 'reread)
         ret)
     (while persp-read-buffer-reread
@@ -2536,13 +2538,17 @@ Return `NAME'."
                                   (persp-buffer-list-restricted)
                                 (delete-if #'persp-buffer-filtered-out-p
                                            (persp-buffer-list-restricted))))))
+        ;; (when  def
+        ;;   (let ((def-buf (get-buffer def)))
+        ;;     (when (buffer-live-p def-buf)
+        ;;       (setq persp-buf-list (cons def-buf (delq def-buf persp-buf-list))))))
         (unwind-protect
             (progn
               (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
               (add-hook 'minibuffer-exit-hook persp-minibuffer-exit t)
               (setq ret (funcall persp-interactive-completion-function
                                  prompt (mapcar #'buffer-name persp-buf-list)
-                                 nil require-match nil nil def)))
+                                 predicate require-match nil nil def)))
           (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
           (remove-hook 'minibuffer-exit-hook persp-minibuffer-exit))))
     ret))
