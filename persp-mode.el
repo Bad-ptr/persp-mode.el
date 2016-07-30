@@ -637,14 +637,14 @@ The perspective is available with (get-current-persp)."
   :type 'hook)
 
 (defcustom persp-after-load-state-functions
-  (list #'(lambda (file phash names-regexp)
+  (list #'(lambda (file phash persp-names)
             (when (eq phash *persp-hash*)
-              (persp-update-frames-window-confs names-regexp))))
+              (persp-update-frames-window-confs persp-names))))
   "Functions that run after perspectives state was loaded.
 These functions must take 3 arguments:
 1) a file from which the state was loaded;
 2) a hash in which loaded perspectives were placed;
-3) a regexp that was used to match against perspective names to be loaded."
+3) names(list) of perspectives that was loaded."
   :group 'persp-mode
   :type 'hook)
 
@@ -2804,10 +2804,9 @@ does not exists or not a directory %S." p-save-dir)
 
 ;; Load funcs
 
-(defsubst persp-update-frames-window-confs (&optional names-regexp)
-  (mapc #'(lambda (f) (if names-regexp
-                     (when (string-match-p names-regexp
-                                           (safe-persp-name (get-frame-persp f)))
+(defsubst persp-update-frames-window-confs (&optional persp-names)
+  (mapc #'(lambda (f) (if persp-names
+                     (when (member (safe-persp-name (get-frame-persp f)) persp-names)
                        (persp-restore-window-conf f))
                    (persp-restore-window-conf f)))
         (persp-frame-list-without-daemon)))
@@ -2906,19 +2905,20 @@ does not exists or not a directory %S." p-save-dir)
                   (setq persp-nil-hidden hidden))
 
                 (when persp-file
-                  (set-persp-parameter 'persp-file persp-file persp))))))
+                  (set-persp-parameter 'persp-file persp-file persp))
+                pname))))
     (persp-car-as-fun-cdr-as-args savelist)))
 
 (defun persps-from-savelist-0 (savelist phash persp-file set-persp-file names-regexp)
-  (mapc #'(lambda (pd)
-            (persp-from-savelist-0 pd phash (and set-persp-file persp-file)))
-        (if names-regexp
-            (delete-if-not
-             #'(lambda (pd)
-                 (string-match names-regexp
-                               (or (cadr pd) persp-nil-name)))
-             savelist)
-          savelist)))
+  (mapcar #'(lambda (pd)
+              (persp-from-savelist-0 pd phash (and set-persp-file persp-file)))
+          (if names-regexp
+              (delete-if-not
+               #'(lambda (pd)
+                   (string-match names-regexp
+                                 (or (cadr pd) persp-nil-name)))
+               savelist)
+            savelist)))
 
 (defun persp-names-from-savelist-0 (savelist)
   (mapcar #'(lambda (pd)
@@ -2950,11 +2950,14 @@ does not exists or not a directory %S." p-save-dir)
   (destructuring-bind (fun s-list)
       (persp-dispatch-loadf-version 'persps-from-savelist savelist)
     (if fun
-        (prog1
-            (funcall fun s-list phash persp-file set-persp-file names-regexp)
-          (run-hook-with-args 'persp-after-load-state-functions persp-file phash names-regexp))
+        (let ((persp-names
+               (funcall fun s-list phash persp-file set-persp-file names-regexp)))
+          (run-hook-with-args 'persp-after-load-state-functions persp-file phash
+                              persp-names)
+          persp-names)
       (message "[persp-mode] Error: Can not load perspectives from savelist: %s\n\tloaded from %s"
-               savelist persp-file))))
+               savelist persp-file)
+      nil)))
 
 (defun persp-list-persp-names-in-file (fname)
   (when (and fname (file-exists-p fname))
