@@ -745,8 +745,8 @@ is 2, 2.5, 3 or 3.5."
    (not (version< emacs-version "24.4"))
    (not
     (null
-     (assoc 'function
-            (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
+     (assq 'function
+           (cdr (getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
   "t if the `initial-buffer-choice' as a function is supported in your emacs,
 otherwise nil.")
 
@@ -1020,7 +1020,7 @@ to a wrong one.")
 (defun* set-persp-parameter (param-name value
                                         &optional (persp (get-current-persp)))
   (let* ((params (safe-persp-parameters persp))
-         (old-cons (assoc param-name params)))
+         (old-cons (assq param-name params)))
     (if old-cons
         (setf (cdr old-cons) value)
       (if persp
@@ -1030,16 +1030,16 @@ to a wrong one.")
               (acons param-name value params))))))
 
 (defun* persp-parameter (param-name &optional (persp (get-current-persp)))
-  (cdr-safe (assoc param-name (safe-persp-parameters persp))))
+  (cdr-safe (assq param-name (safe-persp-parameters persp))))
 
 (defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
     (if persp
         (setf (persp-parameters persp)
-              (delete (assoc param-name (persp-parameters persp))
+              (delete (assq param-name (persp-parameters persp))
                       (persp-parameters persp)))
       (setq persp-nil-parameters
-            (delete (assoc param-name persp-nil-parameters)
+            (delete (assq param-name persp-nil-parameters)
                     persp-nil-parameters)))))
 
 
@@ -1060,14 +1060,13 @@ to a wrong one.")
 ;; Auto persp functions:
 
 (defun persp--auto-persp-pickup-buffer (a-p-def buffer)
-  (let ((action (cdr (assoc :main-action a-p-def))))
+  (let ((action (cdr (assq :main-action a-p-def))))
     (when (functionp action)
       (funcall action buffer))))
 (defun persp-auto-persp-pickup-bufferlist-for (name bufferlist)
   (let ((a-p-def (assoc name persp-auto-persp-alist)))
     (when a-p-def
-      (mapc #'(lambda (buf)
-                (persp--auto-persp-pickup-buffer a-p-def buf))
+      (mapc (apply-partially #'persp--auto-persp-pickup-buffer a-p-def)
             bufferlist))))
 (defun persp-auto-persps-pickup-bufferlist (bufferlist)
   (mapc
@@ -1085,7 +1084,7 @@ to a wrong one.")
         ret pred)
     (while (and (null ret) a-p-list)
       (destructuring-bind (name . def) (car a-p-list)
-        (setq pred (cdr (assoc :generated-predicate def)))
+        (setq pred (cdr (assq :generated-predicate def)))
         (if (and pred (funcall pred buffer))
             (setq ret name)
           (setq a-p-list (cdr a-p-list)))))
@@ -1238,7 +1237,7 @@ to a wrong one.")
                                          (when persp-mode
                                            (funcall ,main-action nil ',hook hook-args)))))
                 (add-hook hook generated-hook)
-                (let ((aparams-hooks (assoc :hooks auto-persp-parameters)))
+                (let ((aparams-hooks (assq :hooks auto-persp-parameters)))
                   (setf (cdr aparams-hooks) (delete hook (cdr aparams-hooks)))
                   (push (cons hook generated-hook) (cdr aparams-hooks))))
             (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook))))
@@ -1280,8 +1279,8 @@ to a wrong one.")
     (setq load-body (if load-function
                         `(funcall ,load-function savelist)
                       `(destructuring-bind (buffer-name vars-list) (cdr savelist)
-                         (let ((buf-file (cdr (assoc 'buffer-file-name vars-list)))
-                               (buf-mmode (cdr (assoc 'major-mode vars-list))))
+                         (let ((buf-file (cdr (assq 'buffer-file-name vars-list)))
+                               (buf-mmode (cdr (assq 'major-mode vars-list))))
                            (lexical-let ((persp-loaded-buffer
                                           (persp-buffer-from-savelist
                                            (list 'def-buffer buffer-name buf-file buf-mmode
@@ -1390,7 +1389,7 @@ named collections of buffers and window configurations."
           (buffer-list))
 
     (setq window-persistent-parameters
-          (delq (assoc 'persp window-persistent-parameters)
+          (delq (assq 'persp window-persistent-parameters)
                 window-persistent-parameters))
 
     (setq *persp-hash* nil)))
@@ -1425,7 +1424,9 @@ but just removed from a perspective."
                                           (buffer-name buffer))))
                       (macrolet
                           ((clwin (w)
-                                  `(run-at-time 1 nil #'(lambda (ww) (delete-window ww)) ,w))
+                                  `(run-at-time 1 nil #'(lambda (ww) (when (window-live-p ww)
+                                                                  (delete-window ww)))
+                                                ,w))
                            (swb (b w)
                                 `(run-at-time 1 nil
                                               #'(lambda (bb ww)
@@ -1932,9 +1933,9 @@ perspective buffers or nil."
     (if persp-buffer-in-persps
         (if del-weak
             (not
-             (find-if-not #'(lambda (pn)
-                              (safe-persp-weak (persp-get-by-name pn)))
-                          persp-buffer-in-persps))
+             (find-if-not #'safe-persp-weak
+                          (mapcar #'persp-get-by-name
+                                  persp-buffer-in-persps)))
           nil)
       t)))
 
@@ -2444,7 +2445,7 @@ Return `NAME'."
 (defun persp-update-frame-server-switch-hook ()
   (setq persp-frame-server-switch-hook
         (persp-generate-frame-server-switch-hook persp-server-switch-behaviour))
-  (mapc #'(lambda (f) (persp-set-frame-server-switch-hook f))
+  (mapc #'persp-set-frame-server-switch-hook
         (persp-frame-list-without-daemon)))
 
 
@@ -2674,8 +2675,7 @@ of the perspective %s can't be saved."
 
 (defun persps-to-savelist (phash &optional names-regexp)
   (mapcar #'persp-to-savelist
-          (delete-if #'(lambda (p)
-                         (persp-parameter 'dont-save-to-file p))
+          (delete-if (apply-partially #'persp-parameter 'dont-save-to-file)
                      (persp-persps phash names-regexp))))
 
 (defsubst persp-save-with-backups (fname)
@@ -2717,7 +2717,7 @@ of the perspective %s can't be saved."
 does not exists or not a directory %S." p-save-dir)
         (persp-save-all-persps-state)
         (if respect-persp-file-parameter
-            (let ((fg (persp-group-by #'(lambda (p) (persp-parameter 'persp-file p))
+            (let ((fg (persp-group-by (apply-partially #'persp-parameter 'persp-file)
                                       (persp-persps phash)))
                   (persp-auto-save-persps-to-their-file nil))
               (mapc #'(lambda (gr)
@@ -2849,7 +2849,7 @@ does not exists or not a directory %S." p-save-dir)
                                   (unless (or (eq vname 'buffer-file-name)
                                               (eq vname 'major-mode))
                                     (set (make-local-variable vname) vvalue))))
-                            (cdr (assoc 'local-vars parameters)))
+                            (cdr (assq 'local-vars parameters)))
                       (typecase mode
                         (function (when (and (not (eq major-mode mode))
                                              (not (eq major-mode 'not-loaded-yet)))
