@@ -1798,11 +1798,16 @@ with empty name.")
                       persp-restrict-buffers-to-if-foreign-buffer
                       (persp-temporarily-display-buffer t))
                   (persp-read-buffer "Temporarily display a buffer, not adding it to the current perspective: "
-                               nil t))))
+                                     nil t))))
   (let ((buffer (persp-get-buffer-or-null buff-or-name))
         (persp-temporarily-display-buffer t))
-    (when buffer
-      (switch-to-buffer buffer t))))
+    (when (buffer-live-p buffer)
+      (let ((persp (get-current-persp)))
+        (when (and persp (persp-contain-buffer-p* buffer persp))
+          (let (persp-autokill-buffer-on-remove
+                persp-autokill-persp-when-removed-last-buffer)
+            (persp-remove-buffer buffer persp nil nil nil))))
+      (persp-switch-to-buffer buffer t))))
 
 (defun* persp-remove-buffer (buff-or-name
                              &optional (persp (get-current-persp)) noask-to-remall (switch t)
