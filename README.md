@@ -297,6 +297,17 @@ And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/7
 #### ido/iswitchb  
 `M-x customize-variable RET persp-interactive-completion-system RET`.  
 
+#### ivy  
+```lisp
+(add-hook 'ivy-ignore-buffers
+          #'(lambda (b)
+              (when persp-mode
+                (let ((persp (get-current-persp)))
+                  (if persp
+                      (not (persp-contain-buffer-p b persp))
+                    nil)))))
+```
+
 #### helm  
 (Note that `helm-buffer-list`, `helm-mini` are using `ido`'s `ido-make-buffer-list` internally).  
 Buffer filtering support: [gist](https://gist.github.com/Bad-ptr/304ada85c9ba15013303).  
