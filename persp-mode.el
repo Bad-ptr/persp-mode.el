@@ -604,6 +604,13 @@ will be placed, you could be interested if that hash is the `*persp-hash*' or so
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-renamed-functions nil
+  "Hooks to runs if a perspective was renamed.
+They are called with three arguments:
+1) perspecive; 2) old name; 3) new name."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-before-kill-functions nil
   "The list of functions that runs just before a perspective will be destroyed.
 It's single argument is the perspective that will be killed."
@@ -2047,31 +2054,37 @@ Return that old buffer."
   (interactive)
   (persp-kill name t))
 
-(defun* persp-rename (newname
+(defun* persp-rename (new-name
                       &optional (persp (get-current-persp)) (phash *persp-hash*))
-  (interactive "sNew name: ")
-  (let ((opersp (gethash newname phash))
-        (old-name (safe-persp-name persp)))
-    (if (and (not opersp) newname)
-        (progn
-          (persp-remove-from-menu persp)
-          (remhash old-name phash)
-          (if persp
+  "Change the name field of the `PERSP', returns old name on success, otherwise returns nil."
+  (interactive "i")
+  (if persp
+      (let ((opersp (gethash new-name phash))
+            (old-name (safe-persp-name persp)))
+        (unless new-name
+          (setq new-name (read-string (concat "New name for a " old-name " perspecive: "))))
+        (if (and (not opersp) new-name (not (string= old-name new-name)))
+            (progn
+              (persp-remove-from-menu persp)
+              (remhash old-name phash)
               (progn
-                (setf (persp-name persp) newname)
+                (setf (persp-name persp) new-name)
                 (mapc #'(lambda (b)
                           (with-current-buffer b
                             (setq persp-buffer-in-persps
-                                  (cons newname
+                                  (cons new-name
                                         (delete old-name persp-buffer-in-persps)))))
                       (persp-buffers persp)))
-            (message "[persp-mode] Info: You can't rename the `nil' perspective, use \
-M-x: customize-variable RET persp-nil-name RET"))
-          (puthash newname persp phash)
-          (persp-add-to-menu persp))
-      (message "[persp-mode] Error: There is already a perspective with \
-that name: %s." newname)
-      nil)))
+              (puthash new-name persp phash)
+              (persp-add-to-menu persp)
+              (run-hook-with-args 'persp-renamed-functions persp old-name new-name)
+              old-name)
+          (message "[persp-mode] Error: There is already a perspective with \
+that name: %s." new-name)
+          nil))
+    (message "[persp-mode] Error: You can't rename the `nil' perspective, use \
+M-x: customize-variable RET persp-nil-name RET")
+    nil))
 
 (defun* persp-switch (name &optional frame (window (selected-window)))
   "Switch to the perspective with name `NAME'.
