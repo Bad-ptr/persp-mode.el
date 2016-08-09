@@ -2429,7 +2429,8 @@ Return `NAME'."
           ,(if (functionp opt)
                `(funcall ,opt frame)
              `(let* ((frame-client (frame-parameter frame 'client))
-                     (frame-client-bl (when frame-client (process-get frame-client 'buffers))))
+                     (frame-client-bl (when (processp frame-client)
+                                        (process-get frame-client 'buffers))))
                 ,(case opt
                    (only-file-windows
                     `(if frame-client
