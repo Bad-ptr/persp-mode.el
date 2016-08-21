@@ -709,8 +709,8 @@ second -- a root window(default is the root window of the selected frame)."
                       "Switch to a buffer determined from WIN's fname and bname.
 Return the buffer if it was found, nil otherwise."
                       (wg-abind win (fname bname)
-                                (cond ((wg-awhen (get-buffer bname) (switch-to-buffer it)))
-                                      (t (switch-to-buffer wg-default-buffer) nil)))))
+                                (cond ((wg-awhen (get-buffer bname) (persp-switch-to-buffer it)))
+                                      (t (persp-switch-to-buffer wg-default-buffer) nil)))))
                 (wg-restore-wconfig pwc)))))
     #'(lambda (pwc &optional frame rwin)
         (when (or rwin (setq rwin (frame-root-window (or frame (selected-frame)))))
@@ -1189,7 +1189,7 @@ to a wrong one.")
                                      (frame (persp-frame-switch persp-name))
                                      (t (persp-switch persp-name)))
                                    (when switch
-                                     (switch-to-buffer buffer)))))
+                                     (persp-switch-to-buffer buffer)))))
 
       (loop for (key val) on keyargs by #'cddr
             when (and val (not (or (eq key :dont-pick-up-buffers))))
@@ -1365,7 +1365,7 @@ named collections of buffers and window configurations."
                                (when (> persp-auto-resume-time 0)
                                  (persp-load-state-from-file)
                                  (when (buffer-live-p persp-special-last-buffer)
-                                   (switch-to-buffer persp-special-last-buffer)))))
+                                   (persp-switch-to-buffer persp-special-last-buffer)))))
             (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
 
     (run-hooks 'persp-mode-deactivated-hook)
@@ -1789,7 +1789,7 @@ with empty name.")
       (with-current-buffer buffer
         (push (persp-name persp) persp-buffer-in-persps)))
     (when (and buffer switchorno (eq persp (get-current-persp)))
-      (switch-to-buffer buffer))
+      (persp-switch-to-buffer buffer))
     buffer))
 
 (defun* persp-add-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
