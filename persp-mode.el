@@ -1896,6 +1896,13 @@ Return the removed buffer."
     (persp-do-buffer-list-by-regexp :regexp regexp :func 'persp-remove-buffer
                                     :blist (persp-buffers persp) :rest-args (list persp))))
 
+(defun* persp-import-buffers-from (persp-from
+                                   &optional (persp-to (get-current-persp)))
+  (if persp-to
+      (mapc #'(lambda (b) (persp-add-buffer b persp-to nil nil))
+            (safe-persp-buffers persp-from))
+    (message "[persp-mode] Error: Can't import buffers to the 'nil' perspective, cause it already contain all buffers.")))
+
 (defun* persp-import-buffers
     (name
      &optional (persp-to (get-current-persp)) (phash *persp-hash*))
@@ -1908,13 +1915,65 @@ into the current."
   (let ((persp-from (persp-get-by-name name phash)))
     (persp-import-buffers-from persp-from persp-to)))
 
-(defun* persp-import-buffers-from (persp-from
-                                   &optional (persp-to (get-current-persp)))
-  (if persp-to
-      (mapc #'(lambda (b) (persp-add-buffer b persp-to))
-            (safe-persp-buffers persp-from))
-    (message "[persp-mode] Error: Can't import buffers to the 'nil' perspective, cause it already contain all buffers.")))
+(defun* persp-import-win-conf
+    (name
+     &optional (persp-to (get-current-persp)) (phash *persp-hash*)
+     no-update-frames)
+  (interactive "i")
+  (unless name
+    (setq name (persp-prompt nil "to import window configuration from" nil t nil t)))
+  (let ((persp-from (persp-get-by-name name phash :+-123emptynooo)))
+    (unless (or (eq persp-to persp-from)
+                (eq persp-from :+-123emptynooo))
+      (if persp-to
+          (setf (persp-window-conf persp-to) (safe-persp-window-conf persp-from))
+        (setq persp-nil-wconf (persp-window-conf persp-from)))
+      (unless no-update-frames
+        (persp-update-frames-window-confs (list (safe-persp-name persp-to)))))))
 
+(defun persp-copy (new-name &optional switch)
+  (interactive "i")
+  (unless new-name
+    (setq new-name
+          (read-string "Copy current persp with name: ")))
+  (if (member new-name (persp-names))
+      (progn (message "[persp-mode] Error: There is already a perspective with that name %s"
+                      new-name)
+             nil)
+    (let* ((current-persp (get-current-persp))
+           (new-buffers (if current-persp
+                            (append (safe-persp-buffers current-persp) nil)
+                          (delete-if-not
+                           (destructuring-bind (char &rest _)
+                               (read-multiple-choice
+                                "What buffers to copy? "
+                                '((?a "all")
+                                  (?d "displayed")
+                                  (?f "free and displayed")
+                                  (?F "free")
+                                  (?n "none")))
+                             (case char
+                               (?d #'(lambda (b) (get-buffer-window-list b 'no-minibuf)))
+                               (?f #'(lambda (b) (or (persp-buffer-free-p b t)
+                                                (get-buffer-window-list b 'no-minibuf))))
+                               (?F #'(lambda (b) (persp-buffer-free-p b t)))
+                               (?n #'not)
+                               (?a nil)
+                               (t nil)))
+                           (safe-persp-buffers current-persp))))
+           (new-persp (persp-add-new new-name)))
+      (when new-persp
+        (persp-save-state current-persp)
+        (setf (persp-buffers new-persp) new-buffers
+              (persp-window-conf new-persp) (safe-persp-window-conf current-persp)
+              (persp-parameters new-persp) (append (safe-persp-parameters current-persp) nil)
+              (persp-weak new-persp) (if current-persp (persp-weak current-persp) nil))
+        (case switch
+          (window (persp-window-switch new-name))
+          (frame (persp-frame-switch new-name))
+          (no-switch nil)
+          (t (persp-switch new-name)))
+        new-persp))))
 
 (defun* persp-get-buffer (buff-or-name
                           &optional (persp (get-current-persp)))
