@@ -55,15 +55,19 @@ Ability to save/restore window configurations from/to a file for emacs < 24.4 de
 `s` -- create/switch to perspective.  
 `S` -- create/switch to perspective in a window.  
 `r` -- rename perspective.  
-`c` -- kill perspective. (if you try to kill 'none' persp -- it'l kill all opened buffers).  
-`a` -- add buffer to perspective.  
+`c` -- copy current perspecive.  
+`C` -- kill perspective(if you try to kill 'nil' persp -- it'l kill all buffers). Calling with prefix argument will not kill perspective's buffers.  
+`a` -- add buffer to perspective. Calling with prefix argument reverses the effect of the `persp-switch-to-added-buffer`.  
 `b` -- switch to buffer in perspecive.  
-`t` -- switch to buffer without adding it to the current perspective.  
+`t` -- switch to buffer without adding it to the current perspective. Calling with prefix argument allows to remove a buffer from perspective without killing and switching to another buffer.  
 `i` -- import all buffers from another perspective.  
-`k` -- remove buffer from perspective.  
+`I` -- import window configuration from another perspecive.  
+`k` -- remove buffer from perspective. Calling with prefix argument reverses the effect of the `persp-auto-kill-buffer-on-remove`.  
 `K` -- kill buffer.  
 `w` -- save perspectives to file.  
+`W` -- save subset of perspectives to file.  
 `l` -- load perspectives from file.  
+`L` -- load subset of perspectives from file.  
 `o` -- switch off persp-mode(you can quickly switch off persp-mode after emacs start and before autoresuming previous perspectives state if you only need to edit a single file).  
 
 These key sequences must follow the `persp-keymap-prefix` which you can customize(by default it is `C-c p` in older releases it was `C-x x`), so if you want to invoke the \< `s` - create/switch perspective \> command you must first type the prefix(`C-c p`) and then `s`(full sequence is `C-c p s`).  
