@@ -1405,17 +1405,15 @@ named collections of buffers and window configurations."
 ;; Hooks:
 
 (defun persp-kill-buffer-query-function ()
-  "This must be the last hook in the kill-buffer-query-hook.
+  "This must be the last hook in the kill-buffer-query-functions.
 Otherwise if a next function in the list returns nil -- buffer will not be killed,
 but just removed from a perspective."
   (block pkbqf
-    (when persp-mode
+    (when (and persp-mode persp-buffer-in-persps)
       (let* ((buffer (current-buffer))
              (persp (get-current-persp))
              (foreign-check
               (if (and persp-kill-foreign-buffer-action
-                       (symbolp this-command)
-                       (string-match-p "^.*?kill-buffer.*?$" (symbol-name this-command))
                        (not (persp-contain-buffer-p buffer persp))
                        (not (persp-buffer-filtered-out-p buffer)))
                   (cond
@@ -1427,7 +1425,9 @@ but just removed from a perspective."
                          (persp-buffer-free-p buffer t)) t)
                    (t
                     (let ((curwin (selected-window))
-                          (prompt (format "You are going to kill a buffer(%s) which is not in the current perspective. It will be removed from every perspective and then killed.\nWhat do you really want to do (k - kill/K - kill and close window/c - close window/s - switch to another buffer/q - do nothing)? "
+                          (prompt (format "You are going to kill a buffer(%s) \
+which is not in the current perspective. It will be removed from every perspective \
+and then killed.\nWhat do you really want to do? "
                                           (buffer-name buffer))))
                       (macrolet
                           ((clwin (w)
@@ -1440,13 +1440,21 @@ but just removed from a perspective."
                                                   (with-selected-window ww
                                                     (persp-set-another-buffer-for-window bb ww)))
                                               ,b ,w)))
-                        (case (read-char-choice prompt '(?k ?K ?c ?s ?q ?\C-g ?\C-\[))
-                          ((?q ?\C-g ?\C-\[) nil)
-                          (?k t)
-                          (?K (clwin curwin) t)
-                          (?c (clwin curwin) nil)
-                          (?s (swb buffer curwin) nil)
-                          (t t))))))
+                        (destructuring-bind (char &rest _)
+                            (read-multiple-choice
+                             prompt
+                             '((?q "do nothing")
+                               (?k "kill")
+                               (?K "kill and close window")
+                               (?c "close window")
+                               (?s "switch to another buffer")))
+                          (case char
+                            ((?q ?\C-g ?\C-\[) nil)
+                            (?k t)
+                            (?K (clwin curwin) t)
+                            (?c (clwin curwin) nil)
+                            (?s (swb buffer curwin) nil)
+                            (t t)))))))
                 t)))
         (if foreign-check
             (let ((pbcontain (memq buffer (safe-persp-buffers persp))))
@@ -1458,9 +1466,10 @@ but just removed from a perspective."
     t))
 
 (defun persp-kill-buffer-h ()
-  (let (persp-autokill-buffer-on-remove)
-    (persp-remove-buffer (current-buffer) nil t
-                         persp-when-kill-switch-to-buffer-in-perspective t)))
+  (when (and persp-mode persp-buffer-in-persps)
+    (let (persp-autokill-buffer-on-remove)
+      (persp-remove-buffer (current-buffer) nil t
+                           persp-when-kill-switch-to-buffer-in-perspective t nil))))
 
 (defun persp--restore-buffer-on-find-file ()
   (set-window-buffer (or (get-buffer-window) (selected-window))
