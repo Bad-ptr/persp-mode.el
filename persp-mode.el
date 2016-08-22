@@ -306,6 +306,20 @@ Constrain with a function which take buffer as an argument."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-set-read-buffer-function nil
+  "If t -- set the read-buffer-function to persp-read-buffer."
+  :group 'persp-mode
+  :type 'boolean
+  :set #'(lambda (sym val)
+           (set-default sym val)
+           (when persp-mode
+             (if val
+                 (when (not (eq read-buffer-function #'persp-read-buffer))
+                   (setq persp-saved-read-buffer-function read-buffer-function)
+                   (setq read-buffer-function #'persp-read-buffer))
+               (when (eq read-buffer-function #'persp-read-buffer)
+                 (setq read-buffer-function persp-saved-read-buffer-function))))))
+
 (defvar persp-interactive-completion-function
   (cond (ido-mode      #'ido-completing-read)
         (iswitchb-mode #'persp-iswitchb-completing-read)
@@ -335,9 +349,7 @@ to interactivly read user input with completion.")
                (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
                (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
                (remove-hook 'iswitchb-define-mode-map-hook  #'persp-iswitchb-define-mode-map))
-              (t
-               (when (eq read-buffer-function #'persp-read-buffer)
-                 (setq read-buffer-function persp-saved-read-buffer-function))))))
+              (t nil))))
         (setq persp-interactive-completion-function #'completing-read)
         (set-default 'persp-interactive-completion-system 'completing-read))
     (persp-update-completion-system nil t)
@@ -354,9 +366,7 @@ to interactivly read user input with completion.")
            (add-hook 'iswitchb-make-buflist-hook       #'persp-iswitchb-filter-buflist)
            (setq persp-interactive-completion-function #'persp-iswitchb-completing-read)
            (add-hook 'iswitchb-define-mode-map-hook    #'persp-iswitchb-define-mode-map))
-          (t
-           (setq persp-saved-read-buffer-function read-buffer-function)
-           (setq read-buffer-function #'persp-read-buffer)))
+          (t nil))
         (persp-set-toggle-read-persp-filter-keys persp-toggle-read-persp-filter-keys)))))
 
 (defcustom persp-interactive-completion-system
@@ -1363,6 +1373,11 @@ named collections of buffers and window configurations."
           (when persp-add-buffer-on-after-change-major-mode
             (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
 
+          (when (and persp-set-read-buffer-function
+                     (not (eq read-buffer-function #'persp-read-buffer)))
+            (setq persp-saved-read-buffer-function read-buffer-function)
+            (setq read-buffer-function #'persp-read-buffer))
+
           (mapc #'persp-init-frame (persp-frame-list-without-daemon))
 
           (when (fboundp 'tabbar-mode)
@@ -1394,6 +1409,10 @@ named collections of buffers and window configurations."
     (remove-hook 'server-switch-hook          #'persp-server-switch)
     (when persp-add-buffer-on-after-change-major-mode
       (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
+
+    (when (and persp-set-read-buffer-function
+               (eq read-buffer-function #'persp-read-buffer))
+      (setq read-buffer-function persp-saved-read-buffer-function))
 
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
