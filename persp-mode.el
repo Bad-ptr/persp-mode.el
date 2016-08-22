@@ -67,16 +67,25 @@
 ;; s -- create/switch to perspective in frame.
 ;; S -- create/switch to perspecive in window.
 ;; r -- rename perspective.
-;; c -- kill perspective
-;;   (if you kill nil('none') persp -- it'll kill all opened buffers).
+;; c -- copy current perspecive.
+;; C -- kill perspective.
+;;   Calling with prefix argument will not kill perspective's buffers
+;;   (however if you try to kill 'none' persp -- it'l kill all opened buffers).
 ;; a -- add buffer to perspective.
+;;   Calling with prefix argument reverses the effect of the persp-switch-to-added-buffer.
 ;; b -- switch to buffer in perspecive.
 ;; t -- switch to buffer without adding it to current perspective.
+;;   Calling with prefix argument allows to remove a buffer from perspective without
+;;   killing and switching to another buffer.
 ;; i -- import all buffers from another perspective.
+;; I -- import window configuration from another perspecive.
 ;; k -- remove buffer from perspective.
-;; K -- kill buffer
+;;   Calling with prefix argument reverses the effect of the persp-auto-kill-buffer-on-remove.
+;; K -- kill buffer.
 ;; w -- save perspectives to file.
+;; W -- save subset of perspectives to file.
 ;; l -- load perspectives from file.
+;; L -- load subset of perspectives from file.
 ;; o -- switch off persp-mode.
 ;;   (This may be usefull when you launch emacs just to edit a single file and don't want to
 ;; restore buffers)
@@ -492,7 +501,7 @@ otherwise let  the emacs deside what to do."
 'ask       -- ask what to do;
 'kill      -- just kill;
 <function> -- execute that function. This function will be executed in
-  kill-buffer-query-hook, so if it will return nil the buffer will not be killed;
+  kill-buffer-query-functions, so if it will return nil the buffer will not be killed;
 nil        -- do not include the current buffer to buffer list if it not in the perspective.(and just kill)"
   :group 'persp-mode
   :type '(choice
@@ -1766,8 +1775,7 @@ Return the created perspective."
                        (make-persp :name name))))
           (run-hook-with-args 'persp-created-functions persp phash)
           (persp-add persp phash)))
-    (message "[persp-mode] Error: Can't create or switch to a perspective \
-with empty name.")
+    (message "[persp-mode] Error: Can't create a perspective with empty name.")
     nil))
 
 (defun* persp-contain-buffer-p (buff-or-name
@@ -2157,7 +2165,7 @@ Return that old buffer."
       (let ((opersp (gethash new-name phash))
             (old-name (safe-persp-name persp)))
         (unless new-name
-          (setq new-name (read-string (concat "New name for a " old-name " perspecive: "))))
+          (setq new-name (read-string (concat "New name for the " old-name " perspecive: "))))
         (if (and (not opersp) new-name (not (string= old-name new-name)))
             (progn
               (persp-remove-from-menu persp)
