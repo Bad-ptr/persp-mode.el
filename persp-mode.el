@@ -1817,22 +1817,29 @@ with empty name.")
      :regexp regexp :func 'persp-add-buffer :rest-args (list persp nil)
      :blist (persp-buffer-list-restricted (selected-frame) 1))))
 
-(defun* persp-temporarily-display-buffer (buff-or-name)
-  (interactive (list
-                (let ((*persp-restrict-buffers-to* 1)
-                      persp-restrict-buffers-to-if-foreign-buffer
-                      (persp-temporarily-display-buffer t))
-                  (persp-read-buffer "Temporarily display a buffer, not adding it to the current perspective: "
-                                     nil t))))
-  (let ((buffer (persp-get-buffer-or-null buff-or-name))
-        (persp-temporarily-display-buffer t))
-    (when (buffer-live-p buffer)
-      (let ((persp (get-current-persp)))
-        (when (and persp (persp-contain-buffer-p* buffer persp))
-          (let (persp-autokill-buffer-on-remove
-                persp-autokill-persp-when-removed-last-buffer)
-            (persp-remove-buffer buffer persp nil nil nil nil))))
-      (persp-switch-to-buffer buffer t))))
+(defun* persp-temporarily-display-buffer
+    (buff-or-name &optional (called-interactively-p (called-interactively-p 'any)))
+  (interactive "i")
+  (let ((persp-temporarily-display-buffer t))
+    (unless buff-or-name
+      (setq buff-or-name
+            (let ((*persp-restrict-buffers-to*
+                   (if (and called-interactively-p current-prefix-arg) 0 1))
+                  (persp-restrict-buffers-to-if-foreign-buffer
+                   (if (= 0 *persp-restrict-buffers-to*) -1 nil)))
+              (persp-read-buffer
+               (if (= 0 *persp-restrict-buffers-to*)
+                   "Remove a buffer from the perspective, but still display it: "
+                 "Temporarily display a buffer, not adding it to the current perspective: ")
+               nil t))))
+    (let ((buffer (persp-get-buffer-or-null buff-or-name)))
+      (when (buffer-live-p buffer)
+        (let ((persp (get-current-persp)))
+          (when (and persp (persp-contain-buffer-p* buffer persp))
+            (let (persp-autokill-buffer-on-remove
+                  persp-autokill-persp-when-removed-last-buffer)
+              (persp-remove-buffer buffer persp nil nil nil nil))))
+        (persp-switch-to-buffer buffer t)))))
 
 (defun* persp-remove-buffer (buff-or-name
                              &optional (persp (get-current-persp)) noask-to-remall (switch t)
