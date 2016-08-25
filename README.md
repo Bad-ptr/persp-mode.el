@@ -104,30 +104,7 @@ Add load function to the `persp-load-buffer-functions` list.
 That's it. Now the persp-mode could save and restore ielm buffers.  
 
 Python shell example:  
-```lisp
-(with-eval-after-load "persp-mode-autoloads"
-  (add-to-list 'persp-save-buffer-functions
-               #'(lambda (b)
-                   (when (eq 'inferior-python-mode (buffer-local-value 'major-mode b))
-                     `(def-inferior-python-buffer ,(buffer-name b)
-                        ,(let ((process (get-buffer-process b)))
-                           (if process
-                               (progn
-                                 (python-shell-send-string "import os" process)
-                                 (python-shell-send-string-no-output "os.getcwd()" process))
-                             (concat "'" (buffer-local-value 'default-directory b) "'")))))))
-  (add-to-list 'persp-load-buffer-functions
-               #'(lambda (savelist)
-                   (when (eq (car savelist) 'def-inferior-python-buffer)
-                     (destructuring-bind (bname dir) (cdr savelist)
-                       (run-python nil nil nil)
-                       (with-current-buffer (python-shell-get-buffer)
-                         (rename-buffer bname)
-                         (cd dir)
-                         (python-shell-send-string "import os")
-                         (python-shell-send-string (format "os.chdir(%s)" dir))
-                         (current-buffer)))))))
-```
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-inferior-python-save-load-el)
 
 Also you can use the `def-persp-buffer-save/load`:  
 ```lisp
@@ -296,36 +273,27 @@ This must work for most buffer listing commands that internally use the `buffer-
                                   (with-persp-buffer-list () (ibuffer arg))))
 ```
 
-And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/7644606).  
+And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-mode-ibuffer-groups-el).  
 
-#### ido/iswitchb  
-`M-x customize-variable RET persp-interactive-completion-system RET`.  
+#### ido  
+`M-x customize-variable RET persp-set-ido-hooks RET`  
 
-#### ivy  
+You can also set the persp-interactive-completion-function  
 ```lisp
 (with-eval-after-load "persp-mode"
-  (with-eval-after-load "ivy"
-    (add-hook 'ivy-ignore-buffers
-              #'(lambda (b)
-                  (when persp-mode
-                    (let ((persp (get-current-persp)))
-                      (if persp
-                          (not (persp-contain-buffer-p b persp))
-                        nil)))))
-
-    (setq ivy-sort-functions-alist
-          (append ivy-sort-functions-alist
-                  '((persp-kill-buffer   . nil)
-                    (persp-remove-buffer . nil)
-                    (persp-add-buffer    . nil)
-                    (persp-switch        . nil)
-                    (persp-window-switch . nil)
-                    (persp-frame-switch  . nil))))))
+  (setq persp-interactive-completion-function #'ido-completing-read))
 ```
+or just use the [ido-ubiquitous-mode](https://github.com/DarwinAwardWinner/ido-ubiquitous).  
+
+#### iswitchb  
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-iswitchb-el)  
+
+#### ivy  
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-ivy-el)  
 
 #### helm  
 (Note that `helm-buffer-list`, `helm-mini` are using `ido`'s `ido-make-buffer-list` internally).  
-Buffer filtering support: [gist](https://gist.github.com/Bad-ptr/304ada85c9ba15013303).  
+Buffer filtering support: [gist#1](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-helm-persp-bridge-el), [gist#2](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-helm-persp-bridge-v2-el).  
 Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and especially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bwindow-management/spacemacs-layouts/funcs.el).  
 
 ### Speedbar  
