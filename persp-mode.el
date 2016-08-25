@@ -320,6 +320,20 @@ Constrain with a function which take buffer as an argument."
                (when (eq read-buffer-function #'persp-read-buffer)
                  (setq read-buffer-function persp-saved-read-buffer-function))))))
 
+(defcustom persp-set-ido-hooks nil
+  "If t -- set the ido hooks for buffer list restriction."
+  :group 'persp-mode
+  :type 'boolean
+  :set #'(lambda (sym val)
+           (set-default sym val)
+           (when persp-mode
+             (if val
+                 (progn
+                   (add-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
+                   (add-hook 'ido-setup-hook            #'persp-ido-setup))
+               (remove-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
+               (remove-hook 'ido-setup-hook            #'persp-ido-setup)))))
+
 (defvar persp-interactive-completion-function
   (cond (ido-mode      #'ido-completing-read)
         (iswitchb-mode #'persp-iswitchb-completing-read)
@@ -1372,6 +1386,9 @@ named collections of buffers and window configurations."
           (add-hook 'server-switch-hook          #'persp-server-switch)
           (when persp-add-buffer-on-after-change-major-mode
             (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
+          (when persp-set-ido-hooks
+            (add-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
+            (add-hook 'ido-setup-hook            #'persp-ido-setup))
 
           (when (and persp-set-read-buffer-function
                      (not (eq read-buffer-function #'persp-read-buffer)))
@@ -1409,6 +1426,8 @@ named collections of buffers and window configurations."
     (remove-hook 'server-switch-hook          #'persp-server-switch)
     (when persp-add-buffer-on-after-change-major-mode
       (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
+    (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
+    (remove-hook 'ido-setup-hook              #'persp-ido-setup)
 
     (when (and persp-set-read-buffer-function
                (eq read-buffer-function #'persp-read-buffer))
