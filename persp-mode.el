@@ -449,7 +449,7 @@ leave only windows displaing files for edit" :value only-file-windows-for-client
             (add-hook 'persp-mode-hook #'persp-update-frame-server-switch-hook))))
 
 (defcustom persp-ignore-wconf-of-frames-created-to-edit-file t
-  "[Deprecated] If t -- set the persp-ignore-wconf frame parameter
+  "If t -- set the persp-ignore-wconf frame parameter
 to t for frames that were created by emacsclient with file arguments.
 Also delete windows not showing that files
 (this is because server-switch-hook runs after after-make-frames);
@@ -458,12 +458,10 @@ If function -- run that function."
   :type '(choice
           (const    :tag "Ignore window configuration" :value t)
           (const    :tag "Do as usual"  :value nil)
-          (function :tag "Run function" :value (lambda () nil)))
-  :set #'(lambda (sym val)
-           (when (boundp sym)
-             (message "[persp-mode] Warning: the `persp-ignore-wconf-of-frames-created-to-edit-file`
-variable is depricated. Use the `persp-emacsclient-frame-to-edit-file-behavoiur`."))
-            (set-default sym val)))
+          (function :tag "Run function" :value (lambda () nil))))
+(make-obsolete-variable
+ 'persp-ignore-wconf-of-frames-created-to-edit-file
+ "`persp-emacsclient-frame-to-edit-file-behavoiur'" "persp-mode 2.0")
 
 (defcustom persp-add-buffer-on-find-file t
   "If t -- add a buffer with opened file to current perspective."
