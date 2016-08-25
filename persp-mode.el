@@ -305,7 +305,18 @@ Constrain with a function which take buffer as an argument."
   "If t -- try to restrict read-buffer function of the current completion system."
   :group 'persp-mode
   :type 'boolean)
+(make-obsolete-variable
+ 'persp-hook-up-emacs-buffer-completion
+ "`persp-set-read-buffer-function', `persp-set-ido-hooks', `persp-interactive-completion-function'"
+ "persp-mode 2.6")
 
+(defsubst persp-set-read-buffer-function (&optional opt)
+  (if opt
+      (when (not (eq read-buffer-function #'persp-read-buffer))
+        (setq persp-saved-read-buffer-function read-buffer-function)
+        (setq read-buffer-function #'persp-read-buffer))
+    (when (eq read-buffer-function #'persp-read-buffer)
+      (setq read-buffer-function persp-saved-read-buffer-function))))
 (defcustom persp-set-read-buffer-function nil
   "If t -- set the read-buffer-function to persp-read-buffer."
   :group 'persp-mode
@@ -313,13 +324,15 @@ Constrain with a function which take buffer as an argument."
   :set #'(lambda (sym val)
            (set-default sym val)
            (when persp-mode
-             (if val
-                 (when (not (eq read-buffer-function #'persp-read-buffer))
-                   (setq persp-saved-read-buffer-function read-buffer-function)
-                   (setq read-buffer-function #'persp-read-buffer))
-               (when (eq read-buffer-function #'persp-read-buffer)
-                 (setq read-buffer-function persp-saved-read-buffer-function))))))
+             (persp-set-read-buffer-function val))))
 
+(defsubst persp-set-ido-hooks (&optional opt)
+  (if opt
+      (progn
+        (add-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
+        (add-hook 'ido-setup-hook            #'persp-ido-setup))
+    (remove-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
+    (remove-hook 'ido-setup-hook            #'persp-ido-setup)))
 (defcustom persp-set-ido-hooks nil
   "If t -- set the ido hooks for buffer list restriction."
   :group 'persp-mode
@@ -327,12 +340,7 @@ Constrain with a function which take buffer as an argument."
   :set #'(lambda (sym val)
            (set-default sym val)
            (when persp-mode
-             (if val
-                 (progn
-                   (add-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
-                   (add-hook 'ido-setup-hook            #'persp-ido-setup))
-               (remove-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
-               (remove-hook 'ido-setup-hook            #'persp-ido-setup)))))
+             (persp-set-ido-hooks val))))
 
 (defvar persp-interactive-completion-function
   (cond (ido-mode      #'ido-completing-read)
@@ -341,8 +349,8 @@ Constrain with a function which take buffer as an argument."
   "The function which is used by the persp-mode
 to interactivly read user input with completion.")
 
-(defun persp-update-completion-system (system &optional remove)
-  (interactive)
+(defun persp-update-completion-system (&optional system remove)
+  (interactive "i")
   (when (and (not system) (not remove))
     (setq
      system
@@ -357,8 +365,7 @@ to interactivly read user input with completion.")
           (when persp-hook-up-emacs-buffer-completion
             (case persp-interactive-completion-system
               (ido
-               (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-               (remove-hook 'ido-setup-hook              #'persp-ido-setup))
+               (persp-set-ido-hooks))
               (iswitchb
                (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
                (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
@@ -372,8 +379,7 @@ to interactivly read user input with completion.")
       (when persp-hook-up-emacs-buffer-completion
         (case persp-interactive-completion-system
           (ido
-           (add-hook 'ido-make-buffer-list-hook        #'persp-restrict-ido-buffers)
-           (add-hook 'ido-setup-hook                   #'persp-ido-setup)
+           (persp-set-ido-hooks t)
            (setq persp-interactive-completion-function #'ido-completing-read))
           (iswitchb
            (add-hook 'iswitchb-minibuffer-setup-hook   #'persp-iswitchb-setup)
@@ -397,6 +403,10 @@ to interactivly read user input with completion.")
            (if persp-mode
                (persp-update-completion-system val)
              (set-default sym val))))
+(make-obsolete-variable
+ 'persp-interactive-completion-system
+ "`persp-set-read-buffer-function', `persp-set-ido-hooks', `persp-interactive-completion-function'"
+ "persp-mode 2.6")
 
 (define-widget 'persp-init-frame-behaviour-choices 'lazy
   "Choices of the init-frame behavoiurs for the persp-mode."
@@ -1386,22 +1396,16 @@ named collections of buffers and window configurations."
           (add-hook 'server-switch-hook          #'persp-server-switch)
           (when persp-add-buffer-on-after-change-major-mode
             (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
-          (when persp-set-ido-hooks
-            (add-hook 'ido-make-buffer-list-hook #'persp-restrict-ido-buffers)
-            (add-hook 'ido-setup-hook            #'persp-ido-setup))
 
-          (when (and persp-set-read-buffer-function
-                     (not (eq read-buffer-function #'persp-read-buffer)))
-            (setq persp-saved-read-buffer-function read-buffer-function)
-            (setq read-buffer-function #'persp-read-buffer))
+          (persp-set-ido-hooks persp-set-ido-hooks)
+          (persp-set-read-buffer-function persp-set-read-buffer-function)
+
+          (persp-update-completion-system persp-interactive-completion-system)
 
           (mapc #'persp-init-frame (persp-frame-list-without-daemon))
 
           (when (fboundp 'tabbar-mode)
             (setq tabbar-buffer-list-function #'persp-buffer-list))
-
-          (persp-update-completion-system
-           persp-interactive-completion-system)
 
           (if (> persp-auto-resume-time 0)
               (run-at-time persp-auto-resume-time nil
@@ -1416,30 +1420,23 @@ named collections of buffers and window configurations."
     (run-hooks 'persp-mode-deactivated-hook)
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
 
-    (remove-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-    (remove-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
-    (remove-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
-    (remove-hook 'before-make-frame-hook      #'persp-before-make-frame)
-    (remove-hook 'after-make-frame-functions  #'persp-init-new-frame)
-    (remove-hook 'delete-frame-functions      #'persp-delete-frame)
-    (remove-hook 'kill-emacs-hook             #'persp-asave-on-exit)
-    (remove-hook 'server-switch-hook          #'persp-server-switch)
-    (when persp-add-buffer-on-after-change-major-mode
-      (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
-    (remove-hook 'ido-make-buffer-list-hook   #'persp-restrict-ido-buffers)
-    (remove-hook 'ido-setup-hook              #'persp-ido-setup)
+    (remove-hook 'find-file-hook               #'persp-add-or-not-on-find-file)
+    (remove-hook 'kill-buffer-query-functions  #'persp-kill-buffer-query-function)
+    (remove-hook 'kill-buffer-hook             #'persp-kill-buffer-h)
+    (remove-hook 'before-make-frame-hook       #'persp-before-make-frame)
+    (remove-hook 'after-make-frame-functions   #'persp-init-new-frame)
+    (remove-hook 'delete-frame-functions       #'persp-delete-frame)
+    (remove-hook 'kill-emacs-hook              #'persp-asave-on-exit)
+    (remove-hook 'server-switch-hook           #'persp-server-switch)
+    (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
 
-    (when (and persp-set-read-buffer-function
-               (eq read-buffer-function #'persp-read-buffer))
-      (setq read-buffer-function persp-saved-read-buffer-function))
+    (persp-set-ido-hooks)
+    (persp-set-read-buffer-function)
+    (persp-update-frames-buffer-predicate t)
+    (persp-update-completion-system nil t)
 
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
-
-    (when persp-set-frame-buffer-predicate
-      (persp-update-frames-buffer-predicate t))
-
-    (persp-update-completion-system nil t)
 
     (mapc #'(lambda (b)
               (with-current-buffer b
