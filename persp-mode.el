@@ -143,7 +143,8 @@
                (destructuring-bind (frames . windows)
                    (persp-frames-and-windows-with-persp (persp-get-by-name persp-nil-name))
                  (dolist (win windows)
-                   (set-window-parameter win 'persp val))))
+                   (when (string= persp-nil-name (get-window-persp* win))
+                     (set-window-persp* win val)))))
              (set-default sym val))))
 
 (defface persp-face-lighter-buffer-not-in-persp
@@ -1576,15 +1577,20 @@ and then killed.\nWhat do you really want to do? "
         (reverse ret)
       ret)))
 
+(defun set-window-persp* (persp-name &optional window)
+  (when persp-name
+    (set-window-parameter window 'persp persp-name)))
+(defun get-window-persp* (&optional window)
+  (window-parameter window 'persp))
 (defun set-window-persp (persp &optional window)
   (let ((frame (window-frame window)))
     (if (eq persp (get-frame-persp frame))
         (clear-window-persp window)
-      (set-window-parameter window 'persp (safe-persp-name persp)))))
+      (set-window-persp* (safe-persp-name persp) window))))
 (defun window-persp-set-p (&optional window)
-  (window-parameter window 'persp))
+  (get-window-persp* window))
 (defun get-window-persp (&optional window)
-  (let ((pn (window-parameter window 'persp)))
+  (let ((pn (get-window-persp* window)))
     (when pn (persp-get-by-name pn))))
 (defun clear-window-persp (&optional window)
   (set-window-parameter window 'persp nil))
