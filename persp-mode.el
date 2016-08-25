@@ -118,8 +118,6 @@
 
 (defvar persp-mode nil)
 
-(unless (boundp 'iswitchb-mode)
-  (setq iswitchb-mode nil))
 
 ;; Customization variables:
 
@@ -344,7 +342,6 @@ Constrain with a function which take buffer as an argument."
 
 (defvar persp-interactive-completion-function
   (cond (ido-mode      #'ido-completing-read)
-        (iswitchb-mode #'persp-iswitchb-completing-read)
         (t             #'completing-read))
   "The function which is used by the persp-mode
 to interactivly read user input with completion.")
@@ -357,19 +354,14 @@ to interactivly read user input with completion.")
      (intern
       (funcall persp-interactive-completion-function
                "Set the completion system for persp-mode: "
-               '("ido" "iswitchb" "completing-read")
+               '("ido" "completing-read")
                nil t))))
   (if remove
       (progn
         (when (boundp 'persp-interactive-completion-system)
           (when persp-hook-up-emacs-buffer-completion
             (case persp-interactive-completion-system
-              (ido
-               (persp-set-ido-hooks))
-              (iswitchb
-               (remove-hook 'iswitchb-minibuffer-setup-hook #'persp-iswitchb-setup)
-               (remove-hook 'iswitchb-make-buflist-hook     #'persp-iswitchb-filter-buflist)
-               (remove-hook 'iswitchb-define-mode-map-hook  #'persp-iswitchb-define-mode-map))
+              (ido (persp-set-ido-hooks))
               (t nil))))
         (setq persp-interactive-completion-function #'completing-read)
         (set-default 'persp-interactive-completion-system 'completing-read))
@@ -381,23 +373,16 @@ to interactivly read user input with completion.")
           (ido
            (persp-set-ido-hooks t)
            (setq persp-interactive-completion-function #'ido-completing-read))
-          (iswitchb
-           (add-hook 'iswitchb-minibuffer-setup-hook   #'persp-iswitchb-setup)
-           (add-hook 'iswitchb-make-buflist-hook       #'persp-iswitchb-filter-buflist)
-           (setq persp-interactive-completion-function #'persp-iswitchb-completing-read)
-           (add-hook 'iswitchb-define-mode-map-hook    #'persp-iswitchb-define-mode-map))
           (t nil))
         (persp-set-toggle-read-persp-filter-keys persp-toggle-read-persp-filter-keys)))))
 
 (defcustom persp-interactive-completion-system
-  (cond (ido-mode      'ido)
-        (iswitchb-mode 'iswitchb)
-        (t             'completing-read))
+  (cond (ido-mode 'ido)
+        (t        'completing-read))
   "What completion system to use."
   :group 'persp-mode
   :type '(choice
           (const :tag "ido"             :value ido)
-          (const :tag "iswitchb"        :value iswitchb)
           (const :tag "completing-read" :value completing-read))
   :set #'(lambda (sym val)
            (if persp-mode
@@ -2607,39 +2592,6 @@ Return `NAME'."
         (persp-generate-frame-server-switch-hook persp-server-switch-behaviour))
   (mapc #'persp-set-frame-server-switch-hook
         (persp-frame-list-without-daemon)))
-
-
-(defun persp-iswitchb-completing-read
-    (prompt choices
-            &optional predicate require-match
-            initial-input hist def inherit-input-method)
-  "Support for the `iswitchb-mode'."
-  (let ((iswitchb-make-buflist-hook
-         #'(lambda () (setq iswitchb-temp-buflist choices))))
-    (iswitchb-read-buffer prompt def require-match initial-input nil)))
-
-(defun persp-iswitchb-setup ()
-  (setq persp-disable-buffer-restriction-once nil))
-
-(defun persp-iswitchb-define-mode-map ()
-  (define-key
-    iswitchb-mode-map
-    persp-toggle-read-persp-filter-keys
-    #'iswitchb-toggle-persp-filter))
-
-(defun persp-iswitchb-filter-buflist ()
-  "Support for the `iswitchb-mode'."
-  (setq iswitchb-temp-buflist
-        (if persp-disable-buffer-restriction-once
-            (persp-buffer-list-restricted nil -1 nil)
-          (persp-buffer-list-restricted))))
-
-(defun iswitchb-toggle-persp-filter ()
-  (interactive)
-  (setq persp-disable-buffer-restriction-once
-        (not persp-disable-buffer-restriction-once))
-  (iswitchb-make-buflist iswitchb-default)
-  (setq iswitchb-rescan t))
 
 
 (defun persp-ido-setup ()
