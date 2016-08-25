@@ -340,9 +340,7 @@ Constrain with a function which take buffer as an argument."
            (when persp-mode
              (persp-set-ido-hooks val))))
 
-(defvar persp-interactive-completion-function
-  (cond (ido-mode      #'ido-completing-read)
-        (t             #'completing-read))
+(defvar persp-interactive-completion-function #'completing-read
   "The function which is used by the persp-mode
 to interactivly read user input with completion.")
 
@@ -376,9 +374,7 @@ to interactivly read user input with completion.")
           (t nil))
         (persp-set-toggle-read-persp-filter-keys persp-toggle-read-persp-filter-keys)))))
 
-(defcustom persp-interactive-completion-system
-  (cond (ido-mode 'ido)
-        (t        'completing-read))
+(defcustom persp-interactive-completion-system 'completing-read
   "What completion system to use."
   :group 'persp-mode
   :type '(choice
