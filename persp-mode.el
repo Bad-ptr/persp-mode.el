@@ -1027,6 +1027,12 @@ to a wrong one.")
                               pblf-body)))
          ,@body))))
 
+(defmacro with-persp-ido-hooks (&rest body)
+  `(let ((ido-make-buffer-list-hook ido-make-buffer-list-hook)
+         (ido-setup-hook ido-setup-hook))
+     (persp-set-ido-hooks t)
+     ,@body))
+
 (defun safe-persp-name (p)
   (if p (persp-name p)
     persp-nil-name))
