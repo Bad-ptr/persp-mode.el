@@ -2721,6 +2721,8 @@ Return `NAME'."
             (golden-ratio-mode 1)))))))
 
 
+;; Save funcs
+
 (defun* persp-frame-save-state (&optional (frame (selected-frame)) set-persp-special-last-buffer)
   (when (and frame
              (not (persp-is-frame-daemons-frame frame))
@@ -2741,12 +2743,6 @@ Return `NAME'."
       (setq frame (find-other-frame-with-persp persp exfr t)))
     (when frame (persp-frame-save-state frame set-persp-special-last-buffer))))
 
-
-(defsubst persp-save-all-persps-state ()
-  (mapc #'persp-save-state (persp-persps)))
-
-
-;; Save funcs
 
 (defun persp-buffers-to-savelist (persp)
   (let (ret)
@@ -2834,7 +2830,7 @@ of the perspective %s can't be saved."
                     (file-directory-p p-save-dir)))
           (message "[persp-mode] Error: Can't save perspectives -- `persp-save-dir' \
 does not exists or not a directory %S." p-save-dir)
-        (persp-save-all-persps-state)
+        (mapc #'persp-save-state (persp-persps phash))
         (if respect-persp-file-parameter
             (let ((fg (persp-group-by (apply-partially #'persp-parameter 'persp-file)
                                       (persp-persps phash)))
