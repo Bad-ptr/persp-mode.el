@@ -1099,7 +1099,18 @@ to a wrong one.")
 
 (defun persp-asave-on-exit ()
   (when (> persp-auto-save-opt 0)
-    (persp-save-state-to-file)))
+    (condition-case-unless-debug err
+        (persp-save-state-to-file)
+      (error
+       (message "[persp-mode] Error: Can not autosave perspectives -- %s"
+                err)
+       (if (or noninteractive
+               (progn
+                 (when (null (persp-frame-list-without-daemon))
+                   (make-frame))
+                 (null (persp-frame-list-without-daemon))))
+           t
+         (yes-or-no-p "persp-mode can not save perspectives, do you want to exit anyway?"))))))
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
@@ -1396,7 +1407,11 @@ named collections of buffers and window configurations."
 
           (persp-update-completion-system persp-interactive-completion-system)
 
-          (mapc #'persp-init-frame (persp-frame-list-without-daemon))
+          (condition-case-unless-debug err
+              (mapc #'persp-init-frame (persp-frame-list-without-daemon))
+            (error
+             (message "[persp-mode] Error: Can not initialize frame -- %s"
+                      err)))
 
           (when (fboundp 'tabbar-mode)
             (setq tabbar-buffer-list-function #'persp-buffer-list))
@@ -1406,7 +1421,11 @@ named collections of buffers and window configurations."
                            #'(lambda ()
                                (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current)
                                (when (> persp-auto-resume-time 0)
-                                 (persp-load-state-from-file)
+                                 (condition-case-unless-debug err
+                                     (persp-load-state-from-file)
+                                   (error
+                                    (message "[persp-mode] Error: Can not autoresume perspectives -- %s"
+                                             err)))
                                  (when (buffer-live-p persp-special-last-buffer)
                                    (persp-switch-to-buffer persp-special-last-buffer)))))
             (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
@@ -1549,12 +1568,16 @@ and then killed.\nWhat do you really want to do? "
         (t (persp-add-buffer buf))))))
 
 (defun persp-server-switch ()
-  (let* ((frame (selected-frame))
-         (persp-server-switch-hook (frame-parameter frame 'persp-server-switch-hook)))
-    (when persp-server-switch-hook
-      (unless (string-match-p "^.*magit.*$" (symbol-name last-command))
-        (funcall persp-server-switch-hook frame))
-      (set-frame-parameter frame 'persp-server-switch-hook nil))))
+  (condition-case-unless-debug err
+      (let* ((frame (selected-frame))
+             (persp-server-switch-hook (frame-parameter frame 'persp-server-switch-hook)))
+        (when persp-server-switch-hook
+          (unless (string-match-p "^.*magit.*$" (symbol-name last-command))
+            (funcall persp-server-switch-hook frame))
+          (set-frame-parameter frame 'persp-server-switch-hook nil)))
+    (error
+     (message "[persp-mode] Error: error in server-switch-hook -- %s"
+              err))))
 
 
 ;; Misc funcs:
@@ -2338,7 +2361,11 @@ Return `NAME'."
              (run-hook-with-args 'persp-activated-functions 'window))))))))
 
 (defun persp-init-new-frame (frame)
-  (persp-init-frame frame t (frame-parameter frame 'client)))
+  (condition-case-unless-debug err
+      (persp-init-frame frame t (frame-parameter frame 'client))
+    (error
+     (message "[persp-mode] Error: Can not initialize frame -- %s"
+              err))))
 (defun* persp-init-frame (frame &optional new-frame-p client)
   (let ((persp-init-frame-behaviour
          (cond
@@ -2389,7 +2416,11 @@ Return `NAME'."
         (persp-activate persp frame new-frame-p)))))
 
 (defun persp-delete-frame (frame)
-  (persp--deactivate frame :+-123emptynooo))
+  (condition-case-unless-debug err
+      (persp--deactivate frame :+-123emptynooo)
+    (error
+     (message "[persp-mode] Error: Can not deactivate frame -- %s"
+              err))))
 
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
@@ -2710,7 +2741,7 @@ Return `NAME'."
                   (progn
                     (delete-other-windows)
                     (set-window-dedicated-p nil nil)
-                    (condition-case err
+                    (condition-case-unless-debug err
                         (funcall persp-window-state-put-function pwc frame)
                       (error (message "[persp-mode] Warning: Can not restore the window configuration, because of the error -- %s" err)))
                     (when (and new-frame-p persp-is-ibc-as-f-supported)
@@ -2901,7 +2932,7 @@ does not exists or not a directory %S." p-save-dir)
                   (when (and
                          (or (featurep 'tramp-sh) (require 'tramp-sh nil t))
                          (fboundp 'tramp-compute-multi-hops)
-                         (setq tmh (condition-case err
+                         (setq tmh (condition-case-unless-debug err
                                        (tramp-compute-multi-hops dissected-f-name)
                                      (error nil))))
                     (let ((persp-tramp-file-name tramp-prefix-format))
@@ -2939,7 +2970,7 @@ does not exists or not a directory %S." p-save-dir)
   (let ((kar (gensym "lst-car")))
     `(let* ((,kar (car-safe ,lst))
             (args (cdr-safe ,lst))
-            (fun (or (condition-case err
+            (fun (or (condition-case-unless-debug err
                          (symbol-function ,kar)
                        (error nil))
                      (symbol-value ,kar))))
