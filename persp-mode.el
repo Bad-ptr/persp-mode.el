@@ -1386,7 +1386,7 @@ named collections of buffers and window configurations."
           (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
           (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
           (add-hook 'delete-frame-functions      #'persp-delete-frame)
-          (add-hook 'kill-emacs-hook             #'persp-asave-on-exit)
+          (add-hook 'kill-emacs-query-functions  #'persp-asave-on-exit)
           (add-hook 'server-switch-hook          #'persp-server-switch)
           (when persp-add-buffer-on-after-change-major-mode
             (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
@@ -1420,7 +1420,7 @@ named collections of buffers and window configurations."
     (remove-hook 'before-make-frame-hook       #'persp-before-make-frame)
     (remove-hook 'after-make-frame-functions   #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions       #'persp-delete-frame)
-    (remove-hook 'kill-emacs-hook              #'persp-asave-on-exit)
+    (remove-hook 'kill-emacs-query-functions   #'persp-asave-on-exit)
     (remove-hook 'server-switch-hook           #'persp-server-switch)
     (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
 
