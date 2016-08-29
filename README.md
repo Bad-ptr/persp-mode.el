@@ -277,8 +277,9 @@ And here is something ibuffer-specific: [gist](https://gist.github.com/Bad-ptr/1
 
 #### ido  
 `M-x customize-variable RET persp-set-ido-hooks RET`  
+There is also the `with-persp-ido-hooks` macro.  
 
-You can also set the persp-interactive-completion-function  
+You can set the `persp-interactive-completion-function`:  
 ```lisp
 (with-eval-after-load "persp-mode"
   (setq persp-interactive-completion-function #'ido-completing-read))
@@ -286,10 +287,10 @@ You can also set the persp-interactive-completion-function
 or just use the [ido-ubiquitous-mode](https://github.com/DarwinAwardWinner/ido-ubiquitous).  
 
 #### iswitchb  
-[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-iswitchb-el)  
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-iswitchb-el).  
 
 #### ivy  
-[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-ivy-el)  
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-ivy-el).  
 
 #### helm  
 (Note that `helm-buffer-list`, `helm-mini` are using `ido`'s `ido-make-buffer-list` internally).  
