@@ -300,6 +300,7 @@ Constrain with a function which take buffer as an argument."
                    (add-hook 'persp-mode-hook #'persp-update-frames-buffer-predicate)))
              (persp-update-frames-buffer-predicate t))))
 
+;; TODO: remove this var
 (defcustom persp-hook-up-emacs-buffer-completion nil
   "If t -- try to restrict read-buffer function of the current completion system."
   :group 'persp-mode
@@ -341,9 +342,13 @@ Constrain with a function which take buffer as an argument."
            (when persp-mode
              (persp-set-ido-hooks val))))
 
+;; TODO: remove this var, just call the completing-read
 (defvar persp-interactive-completion-function #'completing-read
   "The function which is used by the persp-mode
 to interactivly read user input with completion.")
+(make-obsolete-variable
+ 'persp-interactive-completion-function
+ "`completing-read-function'" "persp-mode 2.7")
 
 (defun persp-update-completion-system (&optional system remove)
   (interactive "i")
@@ -375,6 +380,7 @@ to interactivly read user input with completion.")
           (t nil))
         (persp-set-toggle-read-persp-filter-keys persp-toggle-read-persp-filter-keys)))))
 
+;; TODO: remove this var
 (defcustom persp-interactive-completion-system 'completing-read
   "What completion system to use."
   :group 'persp-mode
@@ -448,6 +454,7 @@ leave only windows displaing files for edit" :value only-file-windows-for-client
              (persp-update-frame-server-switch-hook)
             (add-hook 'persp-mode-hook #'persp-update-frame-server-switch-hook))))
 
+;; TODO: remove this var
 (defcustom persp-ignore-wconf-of-frames-created-to-edit-file t
   "If t -- set the persp-ignore-wconf frame parameter
 to t for frames that were created by emacsclient with file arguments.
@@ -911,6 +918,7 @@ to a wrong one.")
   :type 'key-sequence
   :set #'(lambda (sym val)
            (persp-set-toggle-read-persp-filter-keys val)))
+
 
 ;; Perspective struct:
 
