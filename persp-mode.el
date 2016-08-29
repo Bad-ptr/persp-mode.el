@@ -2261,6 +2261,8 @@ Return `NAME'."
                                  persp-last-persp-name)
                             persp-nil-name) *persp-hash* :+-123emptynooo)))
     (when (eq persp :+-123emptynooo)
+      (when persp-set-last-persp-for-new-frames
+        (setq persp-last-persp-name persp-nil-name))
       (setq persp (persp-add-new persp-nil-name)))
     (persp-save-state persp nil t)))
 
