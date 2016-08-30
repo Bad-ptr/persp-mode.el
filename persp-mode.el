@@ -118,6 +118,18 @@
 
 (defvar persp-mode nil)
 
+(unless (fboundp 'read-multiple-choice)
+  (defun read-multiple-choice (prompt choices)
+    (let ((choice-chars (mapcar #'car choices)))
+      (when choice-chars
+        (assq (read-char-choice
+               (format "%s(%s): "
+                       (substring prompt 0 (string-match ": $" prompt ))
+                       (mapconcat #'(lambda (ch)
+                                      (format "[%c] - %s" (car ch) (cadr ch)))
+                                  choices "; "))
+               choice-chars)
+              choices)))))
 
 ;; Customization variables:
 
