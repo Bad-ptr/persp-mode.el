@@ -2756,7 +2756,11 @@ Return `NAME'."
                     (set-window-dedicated-p nil nil)
                     (condition-case-unless-debug err
                         (funcall persp-window-state-put-function pwc frame)
-                      (error (message "[persp-mode] Warning: Can not restore the window configuration, because of the error -- %s" err)))
+                      (error (message "[persp-mode] Warning: Can not restore the window configuration, because of the error -- %s" err)
+                             (let* ((cw (selected-window))
+                                    (cwb (window-buffer cw)))
+                               (unless (persp-contain-buffer-p cwb persp)
+                                 (persp-set-another-buffer-for-window cwb cw persp)))))
                     (when (and new-frame-p persp-is-ibc-as-f-supported)
                       (setq initial-buffer-choice #'(lambda () persp-special-last-buffer))))
                 (when persp-reset-windows-on-nil-window-conf
