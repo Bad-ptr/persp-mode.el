@@ -156,7 +156,8 @@
                    (persp-frames-and-windows-with-persp (persp-get-by-name persp-nil-name))
                  (dolist (win windows)
                    (when (string= persp-nil-name (get-window-persp* win))
-                     (set-window-persp* win val)))))
+                     (set-window-persp* win val))))
+               (run-hook-with-args 'persp-renamed-functions nil persp-nil-name val))
              (set-default sym val))))
 
 (defface persp-face-lighter-buffer-not-in-persp
