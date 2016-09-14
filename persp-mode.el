@@ -1110,20 +1110,27 @@ to a wrong one.")
   (persp-mode 1)
   (remove-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook))
 
-(defun persp-asave-on-exit ()
-  (when (> persp-auto-save-opt 0)
+(defun persp-asave-on-exit (&optional interactive-query)
+  (when (and persp-mode (> persp-auto-save-opt 0))
     (condition-case-unless-debug err
         (persp-save-state-to-file)
       (error
        (message "[persp-mode] Error: Can not autosave perspectives -- %s"
                 err)
-       (if (or noninteractive
-               (progn
-                 (when (null (persp-frame-list-without-daemon))
-                   (make-frame))
-                 (null (persp-frame-list-without-daemon))))
-           t
-         (yes-or-no-p "persp-mode can not save perspectives, do you want to exit anyway?"))))))
+       (when (or noninteractive
+                 (progn
+                   (when (null (persp-frame-list-without-daemon))
+                     (make-frame))
+                   (null (persp-frame-list-without-daemon))))
+         (setq interactive-query nil))
+       (if interactive-query
+           (yes-or-no-p "persp-mode can not save perspectives, do you want to exit anyway?")
+         t)))))
+(defun persp-kill-emacs-h ()
+  (persp-asave-on-exit nil))
+(defun persp-kill-emacs-query-function ()
+  (when (persp-asave-on-exit t)
+    (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h)))
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
@@ -1410,7 +1417,8 @@ named collections of buffers and window configurations."
           (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
           (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
           (add-hook 'delete-frame-functions      #'persp-delete-frame)
-          (add-hook 'kill-emacs-query-functions  #'persp-asave-on-exit)
+          (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
+          (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
           (add-hook 'server-switch-hook          #'persp-server-switch)
           (when persp-add-buffer-on-after-change-major-mode
             (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
@@ -1452,7 +1460,8 @@ named collections of buffers and window configurations."
     (remove-hook 'before-make-frame-hook       #'persp-before-make-frame)
     (remove-hook 'after-make-frame-functions   #'persp-init-new-frame)
     (remove-hook 'delete-frame-functions       #'persp-delete-frame)
-    (remove-hook 'kill-emacs-query-functions   #'persp-asave-on-exit)
+    (remove-hook 'kill-emacs-query-functions   #'persp-kill-emacs-query-function)
+    (remove-hook 'kill-emacs-hook              #'persp-kill-emacs-h)
     (remove-hook 'server-switch-hook           #'persp-server-switch)
     (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
 
