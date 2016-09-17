@@ -124,7 +124,7 @@
       (when choice-chars
         (assq (read-char-choice
                (format "%s(%s): "
-                       (substring prompt 0 (string-match ": $" prompt ))
+                       (substring prompt 0 (string-match ": $" prompt))
                        (mapconcat #'(lambda (ch)
                                       (format "[%c] - %s" (car ch) (cadr ch)))
                                   choices "; "))
@@ -1096,11 +1096,11 @@ to a wrong one.")
   (when (and (not (null param-name)) (symbolp param-name))
     (if persp
         (setf (persp-parameters persp)
-              (delete (assq param-name (persp-parameters persp))
-                      (persp-parameters persp)))
+              (delq (assq param-name (persp-parameters persp))
+                    (persp-parameters persp)))
       (setq persp-nil-parameters
-            (delete (assq param-name persp-nil-parameters)
-                    persp-nil-parameters)))))
+            (delq (assq param-name persp-nil-parameters)
+                  persp-nil-parameters)))))
 
 
 ;; Used in mode defenition:
@@ -1979,14 +1979,12 @@ Return the removed buffer."
 
 (defun persp-kill-buffer (&optional buffer-or-name)
   "Kill buffer, read buffer with restriction to current perspective."
-  (interactive)
-  (unless buffer-or-name
-    (let ((*persp-restrict-buffers-to* 0)
-          persp-restrict-buffers-to-if-foreign-buffer)
-      (setq buffer-or-name
-            (if persp-mode
-                (persp-read-buffer "Kill buffer: " (current-buffer) t)
-              (read-buffer "Kill buffer: " (current-buffer) t)))))
+  (interactive (list
+                (let ((*persp-restrict-buffers-to* 0)
+                      persp-restrict-buffers-to-if-foreign-buffer)
+                  (if persp-mode
+                      (persp-read-buffer "Kill buffer: " (current-buffer) t)
+                    (read-buffer "Kill buffer: " (current-buffer) t)))))
   (when (and buffer-or-name
              (buffer-live-p (get-buffer buffer-or-name)))
     (kill-buffer buffer-or-name)))
@@ -1994,11 +1992,11 @@ Return the removed buffer."
 (defun persp-switch-to-buffer (buffer-or-name &optional norecord force-same-window)
   "Switch to buffer, read buffer with restriction to current perspective."
   (interactive (list
-                (if persp-mode
-                    (let ((*persp-restrict-buffers-to* 0)
-                          persp-restrict-buffers-to-if-foreign-buffer)
-                      (persp-read-buffer "Switch to buffer: " (current-buffer) t))
-                  (read-buffer "Switch to buffer: " (current-buffer) t))))
+                (let ((*persp-restrict-buffers-to* 0)
+                      persp-restrict-buffers-to-if-foreign-buffer)
+                  (if persp-mode
+                      (persp-read-buffer "Switch to buffer: " (current-buffer) t)
+                    (read-buffer "Switch to buffer: " (current-buffer) t)))))
   (when (and buffer-or-name
              (buffer-live-p (get-buffer buffer-or-name)))
     (switch-to-buffer buffer-or-name norecord force-same-window)))
@@ -2252,10 +2250,9 @@ Return that old buffer."
                     (persp-remove-by-name pn))))))
         names))
 
-(defun persp-kill-without-buffers (name)
-  (interactive)
-  (persp-kill name t))
-
+(defun persp-kill-without-buffers (names)
+  (interactive "i")
+  (persp-kill names t))
 
 (defun* persp-rename (new-name
                       &optional (persp (get-current-persp)) (phash *persp-hash*))
@@ -2524,7 +2521,7 @@ Return `NAME'."
                                      (concat
                                       (when retlst
                                         (concat "(" (mapconcat #'identity retlst " ") ") "))
-                                      "Perspective name " action
+                                      "Perspective name" (when multiple "s") (when action " ") action
                                       (if default (concat " (default " default ")") "")
                                       ": ")
                                      persps nil require-match nil nil default)))
