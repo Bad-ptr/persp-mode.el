@@ -118,6 +118,8 @@
 
 (defvar persp-mode nil)
 
+(unless (fboundp 'condition-case-unless-debug)
+  (defalias 'condition-case-unless-debug 'condition-case-no-debug))
 (unless (fboundp 'read-multiple-choice)
   (defun read-multiple-choice (prompt choices)
     (let ((choice-chars (mapcar #'car choices)))
