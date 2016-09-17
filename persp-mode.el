@@ -2017,16 +2017,16 @@ Return the removed buffer."
     (message "[persp-mode] Error: Can't import buffers to the 'nil' perspective, cause it already contain all buffers.")))
 
 (defun* persp-import-buffers
-    (name
+    (names
      &optional (persp-to (get-current-persp)) (phash *persp-hash*))
-  "Import buffers from the perspective with the given name to another one.
-If run interactively assume import from some perspective that is in the `*persp-hash*'
-into the current."
+  "Import buffers from perspectives with the given names to another one."
   (interactive "i")
-  (unless name
-    (setq name (persp-prompt nil "to import buffers from" nil t nil t)))
-  (let ((persp-from (persp-get-by-name name phash)))
-    (persp-import-buffers-from persp-from persp-to)))
+  (unless (listp names) (setq names (list names)))
+  (unless names
+    (setq names (persp-prompt t "to import buffers from" nil t nil t)))
+  (mapc #'(lambda (pn)
+            (persp-import-buffers-from (persp-get-by-name pn phash) persp-to))
+        names))
 
 (defun* persp-import-win-conf
     (name
@@ -2179,67 +2179,83 @@ Return that old buffer."
     (setf (persp-buffers persp)
           (delete-if-not #'buffer-live-p (persp-buffers persp)))))
 
-(defun persp-hide (name)
+(defun persp-hide (names)
   (interactive "i")
-  (unless name
-    (setq name (persp-prompt nil "to hide" (safe-persp-name (get-current-persp)) t)))
-  (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo))
-        (persp-to-switch (get-current-persp)))
-    (unless (eq persp :+-123emptynooo)
-      (when (eq persp persp-to-switch)
-        (setq persp-to-switch (car (persp-other-not-hidden-persps persp))))
-      (if persp
-          (setf (persp-hidden persp) t)
-        (setq persp-nil-hidden t))
-      (destructuring-bind (frames . windows)
-          (persp-frames-and-windows-with-persp persp)
-        (dolist (w windows) (clear-window-persp w))
-        (dolist (f frames)
-          (persp-frame-switch (safe-persp-name persp-to-switch) f))))))
+  (unless (listp names) (setq names (list names)))
+  (unless names
+    (setq names (persp-prompt t "to hide" (safe-persp-name (get-current-persp)) t)))
+  (let ((persp-to-switch (get-current-persp))
+        (hidden-persps
+         (mapcar #'(lambda (pn)
+                     (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
+                       (unless (eq persp :+-123emptynooo)
+                         (if persp
+                             (setf (persp-hidden persp) t)
+                           (setq persp-nil-hidden t)))
+                       persp))
+                 names)))
+    (when (safe-persp-hidden persp-to-switch)
+      (setq persp-to-switch (car (persp-other-not-hidden-persps persp-to-switch))))
+    (mapc #'(lambda (p)
+              (unless (eq p :+-123emptynooo)
+                (destructuring-bind (frames . windows)
+                    (persp-frames-and-windows-with-persp p)
+                  (dolist (w windows) (clear-window-persp w))
+                  (dolist (f frames)
+                    (persp-frame-switch (safe-persp-name persp-to-switch) f)))))
+          hidden-persps)))
 
-(defun persp-unhide (name)
+(defun persp-unhide (names)
   (interactive "i")
-  (unless name
+  (unless (listp names) (setq names (list names)))
+  (unless names
     (let ((hidden-persps
            (mapcar #'safe-persp-name
                    (delete-if-not #'safe-persp-hidden
                                   (persp-persps)))))
-      (setq name
+      (setq names
             (persp-prompt
-             nil "to unhide" (car hidden-persps) t nil nil hidden-persps t))))
-  (when name
-    (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo)))
-      (unless (eq persp :+-123emptynooo)
-        (if persp
-            (setf (persp-hidden persp) nil)
-          (setq persp-nil-hidden nil))))))
+             t "to unhide" (car hidden-persps) t nil nil hidden-persps t))))
+  (when names
+    (mapc #'(lambda (pn)
+              (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
+                (unless (eq persp :+-123emptynooo)
+                  (if persp
+                      (setf (persp-hidden persp) nil)
+                    (setq persp-nil-hidden nil)))))
+          names)))
 
-(defun* persp-kill (name &optional dont-kill-buffers
-                         (called-interactively-p (called-interactively-p 'any)))
+(defun* persp-kill (names &optional dont-kill-buffers
+                          (called-interactively-p (called-interactively-p 'any)))
   (interactive "i")
   (when (and called-interactively-p current-prefix-arg)
     (setq dont-kill-buffers (not dont-kill-buffers)))
-  (unless name
-    (setq name (persp-prompt nil (concat "to kill"
-                                         (when dont-kill-buffers
-                                           "(not killing buffers)"))
-                             (safe-persp-name (get-current-persp)) t)))
-  (when (or (not (string= name persp-nil-name))
-            (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
-    (let ((persp (persp-get-by-name name *persp-hash* :+-123emptynooo)))
-      (unless (eq persp :+-123emptynooo)
-        (run-hook-with-args 'persp-before-kill-functions persp)
-        (let (persp-autokill-persp-when-removed-last-buffer)
-          (if dont-kill-buffers
-              (let (persp-autokill-buffer-on-remove)
-                (mapc #'(lambda (b) (persp-remove-buffer b persp t t nil nil)) (safe-persp-buffers persp)))
-            (mapc #'(lambda (b) (persp-remove-buffer b persp t t nil nil)) (safe-persp-buffers persp))))
-        (when persp
-          (persp-remove-by-name name))))))
+  (unless (listp names) (setq names (list names)))
+  (unless names
+    (setq names (persp-prompt t (concat "to kill"
+                                        (when dont-kill-buffers
+                                          "(not killing buffers)"))
+                              (safe-persp-name (get-current-persp)) t)))
+  (mapc #'(lambda (pn)
+            (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
+              (unless (eq persp :+-123emptynooo)
+                (when (or (not called-interactively-p)
+                          (not (null persp))
+                          (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
+                  (run-hook-with-args 'persp-before-kill-functions persp)
+                  (let (persp-autokill-persp-when-removed-last-buffer)
+                    (if dont-kill-buffers
+                        (let (persp-autokill-buffer-on-remove)
+                          (mapc #'(lambda (b) (persp-remove-buffer b persp t t nil nil)) (safe-persp-buffers persp)))
+                      (mapc #'(lambda (b) (persp-remove-buffer b persp t t nil nil)) (safe-persp-buffers persp))))
+                  (when persp
+                    (persp-remove-by-name pn))))))
+        names))
 
 (defun persp-kill-without-buffers (name)
   (interactive)
   (persp-kill name t))
+
 
 (defun* persp-rename (new-name
                       &optional (persp (get-current-persp)) (phash *persp-hash*))
