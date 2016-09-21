@@ -2513,6 +2513,8 @@ Return `NAME'."
                                   (safe-persp-hidden
                                    (persp-get-by-name pn)))
                               persps)))
+    (when (and default (not (member default persps)))
+      (setq default nil))
     (let (retlst)
       (macrolet ((call-pif ()
                            `(funcall persp-interactive-completion-function
@@ -2529,9 +2531,10 @@ Return `NAME'."
               (while (member done_str persps)
                 (setq done_str (concat ">" done_str)))
               (push done_str persps)
+              (unless default (setq default done_str))
               (block 'multi-ret
                 (while (setq cp (call-pif))
-                  (when default (setq default nil))
+                  (when default (setq default done_str))
                   (if (string= cp done_str)
                       (return-from 'multi-ret retlst)
                     (setq persps (delete cp persps))
