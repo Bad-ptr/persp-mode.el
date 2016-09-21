@@ -2707,20 +2707,25 @@ Return `NAME'."
   (exit-minibuffer))
 
 
-(defun persp-read-buffer (prompt &optional def require-match predicate)
-  "Read buffer with restriction."
+(defun persp-read-buffer (prompt &optional def require-match predicate multiple)
+  "Read buffers with restriction."
   (setq persp-disable-buffer-restriction-once nil)
   (when def
-    (when (and (not (stringp def)) (buffer-live-p def))
-      (setq def (buffer-name def)))
-    (setq prompt
-          (format "%s (default %s): " (car (split-string prompt ": $" t "[[:space:]]")) def)))
+    (if (and (not (stringp def)) (bufferp def) (buffer-live-p def))
+        (setq def (buffer-name def))
+      (setq def nil)))
+  (when prompt
+    (setq prompt (car (split-string prompt ": $" t "[[:space:]]"))))
   (let ((persp-read-buffer-reread 'reread)
-        ret)
+        done_str key-backup already-selected-buffers ret)
     (while persp-read-buffer-reread
       (setq persp-read-buffer-reread nil)
       (let ((persp-minibuffer-setup
              #'(lambda ()
+                 (unless key-backup
+                   (setq key-backup
+                         (lookup-key minibuffer-local-map
+                                     persp-toggle-read-persp-filter-keys)))
                  (define-key minibuffer-local-map
                    persp-toggle-read-persp-filter-keys
                    #'(lambda () (interactive)
@@ -2732,7 +2737,7 @@ Return `NAME'."
              #'(lambda ()
                  (unless persp-read-buffer-reread
                    (define-key minibuffer-local-map
-                     persp-toggle-read-persp-filter-keys nil))))
+                     persp-toggle-read-persp-filter-keys key-backup))))
             (persp-buf-list (if persp-disable-buffer-restriction-once
                                 (funcall persp-buffer-list-function)
                               (if persp-buffer-list-restricted-filter-functions
@@ -2743,9 +2748,37 @@ Return `NAME'."
             (progn
               (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
               (add-hook 'minibuffer-exit-hook persp-minibuffer-exit t)
-              (setq ret (funcall persp-interactive-completion-function
-                                 prompt (mapcar #'buffer-name persp-buf-list)
-                                 predicate require-match nil nil def)))
+              (let ((buf-name-list (mapcar #'buffer-name persp-buf-list))
+                    done_str inner-ret)
+                (when multiple
+                  (when already-selected-buffers
+                    (setq buf-name-list (delete-if #'(lambda (bn)
+                                                       (member bn already-selected-buffers))
+                                                   buf-name-list)))
+                  (setq done_str "[>done<]")
+                  (while (member done_str buf-name-list)
+                    (setq done_str (concat ">" done_str)))
+                  (push done_str buf-name-list))
+                (unless (member def buf-name-list)
+                  (if multiple
+                      (setq def done_str)
+                    (setq def nil)))
+                (setq inner-ret (funcall persp-interactive-completion-function
+                                         (concat prompt
+                                                 (and def (concat "(default " def ")"))
+                                                 (and multiple already-selected-buffers
+                                                      (concat "< " (mapconcat #'identity already-selected-buffers " ") " >"))
+                                                 ": ")
+                                         buf-name-list predicate require-match nil nil def))
+                (if multiple
+                    (if (and inner-ret (string= done_str inner-ret))
+                        (setq persp-read-buffer-reread nil)
+                      (setq persp-read-buffer-reread t
+                            def done_str)
+                      (when inner-ret
+                        (push inner-ret ret)
+                        (push inner-ret already-selected-buffers)))
+                  (setq ret inner-ret))))
           (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
           (remove-hook 'minibuffer-exit-hook persp-minibuffer-exit))))
     ret))
