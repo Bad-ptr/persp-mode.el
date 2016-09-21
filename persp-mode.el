@@ -1446,7 +1446,7 @@ named collections of buffers and window configurations."
                                    (error
                                     (message "[persp-mode] Error: Can not autoresume perspectives -- %s"
                                              err)))
-                                 (when (buffer-live-p persp-special-last-buffer)
+                                 (when (persp-get-buffer-or-null persp-special-last-buffer)
                                    (persp-switch-to-buffer persp-special-last-buffer)))))
             (remove-hook 'find-file-hook #'persp-special-last-buffer-make-current))))
 
@@ -1931,7 +1931,7 @@ Return the created perspective."
                    nil t))
               (current-buffer))))
     (let ((buffer (persp-get-buffer-or-null buff-or-name)))
-      (when (buffer-live-p buffer)
+      (when buffer
         (let ((persp (get-current-persp)))
           (when (and persp (persp-contain-buffer-p* buffer persp))
             (let (persp-autokill-buffer-on-remove
@@ -2010,7 +2010,7 @@ Return removed buffers."
                       (persp-read-buffer "Switch to buffer: " (current-buffer) t)
                     (read-buffer "Switch to buffer: " (current-buffer) t)))))
   (when (and buffer-or-name
-             (buffer-live-p (get-buffer buffer-or-name)))
+             (persp-get-buffer-or-null (get-buffer buffer-or-name)))
     (switch-to-buffer buffer-or-name norecord force-same-window)))
 
 (defun* persp-remove-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
@@ -2187,7 +2187,7 @@ Return that old buffer."
   ;; filter out killed buffers
   (when persp
     (setf (persp-buffers persp)
-          (delete-if-not #'buffer-live-p (persp-buffers persp)))))
+          (delete-if-not #'persp-get-buffer-or-null (persp-buffers persp)))))
 
 (defun persp-hide (names)
   (interactive "i")
@@ -3074,7 +3074,7 @@ does not exists or not a directory %S." p-save-dir)
           (def-buffer
             #'(lambda (name fname mode &optional parameters)
                 (let ((buf (persp-get-buffer-or-null name)))
-                  (if (buffer-live-p buf)
+                  (if buf
                       (if (or (null fname)
                               (string= fname (buffer-file-name buf)))
                           buf
