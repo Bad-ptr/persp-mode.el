@@ -2889,7 +2889,8 @@ of the perspective %s can't be saved."
           (rename-file pf cf t))))
     (when (file-exists-p fname)
       (rename-file fname (concat fname (number-to-string 1)) t)))
-  (write-file fname nil))
+  (write-file fname nil)
+  t)
 
 (defun* persp-save-state-to-file (&optional (fname persp-auto-save-fname)
                                             (phash *persp-hash*)
@@ -2906,8 +2907,10 @@ of the perspective %s can't be saved."
         (make-directory p-save-dir t))
       (if (not (and (file-exists-p p-save-dir)
                     (file-directory-p p-save-dir)))
-          (message "[persp-mode] Error: Can't save perspectives -- `persp-save-dir' \
+          (progn
+            (message "[persp-mode] Error: Can't save perspectives -- `persp-save-dir' \
 does not exists or not a directory %S." p-save-dir)
+            nil)
         (mapc #'persp-save-state (persp-persps phash))
         (if respect-persp-file-parameter
             (let ((fg (persp-group-by (apply-partially #'persp-parameter 'persp-file)
