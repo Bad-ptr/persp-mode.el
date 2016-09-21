@@ -2242,7 +2242,7 @@ Return that old buffer."
   (unless (listp names) (setq names (list names)))
   (unless names
     (setq names (persp-prompt (concat "to kill"
-                                      (and dont-kill-buffers "(not killing buffers)"))
+                                      (and dont-kill-buffers " not killing buffers"))
                               t (safe-persp-name (get-current-persp)) t)))
   (mapc #'(lambda (pn)
             (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
