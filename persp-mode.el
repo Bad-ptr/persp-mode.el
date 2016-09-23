@@ -393,7 +393,7 @@ to interactivly read user input with completion.")
            (persp-set-ido-hooks t)
            (setq persp-interactive-completion-function #'ido-completing-read))
           (t nil))
-        (persp-set-toggle-read-persp-filter-keys persp-toggle-read-persp-filter-keys)))))
+        (persp-set-toggle-read-buffer-filter-keys persp-toggle-read-buffer-filter-keys)))))
 
 ;; TODO: remove this var
 (defcustom persp-interactive-completion-system 'completing-read
@@ -912,7 +912,8 @@ to a wrong one.")
   :type 'key-sequence
   :set #'(lambda (sym val) (persp-set-keymap-prefix val)))
 
-(defun persp-set-toggle-read-persp-filter-keys (keys)
+;; TODO: remove this function
+(defun persp-set-toggle-read-buffer-filter-keys (keys)
   (interactive
    (list
     (read-key-sequence
@@ -923,16 +924,23 @@ to a wrong one.")
          (define-key ido-buffer-completion-map keys #'ido-toggle-persp-filter)))
     (add-hook
      'persp-mode-hook
-     #'(lambda () (persp-set-toggle-read-persp-filter-keys
-              persp-toggle-read-persp-filter-keys))))
-  (set-default 'persp-toggle-read-persp-filter-keys keys))
+     #'(lambda () (persp-set-toggle-read-buffer-filter-keys
+              persp-toggle-read-buffer-filter-keys))))
+  (set-default 'persp-toggle-read-buffer-filter-keys keys))
+(define-obsolete-function-alias
+  'persp-set-toggle-read-persp-filter-keys 'persp-set-toggle-read-buffer-filter-keys
+  "persp-mode 2.9")
 
-(defcustom persp-toggle-read-persp-filter-keys (kbd "C-x C-p")
+(defcustom persp-toggle-read-buffer-filter-keys (kbd "C-x C-p")
   "Keysequence to toggle the buffer filtering during read-buffer."
   :group 'persp-mode
   :type 'key-sequence
+  ;; TODO: remove setter
   :set #'(lambda (sym val)
-           (persp-set-toggle-read-persp-filter-keys val)))
+           (persp-set-toggle-read-buffer-filter-keys val)))
+(define-obsolete-variable-alias
+  'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
+  "persp-mode 2.9")
 
 
 ;; Perspective struct:
