@@ -2766,27 +2766,47 @@ Return `NAME'."
   (when prompt
     (setq prompt (car (split-string prompt ": $" t "[[:space:]]"))))
   (let ((persp-read-buffer-reread 'reread)
-        done_str key-backup already-selected-buffers ret)
+        exit-minibuffer-function filter-key-backup finish-key-backup
+        done_str already-selected-buffers ret)
     (while persp-read-buffer-reread
       (setq persp-read-buffer-reread nil)
       (let ((persp-minibuffer-setup
              #'(lambda ()
-                 (unless key-backup
-                   (setq key-backup
-                         (lookup-key minibuffer-local-map
-                                     persp-toggle-read-persp-filter-keys)))
-                 (define-key minibuffer-local-map
-                   persp-toggle-read-persp-filter-keys
+                 (unless exit-minibuffer-function
+                   (setq exit-minibuffer-function
+                         (or (lookup-key (current-local-map) (kbd "RET"))
+                             #'exit-minibuffer)))
+                 (unless filter-key-backup
+                   (setq filter-key-backup
+                         (lookup-key (current-local-map)
+                                     persp-toggle-read-buffer-filter-keys)))
+                 (define-key (current-local-map)
+                   persp-toggle-read-buffer-filter-keys
                    #'(lambda () (interactive)
                        (setq persp-disable-buffer-restriction-once
                              (not persp-disable-buffer-restriction-once)
                              persp-read-buffer-reread t)
-                       (exit-minibuffer)))))
+                       (funcall exit-minibuffer-function)))
+                 (when multiple
+                   (unless finish-key-backup
+                     (setq finish-key-backup
+                           (lookup-key (current-local-map)
+                                       persp-read-multiple-finish-keys)))
+                   (define-key (current-local-map)
+                     persp-read-multiple-finish-keys
+                     #'(lambda () (interactive)
+                         (setq persp-read-buffer-reread nil
+                               multiple 'finish)
+                         (funcall exit-minibuffer-function))))))
             (persp-minibuffer-exit
              #'(lambda ()
                  (unless persp-read-buffer-reread
-                   (define-key minibuffer-local-map
-                     persp-toggle-read-persp-filter-keys key-backup))))
+                   (define-key (current-local-map)
+                     persp-toggle-read-buffer-filter-keys filter-key-backup))
+                 (when multiple
+                   (unless persp-read-buffer-reread
+                     (define-key (current-local-map)
+                       persp-read-multiple-finish-keys finish-key-backup)))))
             (persp-buf-list (if persp-disable-buffer-restriction-once
                                 (funcall persp-buffer-list-function)
                               (if persp-buffer-list-restricted-filter-functions
@@ -2822,7 +2842,7 @@ Return `NAME'."
                 (if multiple
                     (if (and inner-ret (string= done_str inner-ret))
                         (setq persp-read-buffer-reread nil)
-                      (setq persp-read-buffer-reread t
+                      (setq persp-read-buffer-reread (not (eq 'finish multiple))
                             def done_str)
                       (when inner-ret
                         (push inner-ret ret)
