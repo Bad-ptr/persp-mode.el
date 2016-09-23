@@ -2551,20 +2551,44 @@ Return `NAME'."
                                       ": ")
                                      persps nil require-match nil nil default)))
         (if multiple
-            (let ((done_str "[>done<]")
-                  cp)
+            (let ((done_str "[>done<]") (not-finished t)
+                  exit-minibuffer-function finish-key-backup mb-local-key-map)
               (while (member done_str persps)
                 (setq done_str (concat ">" done_str)))
               (push done_str persps)
               (unless default (setq default done_str))
-              (block 'multi-ret
-                (while (setq cp (call-pif))
-                  (when default (setq default done_str))
-                  (if (string= cp done_str)
-                      (return-from 'multi-ret retlst)
-                    (setq persps (delete cp persps))
-                    (push cp retlst)))))
+              (let ((persp-minibuffer-setup #'(lambda ()
+                                                (setq mb-local-key-map (current-local-map))
+                                                (unless exit-minibuffer-function
+                                                  (setq exit-minibuffer-function
+                                                        (lookup-key mb-local-key-map (kbd "RET"))))
+                                                (unless finish-key-backup
+                                                  (setq finish-key-backup
+                                                        (lookup-key mb-local-key-map
+                                                                    persp-read-multiple-finish-keys)))
+                                                (define-key mb-local-key-map persp-read-multiple-finish-keys
+                                                  #'(lambda () (interactive)
+                                                      (setq not-finished nil)
+                                                      (funcall exit-minibuffer-function)))))
+                    cp)
+                (unwind-protect
+                    (progn
+                      (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
+                      (while not-finished
+                        (unless (setq cp (call-pif))
+                          (setq not-finished nil))
+                        (if (string= cp done_str)
+                            (setq not-finished nil)
+                          (setq persps (delete cp persps)
+                                default done_str)
+                          (push cp retlst))))
+                  (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
+                  (when (lookup-key mb-local-key-map persp-read-multiple-finish-keys)
+                    (define-key mb-local-key-map persp-read-multiple-finish-keys finish-key-backup))))
+              retlst)
           (call-pif))))))
+;; TODO:
+;; (define-obsolete-function-alias 'persp-prompt 'persp-read-persp "persp-mode 2.9")
 
 (defsubst persp--set-frame-buffer-predicate-buffer-list-cache (buflist)
   (prog1
