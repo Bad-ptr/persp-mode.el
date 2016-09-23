@@ -942,6 +942,11 @@ to a wrong one.")
   'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
   "persp-mode 2.9")
 
+(defcustom persp-read-multiple-finish-keys (kbd "C-<return>")
+  "Keysequence to finish reading multiple candidates."
+  :group 'persp-mode
+  :type 'key-sequence)
+
 
 ;; Perspective struct:
 
