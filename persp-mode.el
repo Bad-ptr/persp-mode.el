@@ -1324,10 +1324,12 @@ to a wrong one.")
         (dolist (hook hooks)
           (if (and hook (boundp hook))
               (progn
-                (setq generated-hook (byte-compile
-                                      `(lambda (&rest hook-args)
-                                         (when persp-mode
-                                           (funcall (quote ,main-action) nil ',hook hook-args)))))
+                (setq generated-hook (with-no-warnings
+                                       (let ((warning-minimum-level :emergency))
+                                         (byte-compile
+                                          `(lambda (&rest hook-args)
+                                             (when persp-mode
+                                               (funcall (quote ,main-action) nil ',hook hook-args)))))))
                 (add-hook hook generated-hook)
                 (let ((aparams-hooks (assq :hooks auto-persp-parameters)))
                   (setf (cdr aparams-hooks) (delete hook (cdr aparams-hooks)))
@@ -2668,8 +2670,9 @@ Return `NAME'."
                              (funcall (quote ,persp-frame-buffer-predicate) b)
                              (funcall (quote ,old-pred) b))))))
               (unless (symbolp new-pred)
-                (setq new-pred (let (byte-compile-warnings)
-                                 (byte-compile new-pred))))
+                (setq new-pred (with-no-warnings
+                                 (let (byte-compile-warnings)
+                                   (byte-compile new-pred)))))
               (set-frame-parameter frame 'persp-buffer-predicate-generated new-pred)
               (set-frame-parameter frame 'buffer-predicate new-pred))
           (persp-set-frame-buffer-predicate frame t))))))
