@@ -1187,7 +1187,7 @@ to a wrong one.")
     (&key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate &allow-other-keys)
   (let ((predicate-body t))
     (when predicate
-      (setq predicate-body `(when (funcall ,predicate buffer)
+      (setq predicate-body `(when (funcall (quote ,predicate) buffer)
                               ,predicate-body)))
     (when file-name
       (setq predicate-body `(when (string-match-p ,file-name (buffer-file-name buffer))
@@ -1301,23 +1301,23 @@ to a wrong one.")
                             (let (,@dyn-env)
                               (unless buffer (setq buffer
                                                    ,(if (functionp get-buffer-expr)
-                                                        `(funcall ,get-buffer-expr)
+                                                        `(funcall (quote ,get-buffer-expr))
                                                       get-buffer-expr)))
-                              (when (funcall ,generated-predicate buffer)
+                              (when (funcall (quote ,generated-predicate) buffer)
                                 (with-current-buffer buffer
                                   (let* ((persp-name ,(if (functionp get-name-expr)
-                                                          `(funcall ,get-name-expr)
+                                                          `(funcall (quote ,get-name-expr))
                                                         get-name-expr))
                                          (persp ,(if (functionp get-persp-expr)
-                                                     `(funcall ,get-persp-expr persp-name)
+                                                     `(funcall (quote ,get-persp-expr) persp-name)
                                                    get-persp-expr))
                                          (after-match
-                                          (funcall (quote ,on-match) persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,weak (quote ,after-match)))
+                                          (funcall (quote ,on-match) persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak (quote ,after-match)))
                                          (do-def-after-match
                                           (when (functionp after-match)
-                                            (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,weak))))
+                                            (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak))))
                                     (when do-def-after-match
-                                      (funcall (quote ,default-after-match) persp-name persp buffer hook hook-args ',switch ',parameters ,noauto ,weak)))))))))
+                                      (funcall (quote ,default-after-match) persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak)))))))))
       (push (cons :main-action main-action) auto-persp-parameters)
 
       (when hooks
