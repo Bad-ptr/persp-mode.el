@@ -1325,7 +1325,8 @@ to a wrong one.")
           (if (and hook (boundp hook))
               (progn
                 (setq generated-hook (with-no-warnings
-                                       (let ((warning-minimum-level :emergency))
+                                       (let ((warning-minimum-level :emergency)
+                                             byte-compile-warnings)
                                          (byte-compile
                                           `(lambda (&rest hook-args)
                                              (when persp-mode
@@ -2671,7 +2672,8 @@ Return `NAME'."
                              (funcall (quote ,old-pred) b))))))
               (unless (symbolp new-pred)
                 (setq new-pred (with-no-warnings
-                                 (let (byte-compile-warnings)
+                                 (let ((warning-minimum-level :emergency)
+                                       byte-compile-warnings)
                                    (byte-compile new-pred)))))
               (set-frame-parameter frame 'persp-buffer-predicate-generated new-pred)
               (set-frame-parameter frame 'buffer-predicate new-pred))
