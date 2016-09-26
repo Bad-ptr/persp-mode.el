@@ -837,6 +837,9 @@ to a wrong one.")
 (defvar persp-inhibit-switch-for nil
   "List of frames and windows for which the switching of perspectives is inhibited.")
 
+(defvar persp-read-multiple-exit-minibuffer-function #'exit-minibuffer
+  "Function to call to exit minibuffer when reading multiple candidates.")
+
 (make-variable-buffer-local
  (defvar persp-buffer-in-persps nil
    "Buffer-local list of perspective names this buffer belongs to."))
@@ -918,34 +921,30 @@ to a wrong one.")
    (list
     (read-key-sequence
      "Now press a key sequence to be used for toggling persp filters during the read-buffer: ")))
-  (if persp-mode
-      (case persp-interactive-completion-system
-        (ido
-         (define-key ido-buffer-completion-map keys #'ido-toggle-persp-filter)))
-    (add-hook
-     'persp-mode-hook
-     #'(lambda () (persp-set-toggle-read-buffer-filter-keys
-              persp-toggle-read-buffer-filter-keys))))
+  (setf (cdr (assq 'toggle-persp-buffer-filter persp-read-multiple-keys)) keys)
   (set-default 'persp-toggle-read-buffer-filter-keys keys))
 (define-obsolete-function-alias
   'persp-set-toggle-read-persp-filter-keys 'persp-set-toggle-read-buffer-filter-keys
   "persp-mode 2.9")
 
+(defcustom persp-read-multiple-keys `((toggle-persp-buffer-filter . ,(kbd "C-x C-p"))
+                                      (push-item . ,(kbd "C-<return>"))
+                                      (pop-item  . ,(kbd "M-<return>")))
+  "Keybindings to use while prompting for multiple items."
+  :group 'persp-mode
+  :tag "Keys for reading multiple items"
+  :type '(alist :key-type symbol
+                :value-type key-sequence))
+
 (defcustom persp-toggle-read-buffer-filter-keys (kbd "C-x C-p")
   "Keysequence to toggle the buffer filtering during read-buffer."
   :group 'persp-mode
   :type 'key-sequence
-  ;; TODO: remove setter
   :set #'(lambda (sym val)
            (persp-set-toggle-read-buffer-filter-keys val)))
 (define-obsolete-variable-alias
   'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
   "persp-mode 2.9")
-
-(defcustom persp-read-multiple-finish-keys (kbd "C-<return>")
-  "Keysequence to finish reading multiple candidates."
-  :group 'persp-mode
-  :type 'key-sequence)
 
 
 ;; Perspective struct:
@@ -2555,39 +2554,62 @@ Return `NAME'."
                                      persps nil require-match nil nil default)))
         (if multiple
             (let ((done_str "[>done<]") (not-finished t)
-                  exit-minibuffer-function finish-key-backup mb-local-key-map)
+                  exit-minibuffer-function mb-local-key-map
+                  (push-keys (cdr (assq 'push-item persp-read-multiple-keys)))
+                  (pop-keys (cdr (assq 'pop-item persp-read-multiple-keys)))
+                  push-keys-backup pop-keys-backup)
               (while (member done_str persps)
                 (setq done_str (concat ">" done_str)))
-              (push done_str persps)
-              (unless default (setq default done_str))
               (let ((persp-minibuffer-setup #'(lambda ()
                                                 (setq mb-local-key-map (current-local-map))
                                                 (unless exit-minibuffer-function
                                                   (setq exit-minibuffer-function
-                                                        (lookup-key mb-local-key-map (kbd "RET"))))
-                                                (unless finish-key-backup
-                                                  (setq finish-key-backup
-                                                        (lookup-key mb-local-key-map
-                                                                    persp-read-multiple-finish-keys)))
-                                                (define-key mb-local-key-map persp-read-multiple-finish-keys
+                                                        (or (lookup-key mb-local-key-map (kbd "RET"))
+                                                            persp-read-multiple-exit-minibuffer-function)))
+                                                (unless push-keys-backup
+                                                  (setq push-keys-backup
+                                                        (lookup-key mb-local-key-map push-keys)))
+                                                (define-key mb-local-key-map push-keys
                                                   #'(lambda () (interactive)
-                                                      (setq not-finished nil)
+                                                      (setq not-finished 'push)
+                                                      (funcall exit-minibuffer-function)))
+                                                (unless pop-keys-backup
+                                                  (setq pop-keys-backup
+                                                        (lookup-key mb-local-key-map pop-keys)))
+                                                (define-key mb-local-key-map pop-keys
+                                                  #'(lambda () (interactive)
+                                                      (setq not-finished 'pop)
                                                       (funcall exit-minibuffer-function)))))
                     cp)
                 (unwind-protect
                     (progn
                       (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
                       (while not-finished
-                        (unless (setq cp (call-pif))
-                          (setq not-finished nil))
-                        (if (string= cp done_str)
-                            (setq not-finished nil)
-                          (setq persps (delete cp persps)
-                                default done_str)
-                          (push cp retlst))))
+                        (setq cp (call-pif))
+                        (case not-finished
+                          (push
+                           (when (and cp (not (string= cp done_str)))
+                             (unless retlst (push done_str persps))
+                             (push cp retlst)
+                             (setq persps (delete cp persps)
+                                   default done_str))
+                           (setq not-finished t))
+                          (pop
+                           (let ((last-item (pop retlst)))
+                             (unless retlst (setq persps (delete done_str persps)
+                                                  default nil))
+                             (when last-item
+                               (push last-item persps)))
+                           (setq not-finished t))
+                          (t
+                           (when (and cp (not (string= cp done_str)))
+                             (push cp retlst))
+                           (setq not-finished nil)))))
                   (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
-                  (when (lookup-key mb-local-key-map persp-read-multiple-finish-keys)
-                    (define-key mb-local-key-map persp-read-multiple-finish-keys finish-key-backup))))
+                  (when (lookup-key mb-local-key-map push-keys)
+                    (define-key mb-local-key-map push-keys push-keys-backup))
+                  (when (lookup-key mb-local-key-map pop-keys)
+                    (define-key mb-local-key-map pop-keys pop-keys-backup))))
               retlst)
           (call-pif))))))
 ;; TODO:
@@ -2765,97 +2787,106 @@ Return `NAME'."
   "Read buffers with restriction."
   (setq persp-disable-buffer-restriction-once nil)
   (when def
-    (if (and (not (stringp def)) (bufferp def) (buffer-live-p def))
-        (setq def (buffer-name def))
-      (setq def nil)))
+    (unless (stringp def)
+      (if (and (bufferp def) (buffer-live-p def))
+          (setq def (buffer-name def))
+        (setq def nil))))
   (when prompt
     (setq prompt (car (split-string prompt ": $" t "[[:space:]]"))))
-  (let ((persp-read-buffer-reread 'reread)
-        exit-minibuffer-function filter-key-backup finish-key-backup
-        done_str already-selected-buffers ret)
-    (while persp-read-buffer-reread
-      (setq persp-read-buffer-reread nil)
-      (let ((persp-minibuffer-setup
-             #'(lambda ()
-                 (unless exit-minibuffer-function
-                   (setq exit-minibuffer-function
-                         (or (lookup-key (current-local-map) (kbd "RET"))
-                             #'exit-minibuffer)))
-                 (unless filter-key-backup
-                   (setq filter-key-backup
-                         (lookup-key (current-local-map)
-                                     persp-toggle-read-buffer-filter-keys)))
-                 (define-key (current-local-map)
-                   persp-toggle-read-buffer-filter-keys
-                   #'(lambda () (interactive)
-                       (setq persp-disable-buffer-restriction-once
-                             (not persp-disable-buffer-restriction-once)
-                             persp-read-buffer-reread t)
-                       (funcall exit-minibuffer-function)))
-                 (when multiple
-                   (unless finish-key-backup
-                     (setq finish-key-backup
-                           (lookup-key (current-local-map)
-                                       persp-read-multiple-finish-keys)))
-                   (define-key (current-local-map)
-                     persp-read-multiple-finish-keys
-                     #'(lambda () (interactive)
-                         (setq persp-read-buffer-reread nil
-                               multiple 'finish)
-                         (funcall exit-minibuffer-function))))))
-            (persp-minibuffer-exit
-             #'(lambda ()
-                 (unless persp-read-buffer-reread
-                   (define-key (current-local-map)
-                     persp-toggle-read-buffer-filter-keys filter-key-backup))
-                 (when multiple
-                   (unless persp-read-buffer-reread
-                     (define-key (current-local-map)
-                       persp-read-multiple-finish-keys finish-key-backup)))))
-            (persp-buf-list (if persp-disable-buffer-restriction-once
-                                (funcall persp-buffer-list-function)
-                              (if persp-buffer-list-restricted-filter-functions
-                                  (persp-buffer-list-restricted)
-                                (delete-if #'persp-buffer-filtered-out-p
-                                           (persp-buffer-list-restricted))))))
-        (unwind-protect
-            (progn
-              (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
-              (add-hook 'minibuffer-exit-hook persp-minibuffer-exit t)
-              (let ((buf-name-list (mapcar #'buffer-name persp-buf-list))
-                    done_str inner-ret)
-                (when multiple
-                  (when already-selected-buffers
-                    (setq buf-name-list (delete-if #'(lambda (bn)
-                                                       (member bn already-selected-buffers))
-                                                   buf-name-list)))
-                  (setq done_str "[>done<]")
-                  (while (member done_str buf-name-list)
-                    (setq done_str (concat ">" done_str)))
-                  (push done_str buf-name-list))
-                (unless (member def buf-name-list)
-                  (if multiple
-                      (setq def done_str)
-                    (setq def nil)))
-                (setq inner-ret (funcall persp-interactive-completion-function
-                                         (concat prompt
-                                                 (and def (concat "(default " def ")"))
-                                                 (and multiple already-selected-buffers
-                                                      (concat "< " (mapconcat #'identity already-selected-buffers " ") " >"))
-                                                 ": ")
-                                         buf-name-list predicate require-match nil nil def))
-                (if multiple
-                    (if (and inner-ret (string= done_str inner-ret))
-                        (setq persp-read-buffer-reread nil)
-                      (setq persp-read-buffer-reread (not (eq 'finish multiple))
-                            def done_str)
-                      (when inner-ret
-                        (push inner-ret ret)
-                        (push inner-ret already-selected-buffers)))
-                  (setq ret inner-ret))))
-          (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
-          (remove-hook 'minibuffer-exit-hook persp-minibuffer-exit))))
-    ret))
+
+  (let ((buffer-names (delete-if #'persp-buffer-filtered-out-p
+                                 (mapcar #'buffer-name (persp-buffer-list-restricted))))
+        retlst)
+    (macrolet ((call-pif ()
+                         `(funcall persp-interactive-completion-function
+                                   (concat prompt
+                                           (and def (concat "(default " def ")"))
+                                           (and retlst
+                                                (concat "< " (mapconcat #'identity retlst " ") " >"))
+                                           ": ")
+                                   buffer-names predicate require-match nil nil def)))
+      (if multiple
+          (let ((done_str "[>done<]") (not-finished t)
+                exit-minibuffer-function mb-local-key-map
+                (push-keys (cdr (assq 'push-item persp-read-multiple-keys)))
+                (pop-keys (cdr (assq 'pop-item persp-read-multiple-keys)))
+                (toggle-filter-keys (cdr (assq 'toggle-persp-buffer-filter persp-read-multiple-keys)))
+                push-keys-backup pop-keys-backup toggle-filter-keys-backup)
+            (while (member done_str buffer-names)
+              (setq done_str (concat ">" done_str)))
+            (let ((persp-minibuffer-setup #'(lambda ()
+                                              (setq mb-local-key-map (current-local-map))
+                                              (unless exit-minibuffer-function
+                                                (setq exit-minibuffer-function
+                                                      (or (lookup-key mb-local-key-map (kbd "RET"))
+                                                          persp-read-multiple-exit-minibuffer-function)))
+                                              (unless push-keys-backup
+                                                (setq push-keys-backup
+                                                      (lookup-key mb-local-key-map push-keys)))
+                                              (define-key mb-local-key-map push-keys
+                                                #'(lambda () (interactive)
+                                                    (setq not-finished 'push)
+                                                    (funcall exit-minibuffer-function)))
+                                              (unless pop-keys-backup
+                                                (setq pop-keys-backup
+                                                      (lookup-key mb-local-key-map pop-keys)))
+                                              (define-key mb-local-key-map pop-keys
+                                                #'(lambda () (interactive)
+                                                    (setq not-finished 'pop)
+                                                    (funcall exit-minibuffer-function)))
+                                              (unless toggle-filter-keys-backup
+                                                (setq toggle-filter-keys-backup
+                                                      (lookup-key mb-local-key-map toggle-filter-keys)))
+                                              (define-key mb-local-key-map toggle-filter-keys
+                                                #'(lambda () (interactive)
+                                                    (setq not-finished 'toggle-filter)
+                                                    (funcall exit-minibuffer-function)))))
+                  cp)
+              (unwind-protect
+                  (progn
+                    (add-hook 'minibuffer-setup-hook persp-minibuffer-setup)
+                    (while not-finished
+                      (setq cp (call-pif))
+                      (case not-finished
+                        (push
+                         (when (and cp (not (string= cp done_str)))
+                           (unless retlst (push done_str buffer-names))
+                           (push cp retlst)
+                           (setq buffer-names (delete cp buffer-names)
+                                 def done_str))
+                         (setq not-finished t))
+                        (pop
+                         (let ((last-item (pop retlst)))
+                           (unless retlst (setq buffer-names (delete done_str buffer-names)
+                                                def nil))
+                           (when last-item
+                             (push last-item buffer-names)))
+                         (setq not-finished t))
+                        (toggle-filter
+                         (setq persp-disable-buffer-restriction-once
+                               (not persp-disable-buffer-restriction-once))
+                         (setq buffer-names (delete-if
+                                             #'(lambda (bn) (member bn retlst))
+                                             (mapcar #'buffer-name
+                                                     (if persp-disable-buffer-restriction-once
+                                                         (funcall persp-buffer-list-function)
+                                                       (delete-if #'persp-buffer-filtered-out-p
+                                                                  (persp-buffer-list-restricted))))))
+                         (setq not-finished t))
+                        (t
+                         (when (and cp (not (string= cp done_str)))
+                           (push cp retlst))
+                         (setq not-finished nil))))
+                    retlst)
+                (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
+                (when (lookup-key mb-local-key-map push-keys)
+                  (define-key mb-local-key-map push-keys push-keys-backup))
+                (when (lookup-key mb-local-key-map pop-keys)
+                  (define-key mb-local-key-map pop-keys pop-keys-backup))
+                (when (lookup-key mb-local-key-map toggle-filter-keys)
+                  (define-key mb-local-key-map toggle-filter-keys toggle-filter-keys-backup))
+                (setq persp-disable-buffer-restriction-once nil))))
+        (call-pif)))))
 
 
 ;; Save/Load funcs:
