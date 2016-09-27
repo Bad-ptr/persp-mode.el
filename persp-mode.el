@@ -1042,7 +1042,7 @@ to a wrong one.")
            sortp cache)
      &rest body)
   (let ((pblf-body `(persp-buffer-list-restricted frame)))
-    (when sortp (setq pblf-body `(sort ,pblf-body (quote ,sortp))))
+    (when sortp (setq pblf-body `(sort ,pblf-body (with-no-warnings ',sortp))))
     `(let ((*persp-restrict-buffers-to* ,restriction)
            (persp-restrict-buffers-to-if-foreign-buffer ,restriction-foreign-override)
            ,@(if cache `(persp-buffer-list-cache) nil))
@@ -1186,7 +1186,7 @@ to a wrong one.")
     (&key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate &allow-other-keys)
   (let ((predicate-body t))
     (when predicate
-      (setq predicate-body `(when (funcall (quote ,predicate) buffer)
+      (setq predicate-body `(when (funcall (with-no-warnings ',predicate) buffer)
                               ,predicate-body)))
     (when file-name
       (setq predicate-body `(when (string-match-p ,file-name (buffer-file-name buffer))
@@ -1300,23 +1300,23 @@ to a wrong one.")
                             (let (,@dyn-env)
                               (unless buffer (setq buffer
                                                    ,(if (functionp get-buffer-expr)
-                                                        `(funcall (quote ,get-buffer-expr))
+                                                        `(funcall (with-no-warnings ',get-buffer-expr))
                                                       get-buffer-expr)))
-                              (when (funcall (quote ,generated-predicate) buffer)
+                              (when (funcall (with-no-warnings ',generated-predicate) buffer)
                                 (with-current-buffer buffer
                                   (let* ((persp-name ,(if (functionp get-name-expr)
-                                                          `(funcall (quote ,get-name-expr))
+                                                          `(funcall (with-no-warnings ',get-name-expr))
                                                         get-name-expr))
                                          (persp ,(if (functionp get-persp-expr)
-                                                     `(funcall (quote ,get-persp-expr) persp-name)
+                                                     `(funcall (with-no-warnings ',get-persp-expr) persp-name)
                                                    get-persp-expr))
                                          (after-match
-                                          (funcall (quote ,on-match) persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak (quote ,after-match)))
+                                          (funcall (with-no-warnings ',on-match) persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak (with-no-warnings ',after-match)))
                                          (do-def-after-match
                                           (when (functionp after-match)
                                             (funcall after-match persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak))))
                                     (when do-def-after-match
-                                      (funcall (quote ,default-after-match) persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak)))))))))
+                                      (funcall (with-no-warnings ',default-after-match) persp-name persp buffer hook hook-args ',switch ',parameters ',noauto ',weak)))))))))
       (push (cons :main-action main-action) auto-persp-parameters)
 
       (when hooks
@@ -1329,7 +1329,7 @@ to a wrong one.")
                                          (byte-compile
                                           `(lambda (&rest hook-args)
                                              (when persp-mode
-                                               (funcall (quote ,main-action) nil ',hook hook-args)))))))
+                                               (funcall (with-no-warnings ',main-action) nil ',hook hook-args)))))))
                 (add-hook hook generated-hook)
                 (let ((aparams-hooks (assq :hooks auto-persp-parameters)))
                   (setf (cdr aparams-hooks) (delete hook (cdr aparams-hooks)))
@@ -1358,7 +1358,7 @@ to a wrong one.")
         save-body load-body)
     (unless tag-symbol (setq tag-symbol 'def-buffer-with-vars))
     (setq save-body (if save-function
-                        `(funcall (quote ,save-function) buffer)
+                        `(funcall (with-no-warnings ',save-function) buffer)
                       `(let (vars-list)
                          (with-current-buffer buffer
                            (mapc #'(lambda (var)
@@ -1366,11 +1366,11 @@ to a wrong one.")
                                        (push (cons var (symbol-value var)) vars-list)))
                                  ',save-vars))
                          (list ',tag-symbol (buffer-name buffer) vars-list)))
-          save-body `(when (funcall (quote ,generated-save-predicate) buffer)
+          save-body `(when (funcall (with-no-warnings ',generated-save-predicate) buffer)
                        ,save-body))
 
     (setq load-body (if load-function
-                        `(funcall (quote ,load-function) savelist)
+                        `(funcall (with-no-warnings ',load-function) savelist)
                       `(destructuring-bind (buffer-name vars-list) (cdr savelist)
                          (let ((buf-file (cdr (assq 'buffer-file-name vars-list)))
                                (buf-mmode (cdr (assq 'major-mode vars-list))))
@@ -1378,7 +1378,7 @@ to a wrong one.")
                                           (persp-buffer-from-savelist
                                            (list 'def-buffer buffer-name buf-file buf-mmode
                                                  (list (cons 'local-vars vars-list)))))
-                                         (persp-after-load-function (quote ,after-load-function))
+                                         (persp-after-load-function (with-no-warnings ',after-load-function))
                                          persp-after-load-lambda)
                              (when (and persp-loaded-buffer persp-after-load-function)
                                (setq persp-after-load-lambda #'(lambda (&rest pall-args)
@@ -2631,7 +2631,7 @@ Return `NAME'."
               t
             ,(typecase opt
                (function
-                `(funcall (quote ,opt) b))
+                `(funcall (with-no-warnings ',opt) b))
                (number
                 `(let ((*persp-restrict-buffers-to* ,opt))
                    (memq b
@@ -2690,8 +2690,8 @@ Return `NAME'."
                       ('nil persp-frame-buffer-predicate)
                       (t `(lambda (b)
                             (and
-                             (funcall (quote ,persp-frame-buffer-predicate) b)
-                             (funcall (quote ,old-pred) b))))))
+                             (funcall (with-no-warnings ',persp-frame-buffer-predicate) b)
+                             (funcall (with-no-warnings ',old-pred) b))))))
               (unless (symbolp new-pred)
                 (setq new-pred (with-no-warnings
                                  (let ((warning-minimum-level :emergency)
@@ -2714,7 +2714,7 @@ Return `NAME'."
       (eval
        `(lambda (frame)
           ,(if (functionp opt)
-               `(funcall (quote ,opt) frame)
+               `(funcall (with-no-warnings ',opt) frame)
              `(let* ((frame-client (frame-parameter frame 'client))
                      (frame-client-bl (when (processp frame-client)
                                         (process-get frame-client 'buffers))))
