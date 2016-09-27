@@ -2792,7 +2792,7 @@ Return `NAME'."
           (setq def (buffer-name def))
         (setq def nil))))
   (when prompt
-    (setq prompt (car (split-string prompt ": $" t "[[:space:]]"))))
+    (setq prompt (car (split-string prompt ": *$" t))))
 
   (let ((buffer-names (delete-if #'persp-buffer-filtered-out-p
                                  (mapcar #'buffer-name (persp-buffer-list-restricted))))
