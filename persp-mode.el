@@ -2069,7 +2069,7 @@ Return removed buffers."
       (unless no-update-frames
         (persp-update-frames-window-confs (list (safe-persp-name persp-to)))))))
 
-(defun persp-copy (new-name &optional switch)
+(defun* persp-copy (new-name &optional switch (called-interactively-p (called-interactively-p 'any)))
   (interactive "i")
   (unless new-name
     (setq new-name
@@ -2079,8 +2079,9 @@ Return removed buffers."
                       new-name)
              nil)
     (let* ((current-persp (get-current-persp))
-           (new-buffers (if current-persp
-                            (append (safe-persp-buffers current-persp) nil)
+           (choosen-buffers t)
+           (new-buffers (if (and current-persp (not (and called-interactively-p current-prefix-arg)))
+                            (append (persp-buffers current-persp) nil)
                           (delete-if-not
                            (destructuring-bind (char &rest _)
                                (read-multiple-choice
@@ -2089,17 +2090,27 @@ Return removed buffers."
                                   (?d "displayed")
                                   (?f "free and displayed")
                                   (?F "free")
+                                  (?c "choose")
                                   (?n "none")))
                              (case char
                                (?d #'(lambda (b) (get-buffer-window-list b 'no-minibuf)))
                                (?f #'(lambda (b) (or (persp-buffer-free-p b t)
                                                 (get-buffer-window-list b 'no-minibuf))))
                                (?F #'(lambda (b) (persp-buffer-free-p b t)))
+                               (?c #'(lambda (b)
+                                       (unless (listp choosen-buffers)
+                                         (setq choosen-buffers
+                                               (persp-read-buffer "" (current-buffer) t nil t 'push)))
+                                       nil))
                                (?n #'not)
                                (?a nil)
                                (t nil)))
-                           (safe-persp-buffers current-persp))))
+                           (if current-persp
+                               (append (persp-buffers current-persp) nil)
+                             (safe-persp-buffers current-persp)))))
            (new-persp (persp-add-new new-name)))
+      (when (listp choosen-buffers)
+        (setq new-buffers (mapcar #'get-buffer choosen-buffers)))
       (when new-persp
         (persp-save-state current-persp)
         (setf (persp-buffers new-persp) new-buffers
