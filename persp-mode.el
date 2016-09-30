@@ -2790,14 +2790,14 @@ Return `NAME'."
   (exit-minibuffer))
 
 
-(defun persp-read-buffer (prompt &optional def require-match predicate multiple)
+(defun* persp-read-buffer (prompt &optional default require-match predicate multiple (default-mode t))
   "Read buffers with restriction."
   (setq persp-disable-buffer-restriction-once nil)
-  (when def
-    (unless (stringp def)
-      (if (and (bufferp def) (buffer-live-p def))
-          (setq def (buffer-name def))
-        (setq def nil))))
+  (when default
+    (unless (stringp default)
+      (if (and (bufferp default) (buffer-live-p default))
+          (setq default (buffer-name default))
+        (setq default nil))))
   (when prompt
     (setq prompt (car (split-string prompt ": *$" t))))
 
@@ -2807,13 +2807,13 @@ Return `NAME'."
     (macrolet ((call-pif ()
                          `(funcall persp-interactive-completion-function
                                    (concat prompt
-                                           (and def (concat "(default " def ")"))
+                                           (and default (concat "(default " default ")"))
                                            (and retlst
                                                 (concat "< " (mapconcat #'identity retlst " ") " >"))
                                            ": ")
-                                   buffer-names predicate require-match nil nil def)))
+                                   buffer-names predicate require-match nil nil default)))
       (if multiple
-          (let ((done_str "[>done<]") (not-finished t)
+          (let ((done_str "[>done<]") (not-finished default-mode)
                 exit-minibuffer-function mb-local-key-map
                 (push-keys (cdr (assq 'push-item persp-read-multiple-keys)))
                 (pop-keys (cdr (assq 'pop-item persp-read-multiple-keys)))
@@ -2852,26 +2852,31 @@ Return `NAME'."
                   cp)
               (unwind-protect
                   (progn
-                    (when (and def (not (member def buffer-names)))
-                      (setq def nil))
+                    (when (and default (not (member default buffer-names)))
+                      (setq default nil))
                     (add-hook 'minibuffer-setup-hook persp-minibuffer-setup)
                     (while not-finished
                       (setq cp (call-pif))
                       (case not-finished
                         (push
-                         (when (and cp (not (string= cp done_str)) (member cp buffer-names))
-                           (unless retlst (push done_str buffer-names))
-                           (push cp retlst)
-                           (setq buffer-names (delete cp buffer-names)
-                                 def done_str))
-                         (setq not-finished t))
+                         (when (and cp (member cp buffer-names))
+                           (if retlst
+                               (when (string= cp done_str)
+                                 (setq not-finished nil))
+                             (push done_str buffer-names))
+                           (when not-finished
+                             (push cp retlst)
+                             (setq buffer-names (delete cp buffer-names)
+                                   default done_str)))
+                         (when not-finished
+                           (setq not-finished default-mode)))
                         (pop
                          (let ((last-item (pop retlst)))
                            (unless retlst (setq buffer-names (delete done_str buffer-names)
-                                                def nil))
+                                                default nil))
                            (when last-item
                              (push last-item buffer-names)))
-                         (setq not-finished t))
+                         (setq not-finished default-mode))
                         (toggle-filter
                          (setq persp-disable-buffer-restriction-once
                                (not persp-disable-buffer-restriction-once))
@@ -2882,7 +2887,7 @@ Return `NAME'."
                                                          (funcall persp-buffer-list-function)
                                                        (delete-if #'persp-buffer-filtered-out-p
                                                                   (persp-buffer-list-restricted))))))
-                         (setq not-finished t))
+                         (setq not-finished default-mode))
                         (t
                          (when (and cp (not (string= cp done_str)) (member cp buffer-names))
                            (push cp retlst))
