@@ -1838,7 +1838,7 @@ Switch all frames with that perspective to another one.
 Return the removed perspective."
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to remove" nil
+    (setq name (persp-read-persp "to remove" nil
                              (and (eq phash *persp-hash*) (safe-persp-name (get-current-persp)))
                              t t)))
   (let ((persp (persp-get-by-name name phash :+-123emptynooo))
@@ -2048,7 +2048,7 @@ Return removed buffers."
   (interactive "i")
   (unless (listp names) (setq names (list names)))
   (unless names
-    (setq names (persp-prompt "to import buffers from" t nil t nil t)))
+    (setq names (persp-read-persp "to import buffers from" t nil t nil t)))
   (mapc #'(lambda (pn)
             (persp-import-buffers-from (persp-get-by-name pn phash) persp-to))
         names))
@@ -2059,7 +2059,7 @@ Return removed buffers."
      no-update-frames)
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to import window configuration from" nil nil t nil t)))
+    (setq name (persp-read-persp "to import window configuration from" nil nil t nil t)))
   (let ((persp-from (persp-get-by-name name phash :+-123emptynooo)))
     (unless (or (eq persp-to persp-from)
                 (eq persp-from :+-123emptynooo))
@@ -2219,7 +2219,7 @@ Return that old buffer."
   (interactive "i")
   (unless (listp names) (setq names (list names)))
   (unless names
-    (setq names (persp-prompt "to hide" t (safe-persp-name (get-current-persp)) t)))
+    (setq names (persp-read-persp "to hide" t (safe-persp-name (get-current-persp)) t)))
   (let ((persp-to-switch (get-current-persp))
         (hidden-persps
          (mapcar #'(lambda (pn)
@@ -2250,7 +2250,7 @@ Return that old buffer."
                    (delete-if-not #'safe-persp-hidden
                                   (persp-persps)))))
       (setq names
-            (persp-prompt "to unhide" t (car hidden-persps) t nil nil hidden-persps t))))
+            (persp-read-persp "to unhide" t (car hidden-persps) t nil nil hidden-persps t))))
   (when names
     (mapc #'(lambda (pn)
               (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
@@ -2267,7 +2267,7 @@ Return that old buffer."
     (setq dont-kill-buffers (not dont-kill-buffers)))
   (unless (listp names) (setq names (list names)))
   (unless names
-    (setq names (persp-prompt (concat "to kill"
+    (setq names (persp-read-persp (concat "to kill"
                                       (and dont-kill-buffers " not killing buffers"))
                               t (safe-persp-name (get-current-persp)) t)))
   (mapc #'(lambda (pn)
@@ -2339,7 +2339,7 @@ Return `NAME'."
 (defun* persp-frame-switch (name &optional (frame (selected-frame)))
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to switch(in frame)" nil nil nil nil t)))
+    (setq name (persp-read-persp "to switch(in frame)" nil nil nil nil t)))
   (unless (memq frame persp-inhibit-switch-for)
     (run-hook-with-args 'persp-before-switch-functions name frame)
     (let ((persp-inhibit-switch-for (cons frame persp-inhibit-switch-for)))
@@ -2348,7 +2348,7 @@ Return `NAME'."
 (defun* persp-window-switch (name &optional (window (selected-window)))
   (interactive "i")
   (unless name
-    (setq name (persp-prompt "to switch(in window)" nil nil nil nil t)))
+    (setq name (persp-read-persp "to switch(in window)" nil nil nil nil t)))
   (unless (memq window persp-inhibit-switch-for)
     (run-hook-with-args 'persp-before-switch-functions name window)
     (let ((persp-inhibit-switch-for (cons window persp-inhibit-switch-for)))
@@ -2477,7 +2477,7 @@ Return `NAME'."
                           (setf (persp-auto persp) t)))
              (prompt (select-frame frame)
                      (setq persp-name
-                           (persp-prompt "to switch" nil nil nil nil t)
+                           (persp-read-persp "to switch" nil nil nil nil t)
                            persp (persp-add-new persp-name)))
              (t (set-default-persp))))
           (t (set-default-persp))))
@@ -2538,7 +2538,7 @@ Return `NAME'."
                             (vector str_name #'(lambda () (interactive)
                                                  (persp-kill str_name))))))))
 
-(defun* persp-prompt
+(defun* persp-read-persp
     (&optional action multiple default require-match delnil delcur persp-list show-hidden (default-mode t))
   (let ((persps (or persp-list
                     (persp-names-current-frame-fast-ordered))))
@@ -2630,8 +2630,7 @@ Return `NAME'."
                       (define-key mb-local-key-map pop-keys pop-keys-backup)))))
               retlst)
           (call-pif))))))
-;; TODO:
-;; (define-obsolete-function-alias 'persp-prompt 'persp-read-persp "persp-mode 2.9")
+(define-obsolete-function-alias 'persp-prompt 'persp-read-persp "persp-mode 2.9")
 
 (defsubst persp--set-frame-buffer-predicate-buffer-list-cache (buflist)
   (prog1
@@ -3104,7 +3103,7 @@ does not exists or not a directory %S." p-save-dir)
                                                (called-interactively-p (called-interactively-p 'any)))
   (interactive)
   (unless names
-    (setq names (persp-prompt "to save" t (safe-persp-name (get-current-persp)) t nil nil nil nil 'push)))
+    (setq names (persp-read-persp "to save" t (safe-persp-name (get-current-persp)) t nil nil nil nil 'push)))
   (when (or (not fname) called-interactively-p)
     (setq fname (read-file-name (format "Save a subset of perspectives%s to a file: "
                                         names)
@@ -3366,7 +3365,7 @@ does not exists or not a directory %S." p-save-dir)
                                     (expand-file-name persp-save-dir))
                                 (file-name-nondirectory fname)))
            (available-names (persp-list-persp-names-in-file p-save-file)))
-      (setq names (persp-prompt "to load" t nil t nil nil available-names nil 'push))))
+      (setq names (persp-read-persp "to load" t nil t nil nil available-names nil 'push))))
   (when names
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
