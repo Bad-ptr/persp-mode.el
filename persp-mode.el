@@ -688,6 +688,15 @@ The perspective is available with (get-current-persp)."
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-before-save-state-to-file-functions nil
+  "Functions to run before saving perspectives to a file.
+Each function in this list will be called with 3 arguments:
+1) a file name to which perspectives will be saved;
+2) a hash with perspectives;
+3) a boolean argument indicating if the persp-file parameter of perspectives must be set."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-after-load-state-functions
   (list #'(lambda (file phash persp-names)
             (when (eq phash *persp-hash*)
@@ -3079,10 +3088,12 @@ of the perspective %s can't be saved."
 does not exists or not a directory %S." p-save-dir)
             nil)
         (mapc #'persp-save-state (persp-persps phash))
+        (run-hook-with-args 'persp-before-save-state-to-file-functions fname phash respect-persp-file-parameter)
         (if respect-persp-file-parameter
             (let ((fg (persp-group-by (apply-partially #'persp-parameter 'persp-file)
                                       (persp-persps phash)))
-                  (persp-auto-save-persps-to-their-file nil))
+                  persp-auto-save-persps-to-their-file
+                  persp-before-save-state-to-file-functions)
               (mapc #'(lambda (gr)
                         (let ((pfname (car gr)) (pl (cdr gr)) names)
                           (mapc #'(lambda (p) (push (safe-persp-name p) names)) pl)
