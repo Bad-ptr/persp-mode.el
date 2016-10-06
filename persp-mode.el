@@ -1150,9 +1150,11 @@ to a wrong one.")
          t)))))
 (defun persp-kill-emacs-h ()
   (persp-asave-on-exit nil))
+
 (defun persp-kill-emacs-query-function ()
-  (when (persp-asave-on-exit t)
-    (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h)))
+  (if (persp-asave-on-exit t)
+      (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h)
+    t))
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
