@@ -1113,7 +1113,7 @@ to a wrong one.")
               (acons param-name value params))))))
 
 (defun* persp-parameter (param-name &optional (persp (get-current-persp)))
-  (cdr-safe (assq param-name (safe-persp-parameters persp))))
+  (cdr (assq param-name (safe-persp-parameters persp))))
 
 (defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
@@ -3097,11 +3097,11 @@ does not exists or not a directory %S." p-save-dir)
                   persp-auto-save-persps-to-their-file
                   persp-before-save-state-to-file-functions)
               (mapc #'(lambda (gr)
-                        (let ((pfname (car gr)) (pl (cdr gr)) names)
-                          (mapc #'(lambda (p) (push (safe-persp-name p) names)) pl)
-                          (if pfname
-                              (persp-save-to-file-by-names pfname phash names 'yes nil)
-                            (persp-save-to-file-by-names p-save-file phash names 'no nil))))
+                        (destructuring-bind (pfname . pl) gr
+                          (let ((names (mapcar #'safe-persp-name pl)))
+                            (if pfname
+                                (persp-save-to-file-by-names pfname phash names 'yes nil)
+                              (persp-save-to-file-by-names p-save-file phash names 'no nil)))))
                     fg))
           (with-temp-buffer
             (erase-buffer)
