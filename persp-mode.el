@@ -1133,28 +1133,30 @@ to a wrong one.")
   (remove-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook))
 
 (defun persp-asave-on-exit (&optional interactive-query)
-  (when (and persp-mode (> persp-auto-save-opt 0))
-    (condition-case-unless-debug err
-        (persp-save-state-to-file)
-      (error
-       (message "[persp-mode] Error: Can not autosave perspectives -- %s"
-                err)
-       (when (or noninteractive
-                 (progn
-                   (when (null (persp-frame-list-without-daemon))
-                     (make-frame))
-                   (null (persp-frame-list-without-daemon))))
-         (setq interactive-query nil))
-       (if interactive-query
-           (yes-or-no-p "persp-mode can not save perspectives, do you want to exit anyway?")
-         t)))))
+  (when persp-mode
+    (if (> persp-auto-save-opt 0)
+        (condition-case-unless-debug err
+            (persp-save-state-to-file)
+          (error
+           (message "[persp-mode] Error: Can not autosave perspectives -- %s"
+                    err)
+           (when (or noninteractive
+                     (progn
+                       (when (null (persp-frame-list-without-daemon))
+                         (make-frame))
+                       (null (persp-frame-list-without-daemon))))
+             (setq interactive-query nil))
+           (if interactive-query
+               (yes-or-no-p "persp-mode can not save perspectives, do you want to exit anyway?")
+             t)))
+      t)))
 (defun persp-kill-emacs-h ()
   (persp-asave-on-exit nil))
 
 (defun persp-kill-emacs-query-function ()
-  (if (persp-asave-on-exit t)
-      (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h)
-    t))
+  (when (persp-asave-on-exit t)
+    (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h))
+  t)
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
