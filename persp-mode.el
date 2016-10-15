@@ -1658,7 +1658,7 @@ and then killed.\nWhat do you really want to do? "
                  (push k ret))
              phash)
     (if reverse
-        (reverse ret)
+        (nreverse ret)
       ret)))
 
 (defun set-window-persp* (persp-name &optional window)
@@ -1700,7 +1700,7 @@ and then killed.\nWhat do you really want to do? "
 (defsubst* persp-names-sorted (&optional (phash *persp-hash*))
   (sort (persp-names phash nil) #'string<))
 
-(defun persp-group-by (keyf lst)
+(defun persp-group-by (keyf lst &optional reverse)
   (let (result)
     (mapc #'(lambda (pd)
               (let* ((key (funcall keyf pd))
@@ -1709,9 +1709,14 @@ and then killed.\nWhat do you really want to do? "
                     (setcdr kv (cons pd (cdr kv)))
                   (push (list key pd) result))))
           lst)
-    result))
+    (if reverse
+        (nreverse
+         (mapcar #'(lambda (gr)
+                     (setcdr gr (nreverse (cdr gr))))
+                 result))
+      result)))
 
-(defun* persp-persps (&optional (phash *persp-hash*) &optional names-regexp)
+(defun* persp-persps (&optional (phash *persp-hash*) &optional names-regexp reverse)
   (let (ret)
     (maphash #'(lambda (k p)
                  (if names-regexp
@@ -1719,7 +1724,9 @@ and then killed.\nWhat do you really want to do? "
                        (push p ret))
                    (push p ret)))
              phash)
-    ret))
+    (if reverse
+        (nreverse ret)
+      ret)))
 
 (defun* persp-other-not-hidden-persps (&optional persp (phash *persp-hash*))
   (delete-if #'safe-persp-hidden (delq persp (persp-persps phash))))
@@ -2641,7 +2648,9 @@ Return `NAME'."
                       (define-key mb-local-key-map push-keys push-keys-backup))
                     (when (lookup-key mb-local-key-map pop-keys)
                       (define-key mb-local-key-map pop-keys pop-keys-backup)))))
-              retlst)
+              (if (eq multiple 'reverse)
+                  (nreverse retlst)
+                retlst))
           (call-pif))))))
 (define-obsolete-function-alias 'persp-prompt 'persp-read-persp "persp-mode 2.9")
 
@@ -2915,7 +2924,9 @@ Return `NAME'."
                          (when (and cp (not (string= cp done_str)) (member cp buffer-names))
                            (push cp retlst))
                          (setq not-finished nil))))
-                    retlst)
+                    (if (eq 'reverse multiple)
+                        (nreverse retlst)
+                      retlst))
                 (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
                 (when (keymapp mb-local-key-map)
                   (when (lookup-key mb-local-key-map push-keys)
@@ -3049,7 +3060,7 @@ of the perspective %s can't be saved."
 (defun persps-to-savelist (&optional phash names-regexp)
   (mapcar #'persp-to-savelist
           (delete-if (apply-partially #'persp-parameter 'dont-save-to-file)
-                     (persp-persps (or phash *persp-hash*) names-regexp))))
+                     (persp-persps (or phash *persp-hash*) names-regexp t))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
@@ -3095,7 +3106,7 @@ does not exists or not a directory %S." p-save-dir)
         (run-hook-with-args 'persp-before-save-state-to-file-functions fname phash respect-persp-file-parameter)
         (if respect-persp-file-parameter
             (let ((fg (persp-group-by (apply-partially #'persp-parameter 'persp-file)
-                                      (persp-persps phash)))
+                                      (persp-persps phash nil t) t))
                   persp-auto-save-persps-to-their-file
                   persp-before-save-state-to-file-functions)
               (mapc #'(lambda (gr)
@@ -3118,7 +3129,7 @@ does not exists or not a directory %S." p-save-dir)
                                                (called-interactively-p (called-interactively-p 'any)))
   (interactive)
   (unless names
-    (setq names (persp-read-persp "to save" t (safe-persp-name (get-current-persp)) t nil nil nil nil 'push)))
+    (setq names (persp-read-persp "to save" 'reverse (safe-persp-name (get-current-persp)) t nil nil nil nil 'push)))
   (when (or (not fname) called-interactively-p)
     (setq fname (read-file-name (format "Save a subset of perspectives%s to a file: "
                                         names)
@@ -3380,7 +3391,7 @@ does not exists or not a directory %S." p-save-dir)
                                     (expand-file-name persp-save-dir))
                                 (file-name-nondirectory fname)))
            (available-names (persp-list-persp-names-in-file p-save-file)))
-      (setq names (persp-read-persp "to load" t nil t nil nil available-names nil 'push))))
+      (setq names (persp-read-persp "to load" 'reverse nil t nil nil available-names nil 'push))))
   (when names
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
