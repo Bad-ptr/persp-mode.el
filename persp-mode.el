@@ -1707,12 +1707,13 @@ and then killed.\nWhat do you really want to do? "
                      (kv (assoc key result)))
                 (if kv
                     (setcdr kv (cons pd (cdr kv)))
-                  (push (list key pd) result))))
+                  (push (cons key (list pd)) result))))
           lst)
     (if reverse
         (nreverse
          (mapcar #'(lambda (gr)
-                     (setcdr gr (nreverse (cdr gr))))
+                     (destructuring-bind (key . pd) gr
+                       (cons key (nreverse pd))))
                  result))
       result)))
 
