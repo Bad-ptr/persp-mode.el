@@ -3,6 +3,6 @@
 (source melpa)
 
 (development
- (depends-on "cask")
+ (depends-on "cask-package-toolset")
  (depends-on "buttercup")
  (depends-on "undercover"))

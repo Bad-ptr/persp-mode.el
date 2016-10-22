@@ -4,6 +4,7 @@ sudo: no
 
 env:
   matrix:
+    # commented-out builds won't be tested
     - EVM_EMACS=emacs-24.1-travis
     - EVM_EMACS=emacs-24.2-travis
     - EVM_EMACS=emacs-24.3-travis
@@ -13,8 +14,11 @@ env:
     - EVM_EMACS=emacs-git-snapshot-travis
 
 before_install:
+  # install evm and cask
   - curl -fsSkL https://gist.github.com/rejeep/ebcd57c3af83b049833b/raw > travis.sh && source ./travis.sh
+  # install emacs
   - evm install $EVM_EMACS --use --skip
+  # install packages (buttercup, undercover)
   - make install
 
 script:
