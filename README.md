@@ -2,7 +2,7 @@
 
 ## Intro  
 Perspectives for emacs, based on the [`perspective-el`](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
-But the perspectives are shared among frames \+ ability to save/restore it's state from/to a file.  
+But the perspectives are shared among frames \+ ability to save/restore its state from/to a file.  
 
 ## Installation  
 The persp-mode is available from the [`MELPA`](https://github.com/milkypostman/melpa). So if you use this repo then the installation is easy:  
@@ -55,10 +55,10 @@ Ability to save/restore window configurations from/to a file for emacs < 24.4 de
 `s` -- create/switch to perspective.  
 `S` -- create/switch to perspective in a window.  
 `r` -- rename perspective.  
-`c` -- copy current perspecive.  
-`C` -- kill perspective(if you try to kill 'nil' persp -- it'l kill all buffers). Calling with prefix argument will not kill perspective's buffers.  
+`c` -- copy current perspective.  
+`C` -- kill perspective(if you try to kill 'nil' persp -- it'll kill all buffers). Calling with prefix argument will not kill perspective's buffers.  
 `a` -- add buffer to perspective. Calling with prefix argument reverses the effect of the `persp-switch-to-added-buffer`.  
-`b` -- switch to buffer in perspecive.  
+`b` -- switch to buffer in perspective.  
 `t` -- switch to buffer without adding it to the current perspective. Calling with prefix argument allows to remove a buffer from perspective without killing and switching to another buffer.  
 `i` -- import all buffers from another perspective.  
 `I` -- import window configuration from another perspecive.  
@@ -74,7 +74,7 @@ These key sequences must follow the `persp-keymap-prefix` which you can customiz
 If you want to bind a new key for persp-mode, use `persp-key-map`:  
 `(define-key persp-key-map (kbd ...) ...)`.  
   
-If you kill a buffer with `C-x k`(kill-buffer command) it will be killed only if it belongs to a single perspective, otherwise it'l be only removed from the current perspective and not killed.  
+If you kill a buffer with `C-x k`(kill-buffer command) it will be killed only if it belongs to a single perspective, otherwise it'll be only removed from the current perspective and not killed.  
 But if you kill a buffer from the 'none'(nil) perspective -- it will be removed from all perspectives and then killed.  
 
 ## Customization  
@@ -89,7 +89,7 @@ Then the save function would be:
     (when (string= major-mode "inferior-emacs-lisp-mode")
       `(def-ielm-buffer ,(buffer-name) ,default-directory))))
 ```
-You must prepend that function to the `persp-save-buffer-functions` list (before the standard filtering functions couse it filters buffers starting with the '*').  
+You must prepend that function to the `persp-save-buffer-functions` list (before the standard filtering functions because it filters buffers starting with the '*').  
 
 The load function:  
 ```lisp
@@ -164,10 +164,10 @@ After that you can add functions to `after-switch-to-buffer-functions` and `afte
                      (persp-add-buffer bn))))
 ```
 
-## Auto perpectives  
+## Auto perspectives  
 
 You can now define an auto perspective using the `def-auto-persp` function.  
-This kind of perspectives is intended to be dynamically created/destroyed/hided/unhided when a specific kind of buffers appears/disappiars.  
+This kind of perspective is intended to be dynamically created/destroyed/hided/unhided when a specific kind of buffers appears/disappears.  
 
 The argument list of the `def-auto-persp` macro:  
 
@@ -175,7 +175,7 @@ The first argument is a string which will serve as a name for the auto perspecti
 
 Other arguments is a key - value pairs:  
 
-`:buffer-name` -- regexp to match agains a name of a buffer.  
+`:buffer-name` -- regexp to match against a name of a buffer.  
 `:file-name` -- regexp to match against a filename of the buffer.  
 `:mode` -- symbol to compare with the major-mode of the buffer.  
 `:mode-name` -- regexp to compare against mode-name of the buffer.  
@@ -190,7 +190,7 @@ Other arguments is a key - value pairs:
 `:get-buffer-expr` -- expression or function to get the buffer.  
 `:get-persp-expr` -- expression or function to get the perspective.  
 `:switch` -- how to switch to the auto perspective: `nil` -- do not switch, `'window` -- switch in window, `'frame` -- switch for frame.  
-`:parametes` -- list of parameters for perspective(see the `modify-persp-parameters` function).  
+`:parameters` -- list of parameters for perspective(see the `modify-persp-parameters` function).  
 `:noauto` -- if non nil then do not set the auto field of the perspective.  
 
 `:on-match` -- function to run when the buffer passed all checks, instead of standard actions(create/get perspective, add buffer to it).  
@@ -208,7 +208,7 @@ if this function return another function it will be run as `:after-match` action
 `:after-match` -- function to run after the buffer has passed all checks and standard or custom action finished their work.  
   arguments passed to that function:  
   1. the name of perspective;  
-  2. the perspecive;  
+  2. the perspective;  
   3. the buffer;  
   4. the hook;  
   5. the hook arguments;  
@@ -216,7 +216,7 @@ if this function return another function it will be run as `:after-match` action
   7. `noauto` argument;  
 if this function return not nil -- the default after-match action will be run, which will set perspective parameters and an auto flag if needed.  
 
-Only the name string(first argument) is required. All other arguments could be ommited or combined in any way you like.  
+Only the name string(first argument) is required. All other arguments could be omitted or combined in any way you like.  
 
 The `def-auto-persp` function creates an auto persp definition and adds it to the `persp-auto-persp-alist`. If a definition with same name already exists it will be replaced. If you want to delete a definition pass `t` as the `:delete` parameter.  
 Unless you pass `t` as the `:dont-pick-up-buffers` argument all existing buffers will be checked against the new auto persp definition.  
