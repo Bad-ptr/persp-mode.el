@@ -295,7 +295,7 @@ or just use the [ido-ubiquitous-mode](https://github.com/DarwinAwardWinner/ido-u
 #### helm  
 (Note that `helm-buffer-list`, `helm-mini` are using `ido`'s `ido-make-buffer-list` internally).  
 Buffer filtering support: [gist#1](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-helm-persp-bridge-el), [gist#2](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-helm-persp-bridge-v2-el).  
-Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and especially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bwindow-management/spacemacs-layouts/funcs.el).  
+Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs), and especially [this](https://github.com/syl20bnr/spacemacs/blob/master/layers/%2Bspacemacs/spacemacs-layouts/funcs.el).  
 
 ### Speedbar  
 ```lisp
