@@ -2627,7 +2627,9 @@ Return `NAME'."
                                    (setq not-finished nil))
                                (push done_str persps))
                              (when not-finished
-                               (push cp retlst)
+                               (if (eq 'reverse multiple)
+                                   (setq retlst (append retlst (list cp)))
+                                 (push cp retlst))
                                (setq persps (delete cp persps)
                                      default done_str)))
                            (when not-finished
@@ -2649,9 +2651,7 @@ Return `NAME'."
                       (define-key mb-local-key-map push-keys push-keys-backup))
                     (when (lookup-key mb-local-key-map pop-keys)
                       (define-key mb-local-key-map pop-keys pop-keys-backup)))))
-              (if (eq multiple 'reverse)
-                  (nreverse retlst)
-                retlst))
+              retlst)
           (call-pif))))))
 (define-obsolete-function-alias 'persp-prompt 'persp-read-persp "persp-mode 2.9")
 
@@ -2898,7 +2898,9 @@ Return `NAME'."
                                  (setq not-finished nil))
                              (push done_str buffer-names))
                            (when not-finished
-                             (push cp retlst)
+                             (if (eq 'reverse multiple)
+                                 (setq retlst (append retlst (list cp)))
+                               (push cp retlst))
                              (setq buffer-names (delete cp buffer-names)
                                    default done_str)))
                          (when not-finished
@@ -2925,9 +2927,7 @@ Return `NAME'."
                          (when (and cp (not (string= cp done_str)) (member cp buffer-names))
                            (push cp retlst))
                          (setq not-finished nil))))
-                    (if (eq 'reverse multiple)
-                        (nreverse retlst)
-                      retlst))
+                    retlst)
                 (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
                 (when (keymapp mb-local-key-map)
                   (when (lookup-key mb-local-key-map push-keys)
