@@ -63,22 +63,22 @@
 ;; Keys:
 
 ;; n -- switch to next perspective.
-;; p -- switch to previous perspecive.
+;; p -- switch to previous perspective.
 ;; s -- create/switch to perspective in frame.
-;; S -- create/switch to perspecive in window.
+;; S -- create/switch to perspective in window.
 ;; r -- rename perspective.
-;; c -- copy current perspecive.
+;; c -- copy current perspective.
 ;; C -- kill perspective.
 ;;   Calling with prefix argument will not kill perspective's buffers
 ;;   (however if you try to kill 'none' persp -- it'l kill all opened buffers).
 ;; a -- add buffer to perspective.
 ;;   Calling with prefix argument reverses the effect of the persp-switch-to-added-buffer.
-;; b -- switch to buffer in perspecive.
+;; b -- switch to buffer in perspective.
 ;; t -- switch to buffer without adding it to current perspective.
 ;;   Calling with prefix argument allows to remove a buffer from perspective without
 ;;   killing and switching to another buffer.
 ;; i -- import all buffers from another perspective.
-;; I -- import window configuration from another perspecive.
+;; I -- import window configuration from another perspective.
 ;; k -- remove buffer from perspective.
 ;;   Calling with prefix argument reverses the effect of the persp-auto-kill-buffer-on-remove.
 ;; K -- kill buffer.
@@ -87,7 +87,7 @@
 ;; l -- load perspectives from file.
 ;; L -- load subset of perspectives from file.
 ;; o -- switch off persp-mode.
-;;   (This may be usefull when you launch emacs just to edit a single file and don't want to
+;;   (This may be useful when you launch emacs just to edit a single file and don't want to
 ;; restore buffers)
 
 ;; These key sequences must follow the `persp-keymap-prefix' which you can customize
@@ -251,12 +251,12 @@ nil -- do nothing."
 Control the persp-buffer-list-restricted behaviour"
   :type '(choice
           (const :tag "List all buffers" :value -1)
-          (const :tag "List current perspecive buffers" :value 0)
+          (const :tag "List current perspective buffers" :value 0)
           (const :tag "List buffers that aren't in the perspective" :value 1)
-          (const :tag "List buffers which unique to the perspecive" :value 2)
+          (const :tag "List buffers which unique to the perspective" :value 2)
           (const :tag "List unique buffers, but show all for the nil perspective" :value 2.5)
           (const :tag "List free buffers" :value 3)
-          (const :tag "List free buffers, but show all for the nil perspecive" :value 3.5)))
+          (const :tag "List free buffers, but show all for the nil perspective" :value 3.5)))
 
 (defcustom *persp-restrict-buffers-to* 0
   "Controls the behaviour of the `persp-buffer-list-restricted' function."
@@ -527,7 +527,7 @@ the currently selected window will be switched to that buffer."
 (defcustom persp-when-kill-switch-to-buffer-in-perspective nil
   "If t -- then after a buffer is killed the current window
 will be switched to some previous buffer in the current perspective,
-otherwise let  the emacs deside what to do."
+otherwise let  the emacs decide what to do."
   :group 'persp-mode
   :type 'boolean)
 
@@ -551,7 +551,7 @@ Don't ask if a buffer belongs only to weak perspectives"
 do not suggest foreign buffer to the user(kill buffer)" :value nil)))
 
 (defcustom persp-autokill-buffer-on-remove nil
-  "Kill the buffer if it removed from every(or non weak) perspecive."
+  "Kill the buffer if it removed from every(or non weak) perspective."
   :group 'persp-mode
   :type '(choice
           (const :tag "Just kill" :value kill) ;; or t
@@ -599,7 +599,7 @@ after the `after-change-major-mode-hook' is fired."
 
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
-  "Additional filters to not save unneded buffers."
+  "Additional filters to not save unneeded buffers."
   :group 'persp-mode
   :type 'hook)
 
@@ -644,7 +644,7 @@ If a function return 'skip -- don't restore a buffer."
 
 (defcustom persp-created-functions nil
   "The list of functions that runs after a perspective has been created.
-It must accept two argument -- the created perspecive and the hash to which this perspective
+It must accept two argument -- the created perspective and the hash to which this perspective
 will be placed, you could be interested if that hash is the `*persp-hash*' or some other."
   :group 'persp-mode
   :type 'hook)
@@ -652,7 +652,7 @@ will be placed, you could be interested if that hash is the `*persp-hash*' or so
 (defcustom persp-renamed-functions nil
   "Hooks to runs if a perspective was renamed.
 They are called with three arguments:
-1) perspecive; 2) old name; 3) new name."
+1) perspective; 2) old name; 3) new name."
   :group 'persp-mode
   :type 'hook)
 
@@ -665,7 +665,7 @@ It's single argument is the perspective that will be killed."
 (defcustom persp-before-switch-functions nil
   "The list of functions that runs before actually switching to a perspective.
 These functions must take two arguments -- a name of a perspective to switch
-(it could be a name of an unexistent perspective or it could be the same as current)
+(it could be a name of an nonexistent perspective or it could be the same as current)
 and a frame or a window for which the switching takes place."
   :group 'persp-mode
   :type 'hook)
@@ -680,7 +680,7 @@ The activated perspective is available with (get-current-persp)."
   :type 'hook)
 
 (defcustom persp-before-deactivate-functions nil
-  "Functions that runs before the current perspecive has been deactivated for selected frame or window.
+  "Functions that runs before the current perspective has been deactivated for selected frame or window.
 These functions must take one argument -- a symbol,
 if it is eq 'frame -- then the perspective will be deactivated for the current frame,
 if it is eq 'window -- then the perspective will be deactivated for the current window.
@@ -2327,7 +2327,7 @@ Return that old buffer."
       (let ((opersp (gethash new-name phash))
             (old-name (safe-persp-name persp)))
         (unless new-name
-          (setq new-name (read-string (concat "New name for the " old-name " perspecive: "))))
+          (setq new-name (read-string (concat "New name for the " old-name " perspective: "))))
         (if (and (not opersp) new-name (not (string= old-name new-name)))
             (progn
               (persp-remove-from-menu persp)
