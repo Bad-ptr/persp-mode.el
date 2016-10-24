@@ -1718,11 +1718,19 @@ and then killed.\nWhat do you really want to do? "
       result)))
 
 (defun* persp-persps (&optional (phash *persp-hash*) &optional names-regexp reverse)
+  (when (and names-regexp (not (consp names-regexp)))
+    (setq names-regexp (cons t names-regexp)))
   (let (ret)
     (maphash #'(lambda (k p)
                  (if names-regexp
-                     (when (string-match-p names-regexp k)
-                       (push p ret))
+                     (destructuring-bind (op . regexp) names-regexp
+                       (case op
+                         (not
+                          (unless (string-match-p regexp k)
+                            (push p ret)))
+                         (t
+                          (when (string-match-p regexp k)
+                            (push p ret)))))
                    (push p ret)))
              phash)
     (if reverse
@@ -3146,7 +3154,7 @@ does not exists or not a directory %S." p-save-dir)
           bufferlist-pre bufferlist-diff)
       (when (or (eq keep-others 'yes) (eq keep-others t))
         (setq bufferlist-pre (funcall persp-buffer-list-function))
-        (persp-load-state-from-file fname temphash (concat "[^" (regexp-opt names) "]"))
+        (persp-load-state-from-file fname temphash (cons 'not (regexp-opt names)))
         (setq bufferlist-diff (delete-if #'(lambda (b) (memq b bufferlist-pre))
                                          (funcall persp-buffer-list-function))))
       (mapc #'(lambda (pn)
@@ -3301,14 +3309,23 @@ does not exists or not a directory %S." p-save-dir)
     (persp-car-as-fun-cdr-as-args savelist)))
 
 (defun persps-from-savelist-0 (savelist phash persp-file set-persp-file names-regexp)
+  (when (and names-regexp (not (consp names-regexp)))
+    (setq names-regexp (cons t names-regexp)))
   (mapcar #'(lambda (pd)
               (persp-from-savelist-0 pd phash (and set-persp-file persp-file)))
           (if names-regexp
-              (delete-if-not
-               #'(lambda (pd)
-                   (string-match names-regexp
-                                 (or (cadr pd) persp-nil-name)))
-               savelist)
+              (destructuring-bind (op . regexp) names-regexp
+                (delete-if-not
+                 (case op
+                   (not
+                    #'(lambda (pd)
+                        (not (string-match-p regexp
+                                             (or (cadr pd) persp-nil-name)))))
+                   (t
+                    #'(lambda (pd)
+                        (string-match-p regexp
+                                        (or (cadr pd) persp-nil-name)))))
+                 savelist))
             savelist)))
 
 (defun persp-names-from-savelist-0 (savelist)
