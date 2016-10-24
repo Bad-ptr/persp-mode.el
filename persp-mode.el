@@ -1447,8 +1447,7 @@ named collections of buffers and window configurations."
           (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
           (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
           (add-hook 'server-switch-hook          #'persp-server-switch)
-          (when persp-add-buffer-on-after-change-major-mode
-            (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h))
+          (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
 
           (persp-set-ido-hooks persp-set-ido-hooks)
           (persp-set-read-buffer-function persp-set-read-buffer-function)
@@ -1609,12 +1608,14 @@ and then killed.\nWhat do you really want to do? "
 
 (defun persp-after-change-major-mode-h ()
   (let ((buf (current-buffer)))
-    (unless (persp-buffer-filtered-out-p
-             buf persp-add-buffer-on-after-change-major-mode-filter-functions)
-      (case persp-add-buffer-on-after-change-major-mode
-        ('nil nil)
-        (free (and (persp-buffer-free-p buf) (persp-add-buffer buf)))
-        (t (persp-add-buffer buf))))))
+    (persp-find-and-set-persps-for-buffer buf)
+    (when persp-add-buffer-on-after-change-major-mode
+      (unless (persp-buffer-filtered-out-p
+               buf persp-add-buffer-on-after-change-major-mode-filter-functions)
+        (case persp-add-buffer-on-after-change-major-mode
+          ('nil nil)
+          (free (and (persp-buffer-free-p buf) (persp-add-buffer buf)))
+          (t (persp-add-buffer buf)))))))
 
 (defun persp-server-switch ()
   (condition-case-unless-debug err
@@ -1901,6 +1902,19 @@ Return the created perspective."
           (persp-add persp phash)))
     (message "[persp-mode] Error: Can't create a perspective with empty name.")
     nil))
+
+(defun persp-find-and-set-persps-for-buffer (&optional buffer-or-name)
+  (setq buffer-or-name (if buffer-or-name
+                           (persp-get-buffer-or-null buffer-or-name)
+                         (current-buffer)))
+  (when buffer-or-name
+    (with-current-buffer buffer-or-name
+      (unless persp-buffer-in-persps
+        (mapc #'(lambda (p)
+                  (when p
+                    (when (memq buffer-or-name (persp-buffers p))
+                      (push (persp-name p) persp-buffer-in-persps))))
+              (persp-persps))))))
 
 (defun* persp-contain-buffer-p
     (&optional (buff-or-name (current-buffer)) (persp (get-current-persp)) delweak)
