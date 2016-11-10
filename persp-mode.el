@@ -1405,42 +1405,66 @@ to a wrong one.")
            tag-symbol save-vars save-function
            load-function after-load-function append)
   (let ((generated-save-predicate (apply #'persp--generate-buffer-predicate keyargs))
-        save-body load-body)
+        save-body load-fun)
+    (when save-vars
+      (unless (listp save-vars) (setq save-vars (list save-vars)))
+      (when (and (or mode mode-name) (not (memq 'major-mode save-vars)))
+        (push 'major-mode save-vars)))
     (unless tag-symbol (setq tag-symbol 'def-buffer-with-vars))
-    (setq save-body (if save-function
-                        `(funcall (with-no-warnings ',save-function) buffer)
-                      `(let (vars-list)
-                         (with-current-buffer buffer
-                           (mapc #'(lambda (var)
-                                     (when (eq (variable-binding-locus var) buffer)
-                                       (push (cons var (symbol-value var)) vars-list)))
-                                 ',save-vars))
-                         (list ',tag-symbol (buffer-name buffer) vars-list)))
+
+    (setq save-body `(let (vars-list)
+                       (with-current-buffer buffer
+                         (mapc #'(lambda (var)
+                                   (when (and (eq (variable-binding-locus var) buffer)
+                                              (persp-elisp-object-readable-p (symbol-value var)))
+                                     (push (cons var (symbol-value var)) vars-list)))
+                               (let (bl-vars ret)
+                                 (mapc #'(lambda (var)
+                                           (typecase var
+                                             (string
+                                              (mapc #'(lambda (lvar)
+                                                        (when (string-match-p var (symbol-name lvar))
+                                                          (push lvar ret)))
+                                                    (or bl-vars
+                                                        (setq bl-vars
+                                                              (mapcar #'car (buffer-local-variables))))))
+                                             (t (push var ret))))
+                                       ',save-vars)
+                                 ret))
+                         ,(if save-function
+                              `(funcall (with-no-warnings ',save-function) buffer ',tag-symbol vars-list)
+                            `(list ',tag-symbol (buffer-name buffer) vars-list))))
           save-body `(when (funcall (with-no-warnings ',generated-save-predicate) buffer)
                        ,save-body))
 
-    (setq load-body (if load-function
-                        `(funcall (with-no-warnings ',load-function) savelist)
-                      `(destructuring-bind (buffer-name vars-list) (cdr savelist)
-                         (let ((buf-file (cdr (assq 'buffer-file-name vars-list)))
-                               (buf-mmode (cdr (assq 'major-mode vars-list))))
-                           (lexical-let ((persp-loaded-buffer
-                                          (persp-buffer-from-savelist
-                                           (list 'def-buffer buffer-name buf-file buf-mmode
-                                                 (list (cons 'local-vars vars-list)))))
-                                         (persp-after-load-function (with-no-warnings ',after-load-function))
-                                         persp-after-load-lambda)
-                             (when (and persp-loaded-buffer persp-after-load-function)
-                               (setq persp-after-load-lambda #'(lambda (&rest pall-args)
-                                                                 (apply persp-after-load-function persp-loaded-buffer pall-args)
-                                                                 (remove-hook 'persp-after-load-state-functions
-                                                                              persp-after-load-lambda)))
-                               (add-hook 'persp-after-load-state-functions persp-after-load-lambda))
-                             persp-loaded-buffer))))
-          load-body `(when (eq (car savelist) ',tag-symbol)
-                       ,load-body))
+    (setq load-fun `(lambda (savelist)
+                      (destructuring-bind (buffer-name vars-list &rest _rest) (cdr savelist)
+                        (let ((buf-file (alist-get 'buffer-file-name vars-list))
+                              (buf-mmode (alist-get 'major-mode vars-list)))
+                          (lexical-let ((persp-loaded-buffer
+                                         (persp-buffer-from-savelist
+                                          (list 'def-buffer buffer-name buf-file buf-mmode
+                                                (list (cons 'local-vars vars-list)))))
+                                        (persp-after-load-function (with-no-warnings ',after-load-function))
+                                        persp-after-load-lambda)
+                            (when (and persp-loaded-buffer persp-after-load-function)
+                              (setq persp-after-load-lambda #'(lambda (&rest pall-args)
+                                                                (apply persp-after-load-function persp-loaded-buffer pall-args)
+                                                                (remove-hook 'persp-after-load-state-functions
+                                                                             persp-after-load-lambda)))
+                              (add-hook 'persp-after-load-state-functions persp-after-load-lambda t))
+                            persp-loaded-buffer)))))
+
     (add-hook 'persp-save-buffer-functions (eval `(lambda (buffer) ,save-body)) append)
-    (add-hook 'persp-load-buffer-functions (eval `(lambda (savelist) ,load-body)) append)))
+    (add-hook 'persp-load-buffer-functions
+              (eval `(lambda (savelist)
+                       (when (eq (car savelist) ',tag-symbol)
+                         (let ((default-load-fun (with-no-warnings ',load-fun)))
+                           ,(if load-function
+                                `(funcall (with-no-warnings ',load-function) savelist
+                                          default-load-fun (with-no-warnings ',after-load-function))
+                              `(funcall default-load-fun savelist))))))
+              append)))
 
 
 ;; Mode itself:
