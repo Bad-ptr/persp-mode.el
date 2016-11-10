@@ -930,7 +930,7 @@ to a wrong one.")
    (list
     (read-key-sequence
      "Now press a key sequence to be used for toggling persp filters during the read-buffer: ")))
-  (setf (cdr (assq 'toggle-persp-buffer-filter persp-read-multiple-keys)) keys)
+  (setcdr (assq 'toggle-persp-buffer-filter persp-read-multiple-keys) keys)
   (set-default 'persp-toggle-read-buffer-filter-keys keys))
 (define-obsolete-function-alias
   'persp-set-toggle-read-persp-filter-keys 'persp-set-toggle-read-buffer-filter-keys
@@ -1105,7 +1105,7 @@ to a wrong one.")
   (let* ((params (safe-persp-parameters persp))
          (old-cons (assq param-name params)))
     (if old-cons
-        (setf (cdr old-cons) value)
+        (setcdr old-cons value)
       (if persp
           (setf (persp-parameters persp)
                 (acons param-name value params))
@@ -1113,7 +1113,7 @@ to a wrong one.")
               (acons param-name value params))))))
 
 (defun* persp-parameter (param-name &optional (persp (get-current-persp)))
-  (cdr (assq param-name (safe-persp-parameters persp))))
+  (alist-get param-name (safe-persp-parameters persp)))
 
 (defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
@@ -1165,11 +1165,11 @@ to a wrong one.")
 ;; Auto persp functions:
 
 (defun persp--auto-persp-pickup-buffer (a-p-def buffer)
-  (let ((action (cdr (assq :main-action a-p-def))))
+  (let ((action (alist-get :main-action a-p-def)))
     (when (functionp action)
       (funcall action buffer))))
 (defun persp-auto-persp-pickup-bufferlist-for (name bufferlist)
-  (let ((a-p-def (assoc name persp-auto-persp-alist)))
+  (let ((a-p-def (cdr (assoc name persp-auto-persp-alist))))
     (when a-p-def
       (mapc (apply-partially #'persp--auto-persp-pickup-buffer a-p-def)
             bufferlist))))
@@ -1185,16 +1185,12 @@ to a wrong one.")
 
 (defun persp-buffer-match-autopersp-p (buffer-or-name)
   (let ((buffer (get-buffer buffer-or-name))
-        (a-p-list persp-auto-persp-alist)
-        ret pred)
-    (while (and (null ret) a-p-list)
-      (destructuring-bind (name . def) (car a-p-list)
-        (setq pred (cdr (assq :generated-predicate def)))
-        (if (and pred (funcall pred buffer))
-            (setq ret name)
-          (setq a-p-list (cdr a-p-list)))))
-    ret))
-
+        pred)
+    (car
+     (find-if #'(lambda (a-p-cons)
+                  (and (setq pred (alist-get :generated-predicate (cdr a-p-cons)))
+                       (funcall pred buffer)))
+              persp-auto-persp-alist))))
 (defun* persp--generate-buffer-predicate
     (&key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate &allow-other-keys)
   (let ((predicate-body t))
@@ -1345,13 +1341,13 @@ to a wrong one.")
                                                (funcall (with-no-warnings ',main-action) nil ',hook hook-args)))))))
                 (add-hook hook generated-hook)
                 (let ((aparams-hooks (assq :hooks auto-persp-parameters)))
-                  (setf (cdr aparams-hooks) (delete hook (cdr aparams-hooks)))
+                  (setcdr aparams-hooks (delete hook (cdr aparams-hooks)))
                   (push (cons hook generated-hook) (cdr aparams-hooks))))
             (message "[persp-mode] Warning: def-auto-persp -- no such hook %s." hook))))
 
       (let ((auto-persp-definition (assoc name persp-auto-persp-alist)))
         (if auto-persp-definition
-            (setf (cdr auto-persp-definition) auto-persp-parameters)
+            (setcdr auto-persp-definition auto-persp-parameters)
           (setq auto-persp-definition (cons name auto-persp-parameters))
           (push auto-persp-definition persp-auto-persp-alist)))
 
@@ -2191,19 +2187,13 @@ perspective buffers or nil."
                     (cons
                      persp-common-buffer-filter-functions
                      filters)
-                  persp-common-buffer-filter-functions))
-  (block pbfop
-    (let ((buf (get-buffer buff-or-name))
-          filter f)
-      (while (setq filter (pop filters))
-        (when
-            (if (functionp filter)
-                (funcall filter buf)
-              (while (setq f (pop filter))
-                (when (funcall f buf)
-                  (return-from pbfop t))))
-          (return-from pbfop t)))
-      nil)))
+                  persp-common-buffer-filter-functions)
+        buff-or-name (get-buffer buff-or-name))
+  (find-if #'(lambda (filter)
+               (if (functionp filter)
+                   (funcall filter buff-or-name)
+                 (find-if #'(lambda (f) (funcall f buff-or-name)) filter)))
+           filters))
 
 (defun persp-buffer-free-p (&optional buff-or-name del-weak)
   (unless buff-or-name (setq buff-or-name (current-buffer)))
@@ -2611,8 +2601,8 @@ Return `NAME'."
         (if multiple
             (let ((done_str "[>done<]") (not-finished default-mode)
                   exit-minibuffer-function mb-local-key-map
-                  (push-keys (cdr (assq 'push-item persp-read-multiple-keys)))
-                  (pop-keys (cdr (assq 'pop-item persp-read-multiple-keys)))
+                  (push-keys (alist-get 'push-item persp-read-multiple-keys))
+                  (pop-keys (alist-get 'pop-item persp-read-multiple-keys))
                   push-keys-backup pop-keys-backup)
               (while (member done_str persps)
                 (setq done_str (concat ">" done_str)))
@@ -2872,9 +2862,9 @@ Return `NAME'."
       (if multiple
           (let ((done_str "[>done<]") (not-finished default-mode)
                 exit-minibuffer-function mb-local-key-map
-                (push-keys (cdr (assq 'push-item persp-read-multiple-keys)))
-                (pop-keys (cdr (assq 'pop-item persp-read-multiple-keys)))
-                (toggle-filter-keys (cdr (assq 'toggle-persp-buffer-filter persp-read-multiple-keys)))
+                (push-keys (alist-get 'push-item persp-read-multiple-keys))
+                (pop-keys (alist-get 'pop-item persp-read-multiple-keys))
+                (toggle-filter-keys (alist-get 'toggle-persp-buffer-filter persp-read-multiple-keys))
                 push-keys-backup pop-keys-backup toggle-filter-keys-backup)
             (while (member done_str buffer-names)
               (setq done_str (concat ">" done_str)))
@@ -3273,7 +3263,7 @@ does not exists or not a directory %S." p-save-dir)
                                   (unless (or (eq vname 'buffer-file-name)
                                               (eq vname 'major-mode))
                                     (set (make-local-variable vname) vvalue))))
-                            (cdr (assq 'local-vars parameters)))
+                            (alist-get 'local-vars parameters))
                       (typecase mode
                         (function (when (and (not (eq major-mode mode))
                                              (not (eq major-mode 'not-loaded-yet)))
