@@ -1191,39 +1191,80 @@ to a wrong one.")
                   (and (setq pred (alist-get :generated-predicate (cdr a-p-cons)))
                        (funcall pred buffer)))
               persp-auto-persp-alist))))
+
+(defsubst persp--generate-predicate-loop-any-all (items-list condition &rest body)
+  (if items-list
+      (let (all)
+        (setq items-list
+              (typecase items-list
+                (symbol (if (and (boundp items-list) (listp (symbol-value items-list)))
+                            items-list
+                          (list items-list)))
+                (list items-list)
+                (t (list items-list))))
+        (when (listp items-list)
+          (setq all (eq :all (car items-list)))
+          (when all (pop items-list))
+          (setq items-list `',items-list))
+        (let ((cnd `(member-if #'(lambda (item) ,(if all
+                                                `(not ,condition)
+                                              condition))
+                               ,items-list)))
+          `(when ,(if all `(not ,cnd) cnd)
+             ,@body)))
+    `(progn
+       ,@body)))
 (defun* persp--generate-buffer-predicate
     (&key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate &allow-other-keys)
   (let ((predicate-body t))
     (when predicate
-      (setq predicate-body `(when (funcall (with-no-warnings ',predicate) buffer)
-                              ,predicate-body)))
+      (setq predicate-body
+            `(when (funcall (with-no-warnings ',predicate) buffer)
+               ,predicate-body)))
     (when file-name
-      (setq predicate-body `(when (string-match-p ,file-name (buffer-file-name buffer))
-                              ,predicate-body)))
+      (setq predicate-body
+            (persp--generate-predicate-loop-any-all
+             file-name '(string-match-p item (buffer-file-name buffer)) predicate-body)))
     (when buffer-name
-      (setq predicate-body `(when (string-match-p ,buffer-name (buffer-name buffer))
-                              ,predicate-body)))
+      (setq predicate-body
+            (persp--generate-predicate-loop-any-all
+             buffer-name '(string-match-p item (buffer-name buffer)) predicate-body)))
     (when minor-mode-name
-      (setq predicate-body `(let ((not-found t) (mm-list minor-mode-alist)
-                                  item name)
-                              (while (and not-found mm-list)
-                                (setq item (car mm-list)
-                                      mm-list (cdr mm-list)
-                                      name (format-mode-line item))
-                                (when (string-match-p ,minor-mode-name (format-mode-line name))
-                                  (setq not-found nil)))
-                              (unless not-found ,predicate-body))))
+      (setq predicate-body
+            (persp--generate-predicate-loop-any-all
+             minor-mode-name
+             `(let ((regexp item))
+                ,(persp--generate-predicate-loop-any-all 'minor-mode-alist
+                                                         '(string-match-p regexp (format-mode-line item))
+                                                         t))
+             predicate-body)))
     (when minor-mode
-      (setq predicate-body `(when (bound-and-true-p ,minor-mode)
-                              ,predicate-body)))
+      (setq predicate-body
+            (persp--generate-predicate-loop-any-all
+             minor-mode
+             `(typecase item
+                (symbol (bound-and-true-p item))
+                (string (let ((regexp item))
+                          ,(persp--generate-predicate-loop-any-all 'minor-mode-list
+                                                                   '(and
+                                                                     (bound-and-true-p item)
+                                                                     (string-match-p regexp item))
+                                                                   t)))
+                (t nil))
+             predicate-body)))
 
     (when mode-name
-      (setq predicate-body `(when (string-match-p ,mode-name (format-mode-line mode-name))
-                              ,predicate-body)))
+      (setq predicate-body
+            (persp--generate-predicate-loop-any-all
+             mode-name '(string-match-p item (format-mode-line mode-name)) predicate-body)))
     (when mode
-      (setq predicate-body `(when (eq ',mode major-mode)
-                              ,predicate-body)))
-
+      (setq predicate-body
+            (persp--generate-predicate-loop-any-all
+             mode '(typecase item
+                     (symbol (eq item major-mode))
+                     (string (string-match-p item (symbol-name major-mode)))
+                     (t nil))
+             predicate-body)))
     (eval `(lambda (buffer) (with-current-buffer buffer ,predicate-body)))))
 
 ;;;###autoload
