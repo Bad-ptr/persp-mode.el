@@ -3260,17 +3260,20 @@ does not exists or not a directory %S." p-save-dir)
                         (message "[persp-mode] Warning: The file %s is no longer exists." fname))
                       (setq buf (get-buffer-create name))))
                   (when (buffer-live-p buf)
-                    (with-current-buffer buf
-                      (mapc #'(lambda (varcons)
-                                (destructuring-bind (vname . vvalue) varcons
-                                  (unless (or (eq vname 'buffer-file-name)
-                                              (eq vname 'major-mode))
-                                    (set (make-local-variable vname) vvalue))))
-                            (alist-get 'local-vars parameters))
-                      (typecase mode
-                        (function (when (and (not (eq major-mode mode))
-                                             (not (eq major-mode 'not-loaded-yet)))
-                                    (funcall mode))))))
+                    (macrolet ((restorevars ()
+                                            `(mapc #'(lambda (varcons)
+                                                       (destructuring-bind (vname . vvalue) varcons
+                                                         (unless (or (eq vname 'buffer-file-name)
+                                                                     (eq vname 'major-mode))
+                                                           (set (make-local-variable vname) vvalue))))
+                                                   (alist-get 'local-vars parameters))))
+                      (with-current-buffer buf
+                        (restorevars)
+                        (typecase mode
+                          (function (when (and (not (eq major-mode mode))
+                                               (not (eq major-mode 'not-loaded-yet)))
+                                      (funcall mode)
+                                      (restorevars)))))))
                   buf))))
       (persp-car-as-fun-cdr-as-args savelist))))
 
