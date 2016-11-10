@@ -3051,12 +3051,15 @@ Return `NAME'."
                    (safe-persp-window-conf persp)
                  nil)))
 
+(defun persp-elisp-object-readable-p (obj)
+  (let (print-length print-level)
+    (or (stringp obj)
+        (not (string-match-p "#<.*?>" (prin1-to-string obj))))))
+
 (defun persp-parameters-to-savelist (persp)
   `(def-params ,(remove-if
                  #'(lambda (param)
-                     (and (not (stringp param))
-                          (string-match-p "#<.*?>"
-                                          (prin1-to-string param))
+                     (and (not (persp-elisp-object-readable-p param))
                           (message "[persp-mode] Info: The parameter %S \
 of the perspective %s can't be saved."
                                    param (safe-persp-name persp))
