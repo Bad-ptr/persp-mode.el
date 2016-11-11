@@ -2213,14 +2213,13 @@ Return removed buffers."
                                (append (persp-buffers current-persp) nil)
                              (safe-persp-buffers current-persp)))))
            (new-persp (persp-add-new new-name)))
-      (when (listp choosen-buffers)
-        (setq new-buffers (mapcar #'get-buffer choosen-buffers)))
       (when new-persp
         (persp-save-state current-persp)
-        (setf (persp-buffers new-persp) new-buffers
-              (persp-window-conf new-persp) (safe-persp-window-conf current-persp)
+        (setf (persp-window-conf new-persp) (safe-persp-window-conf current-persp)
               (persp-parameters new-persp) (append (safe-persp-parameters current-persp) nil)
               (persp-weak new-persp) (if current-persp (persp-weak current-persp) nil))
+        (when (listp choosen-buffers)
+          (persp-add-buffer choosen-buffers new-persp nil nil))
         (case switch
           (window (persp-window-switch new-name))
           (frame (persp-frame-switch new-name))
