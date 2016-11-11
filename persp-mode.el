@@ -3178,10 +3178,9 @@ does not exists or not a directory %S." p-save-dir)
             nil)
         (mapc #'persp-save-state (persp-persps phash))
         (run-hook-with-args 'persp-before-save-state-to-file-functions fname phash respect-persp-file-parameter)
-        (if respect-persp-file-parameter
-            (let ((fg (persp-group-by (apply-partially #'persp-parameter 'persp-file)
-                                      (persp-persps phash nil t) t))
-                  persp-auto-save-persps-to-their-file
+        (if (and respect-persp-file-parameter
+                 (member-if (apply-partially #'persp-parameter 'persp-file) (persp-persps phash nil)))
+            (let (persp-auto-save-persps-to-their-file
                   persp-before-save-state-to-file-functions)
               (mapc #'(lambda (gr)
                         (destructuring-bind (pfname . pl) gr
@@ -3189,10 +3188,14 @@ does not exists or not a directory %S." p-save-dir)
                             (if pfname
                                 (persp-save-to-file-by-names pfname phash names 'yes nil)
                               (persp-save-to-file-by-names p-save-file phash names 'no nil)))))
-                    fg))
+                    (persp-group-by (apply-partially #'persp-parameter 'persp-file)
+                                    (persp-persps phash nil t) t)))
           (with-temp-buffer
+            (buffer-disable-undo)
             (erase-buffer)
             (goto-char (point-min))
+            (insert ";; -*- mode: emacs-lisp; eval: (progn (pp-buffer) (indent-buffer)) -*-")
+            (newline)
             (insert (let (print-length print-level)
                       (prin1-to-string (persps-to-savelist phash))))
             (persp-save-with-backups p-save-file)))))))
@@ -3435,8 +3438,9 @@ does not exists or not a directory %S." p-save-dir)
 
 (defun persp-list-persp-names-in-file (fname)
   (when (and fname (file-exists-p fname))
-    (let* ((buf (find-file-noselect fname))
-           (pslist (with-current-buffer buf
+    (let* ((pslist (with-temp-buffer
+                     (buffer-disable-undo)
+                     (insert-file-contents fname nil nil nil t)
                      (goto-char (point-min))
                      (read (current-buffer)))))
       (destructuring-bind (fun s-list)
@@ -3458,11 +3462,12 @@ does not exists or not a directory %S." p-save-dir)
       (if (not (file-exists-p p-save-file))
           (progn (message "[persp-mode] Error: No such file -- %S." p-save-file)
                  nil)
-        (let (readed-list)
-          (with-current-buffer (find-file-noselect p-save-file)
-            (goto-char (point-min))
-            (setq readed-list (read (current-buffer)))
-            (kill-buffer))
+        (let ((readed-list
+               (with-temp-buffer
+                 (buffer-disable-undo)
+                 (insert-file-contents p-save-file nil nil nil t)
+                 (goto-char (point-min))
+                 (read (current-buffer)))))
           (persps-from-savelist
            readed-list phash p-save-file set-persp-file names-regexp))))))
 
