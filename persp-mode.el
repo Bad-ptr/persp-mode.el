@@ -2464,7 +2464,7 @@ Return `NAME'."
       (setq persp (persp-add-new persp-nil-name)))
     (persp-save-state persp nil t)))
 
-(defsubst persp--do-auto-action-if-needed (persp)
+(defun persp--do-auto-action-if-needed (persp)
   (when (and (safe-persp-auto persp)
              persp-autokill-persp-when-removed-last-buffer
              (null (safe-persp-buffers persp)))
@@ -3282,7 +3282,7 @@ does not exists or not a directory %S." p-save-dir)
 
 ;; Load funcs
 
-(defsubst persp-update-frames-window-confs (&optional persp-names)
+(defun persp-update-frames-window-confs (&optional persp-names)
   (mapc #'persp-restore-window-conf
         (if persp-names
             (delete-if-not #'(lambda (pn) (member pn persp-names))
