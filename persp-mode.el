@@ -1222,51 +1222,52 @@ to a wrong one.")
   (let ((predicate-body t))
     (when predicate
       (setq predicate-body
-            `(when (funcall (with-no-warnings ',predicate) buffer)
-               ,predicate-body)))
+            (persp--generate-predicate-loop-any-all predicate '(funcall item buffer) predicate-body)))
     (when file-name
       (setq predicate-body
             (persp--generate-predicate-loop-any-all
-             file-name '(string-match-p item (buffer-file-name buffer)) predicate-body)))
+             file-name '(persp-string-match-p item (buffer-file-name buffer)) predicate-body)))
     (when buffer-name
       (setq predicate-body
             (persp--generate-predicate-loop-any-all
-             buffer-name '(string-match-p item (buffer-name buffer)) predicate-body)))
+             buffer-name '(persp-string-match-p item (buffer-name buffer)) predicate-body)))
     (when minor-mode-name
       (setq predicate-body
             (persp--generate-predicate-loop-any-all
              minor-mode-name
              `(let ((regexp item))
-                ,(persp--generate-predicate-loop-any-all 'minor-mode-alist
-                                                         '(string-match-p regexp (format-mode-line item))
-                                                         t))
+                ,(persp--generate-predicate-loop-any-all
+                  'minor-mode-alist
+                  '(persp-string-match-p regexp (format-mode-line item))
+                  t))
              predicate-body)))
     (when minor-mode
       (setq predicate-body
             (persp--generate-predicate-loop-any-all
              minor-mode
-             `(typecase item
-                (symbol (bound-and-true-p item))
-                (string (let ((regexp item))
-                          ,(persp--generate-predicate-loop-any-all 'minor-mode-list
-                                                                   '(and
-                                                                     (bound-and-true-p item)
-                                                                     (string-match-p regexp item))
-                                                                   t)))
-                (t nil))
+             `(cond
+               ((symbolp item) (bound-and-true-p item))
+               ((persp-regexp-p item) (let ((regexp item))
+                                        ,(persp--generate-predicate-loop-any-all
+                                          'minor-mode-list
+                                          '(and
+                                            (bound-and-true-p item)
+                                            (persp-string-match-p regexp item))
+                                          t)))
+               (t nil))
              predicate-body)))
 
     (when mode-name
       (setq predicate-body
             (persp--generate-predicate-loop-any-all
-             mode-name '(string-match-p item (format-mode-line mode-name)) predicate-body)))
+             mode-name '(persp-string-match-p item (format-mode-line mode-name)) predicate-body)))
     (when mode
       (setq predicate-body
             (persp--generate-predicate-loop-any-all
-             mode '(typecase item
-                     (symbol (eq item major-mode))
-                     (string (string-match-p item (symbol-name major-mode)))
-                     (t nil))
+             mode '(cond
+                    ((symbolp item) (eq item major-mode))
+                    ((persp-regexp-p item) (persp-string-match-p item (symbol-name major-mode)))
+                    (t nil))
              predicate-body)))
     (eval `(lambda (buffer) (with-current-buffer buffer ,predicate-body)))))
 
@@ -1415,28 +1416,21 @@ to a wrong one.")
         (push 'major-mode save-vars)))
     (unless tag-symbol (setq tag-symbol 'def-buffer-with-vars))
 
-    (setq save-body `(let (vars-list)
-                       (with-current-buffer buffer
-                         (mapc #'(lambda (var)
-                                   (when (and (eq (variable-binding-locus var) buffer)
-                                              (persp-elisp-object-readable-p (symbol-value var)))
-                                     (push (cons var (symbol-value var)) vars-list)))
-                               (let (bl-vars ret)
-                                 (mapc #'(lambda (var)
-                                           (typecase var
-                                             (string
-                                              (mapc #'(lambda (lvar)
-                                                        (when (string-match-p var (symbol-name lvar))
-                                                          (push lvar ret)))
-                                                    (or bl-vars
-                                                        (setq bl-vars
-                                                              (mapcar #'car (buffer-local-variables))))))
-                                             (t (push var ret))))
-                                       ',save-vars)
-                                 ret))
-                         ,(if save-function
-                              `(funcall (with-no-warnings ',save-function) buffer ',tag-symbol vars-list)
-                            `(list ',tag-symbol (buffer-name buffer) vars-list))))
+    (setq save-body `(let ((vars-list
+                            (with-current-buffer buffer
+                              (delete-if-not #'(lambda (lvar)
+                                                 ,(persp--generate-predicate-loop-any-all
+                                                   save-vars
+                                                   '(and (if (persp-regexp-p item)
+                                                             (persp-string-match-p item (symbol-name lvar))
+                                                           (eq item lvar))
+                                                         (persp-elisp-object-readable-p (symbol-value lvar)))
+                                                   t))
+                                             (buffer-local-variables)
+                                             :key #'car-safe))))
+                       ,(if save-function
+                            `(funcall (with-no-warnings ',save-function) buffer ',tag-symbol vars-list)
+                          `(list ',tag-symbol (buffer-name buffer) vars-list)))
           save-body `(when (funcall (with-no-warnings ',generated-save-predicate) buffer)
                        ,save-body))
 
@@ -1784,20 +1778,24 @@ and then killed.\nWhat do you really want to do? "
                  result))
       result)))
 
+(defun persp-regexp-p (obj)
+  (or (stringp obj) (and (consp obj) (stringp (cdr obj)))))
+(defun persp-string-match-p (regexp string &optional start)
+  (when (and regexp (not (consp regexp)))
+    (setq regexp (cons t regexp)))
+  (let ((ret (string-match-p (cdr regexp) string start)))
+    (if (eq :not (car regexp))
+        (not ret)
+      ret)))
+
 (defun* persp-persps (&optional (phash *persp-hash*) &optional names-regexp reverse)
   (when (and names-regexp (not (consp names-regexp)))
     (setq names-regexp (cons t names-regexp)))
   (let (ret)
     (maphash #'(lambda (k p)
                  (if names-regexp
-                     (destructuring-bind (op . regexp) names-regexp
-                       (case op
-                         (not
-                          (unless (string-match-p regexp k)
-                            (push p ret)))
-                         (t
-                          (when (string-match-p regexp k)
-                            (push p ret)))))
+                     (when (persp-string-match-p names-regexp k)
+                       (push p ret))
                    (push p ret)))
              phash)
     (if reverse
@@ -1871,16 +1869,15 @@ and then killed.\nWhat do you really want to do? "
       (when blist
         (unless rest-args-p
           (setq rest-args (read--expression "Rest arguments: " "nil")))
-        (let (reslist)
-          (mapc #'(lambda (b)
-                    (when (string-match-p regexp (buffer-name b))
-                      (push (buffer-name b) reslist)))
-                blist)
-          (when (and reslist
-                     (or noask (y-or-n-p (format "Do %s on these buffers:\n%s?\n"
-                                                 func
-                                                 (mapconcat 'identity reslist "\n")))))
-            (mapc #'(lambda (b) (apply func b rest-args)) reslist)))))))
+        (setq blist
+              (remove-if-not
+               (apply-partially #'persp-string-match-p regexp)
+               blist))
+        (when (and blist
+                   (or noask (y-or-n-p (format "Do %s on these buffers:\n%s?\n"
+                                               func
+                                               (mapconcat 'identity blist "\n")))))
+          (mapcar #'(lambda (b) (apply func b rest-args)) blist))))))
 
 
 ;; Perspective funcs:
@@ -3227,7 +3224,7 @@ does not exists or not a directory %S." p-save-dir)
                            (with-current-buffer b
                              (cons b persp-buffer-in-persps)))
                        (funcall persp-buffer-list-function))))
-          (persp-load-state-from-file fname temphash (cons 'not (regexp-opt names)))
+          (persp-load-state-from-file fname temphash (cons :not (regexp-opt names)))
           (setq bufferlist-diff (delete-if #'(lambda (bcons)
                                                (destructuring-bind (buf . buf-persps) bcons
                                                  (when buf
@@ -3393,18 +3390,10 @@ does not exists or not a directory %S." p-save-dir)
   (mapcar #'(lambda (pd)
               (persp-from-savelist-0 pd phash (and set-persp-file persp-file)))
           (if names-regexp
-              (destructuring-bind (op . regexp) names-regexp
-                (delete-if-not
-                 (case op
-                   (not
-                    #'(lambda (pd)
-                        (not (string-match-p regexp
-                                             (or (cadr pd) persp-nil-name)))))
-                   (t
-                    #'(lambda (pd)
-                        (string-match-p regexp
-                                        (or (cadr pd) persp-nil-name)))))
-                 savelist))
+              (delete-if-not
+               (apply-partially #'persp-string-match-p names-regexp)
+               savelist
+               :key #'(lambda (pd) (or (cadr pd) persp-nil-name)))
             savelist)))
 
 (defun persp-names-from-savelist-0 (savelist)
