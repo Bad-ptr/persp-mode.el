@@ -1757,7 +1757,8 @@ and then killed.\nWhat do you really want to do? "
     (set-frame-persp persp)))
 
 (defun persp-names-current-frame-fast-ordered ()
-  (mapcar #'caddr (cddddr persp-minor-mode-menu)))
+  (or (mapcar #'caddr (cddddr persp-minor-mode-menu))
+      (list persp-nil-name)))
 
 (defun* persp-get-by-name (name &optional (phash *persp-hash*) default)
   (gethash name phash default))
