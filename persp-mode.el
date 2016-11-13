@@ -1197,18 +1197,18 @@ to a wrong one.")
 
 (defsubst persp--generate-predicate-loop-any-all (items-list condition &rest body)
   (if items-list
-      (let (all)
+      (let (all noquote)
         (setq items-list
               (typecase items-list
-                (symbol (if (and (boundp items-list) (listp (symbol-value items-list)))
-                            items-list
-                          (list items-list)))
-                (list items-list)
+                (function (list items-list))
+                (list (if (persp-regexp-p items-list) (list items-list) items-list))
                 (t (list items-list))))
+        (setq noquote (eq :noquote (car items-list)))
+        (when noquote (setq items-list (cadr items-list)))
         (when (listp items-list)
           (setq all (eq :all (car items-list)))
           (when all (pop items-list))
-          (setq items-list `',items-list))
+          (unless noquote (setq items-list `',items-list)))
         (let ((cnd `(member-if #'(lambda (item) ,(if all
                                                 `(not ,condition)
                                               condition))
@@ -1237,7 +1237,7 @@ to a wrong one.")
              minor-mode-name
              `(let ((regexp item))
                 ,(persp--generate-predicate-loop-any-all
-                  'minor-mode-alist
+                  '(:noquote minor-mode-alist)
                   '(persp-string-match-p regexp (format-mode-line item))
                   t))
              predicate-body)))
@@ -1249,7 +1249,7 @@ to a wrong one.")
                ((symbolp item) (bound-and-true-p item))
                ((persp-regexp-p item) (let ((regexp item))
                                         ,(persp--generate-predicate-loop-any-all
-                                          'minor-mode-list
+                                          '(:noquote minor-mode-list)
                                           '(and
                                             (bound-and-true-p item)
                                             (persp-string-match-p regexp item))
