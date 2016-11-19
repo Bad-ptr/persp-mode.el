@@ -132,6 +132,11 @@
                                   choices "; "))
                choice-chars)
               choices)))))
+(unless (fboundp 'alist-get)
+  (defun alist-get (key alist &optional default remove)
+    (ignore remove) ;;Silence byte-compiler.
+    (let ((x (assq key alist)))
+      (if x (cdr x) default))))
 
 ;; Customization variables:
 
