@@ -1185,8 +1185,8 @@ to a wrong one.")
   (interactive)
   (persp-auto-persps-pickup-bufferlist (funcall persp-buffer-list-function)))
 
-(defun persp-buffer-match-autopersp-p (buffer-or-name)
-  (let ((buffer (get-buffer buffer-or-name))
+(defun persp-buffer-match-auto-persp-p (buffer-or-name)
+  (let ((buffer (persp-get-buffer-or-null buffer-or-name))
         pred)
     (car-safe
      (find-if #'(lambda (a-p-def)
@@ -1656,14 +1656,14 @@ and then killed.\nWhat do you really want to do? "
     (and (case persp-add-buffer-on-find-file
            ('nil nil)
            (if-not-autopersp
-            (let ((ret (not (persp-buffer-match-autopersp-p (current-buffer)))))
+            (let ((ret (not (persp-buffer-match-auto-persp-p (current-buffer)))))
               (unless (or ret no-select)
                 (setq persp-special-last-buffer (window-buffer))
                 (add-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
               ret))
            (add-but-not-switch-if-autopersp
             (when (and (not no-select)
-                       (persp-buffer-match-autopersp-p (current-buffer)))
+                       (persp-buffer-match-auto-persp-p (current-buffer)))
               (setq no-select t)
               (setq persp-special-last-buffer (window-buffer))
               (add-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
