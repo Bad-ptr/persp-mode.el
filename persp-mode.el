@@ -1194,6 +1194,12 @@ to a wrong one.")
                        (funcall pred buffer)))
               persp-auto-persp-alist
               :key #'cdr))))
+(defun persp-auto-persps-for-buffer (buffer-or-name)
+  (let ((buffer (persp-get-buffer-or-null buffer-or-name)))
+    (remove-if #'(lambda (pred) (funcall pred buffer))
+               persp-auto-persp-alist
+               :key #'(lambda (a-p-cons)
+                        (alist-get :generated-predicate (cdr a-p-cons))))))
 
 (defsubst persp--generate-predicate-loop-any-all (items-list condition &rest body)
   (if items-list
