@@ -1679,13 +1679,13 @@ and then killed.\nWhat do you really want to do? "
 (defun persp-after-change-major-mode-h ()
   (let ((buf (current-buffer)))
     (persp-find-and-set-persps-for-buffer buf)
-    (when persp-add-buffer-on-after-change-major-mode
-      (unless (persp-buffer-filtered-out-p
-               buf persp-add-buffer-on-after-change-major-mode-filter-functions)
-        (case persp-add-buffer-on-after-change-major-mode
-          ('nil nil)
-          (free (and (persp-buffer-free-p buf) (persp-add-buffer buf)))
-          (t (persp-add-buffer buf)))))))
+    (when (and (case persp-add-buffer-on-after-change-major-mode
+                 ('nil nil)
+                 (free (persp-buffer-free-p buf))
+                 (t t))
+               (not (persp-buffer-filtered-out-p
+                     buf persp-add-buffer-on-after-change-major-mode-filter-functions)))
+      (persp-add-buffer buf (get-current-persp) nil nil))))
 
 (defun persp-server-switch ()
   (condition-case-unless-debug err
