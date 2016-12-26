@@ -2740,10 +2740,14 @@ Return `NAME'."
 (defsubst persp--set-frame-buffer-predicate-buffer-list-cache (buflist)
   (prog1
       (setq persp-frame-buffer-predicate-buffer-list-cache buflist)
+    (unless persp-frame-buffer-predicate-buffer-list-cache
+      (setq persp-frame-buffer-predicate-buffer-list-cache :nil))
     (run-at-time 2 nil #'(lambda () (setq persp-frame-buffer-predicate-buffer-list-cache nil)))))
 (defmacro persp--get-frame-buffer-predicate-buffer-list-cache (buflist)
   `(if persp-frame-buffer-predicate-buffer-list-cache
-       persp-frame-buffer-predicate-buffer-list-cache
+       (if (eq :nil persp-frame-buffer-predicate-buffer-list-cache)
+           nil
+         persp-frame-buffer-predicate-buffer-list-cache)
      (persp--set-frame-buffer-predicate-buffer-list-cache ,buflist)))
 (defun persp-generate-frame-buffer-predicate (opt)
   (if opt
