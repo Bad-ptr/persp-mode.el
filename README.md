@@ -1,7 +1,7 @@
 # persp-mode  
 
 ## Intro  
-Perspectives for emacs, based on the [`perspective-el`](http://github.com/nex3/perspective-el) by Nathan Weizenbaum.  
+Perspectives for emacs, based on the [`perspective-el`](http://github.com/nex3/perspective-el) by Natalie Weizenbaum.  
 But the perspectives are shared among frames \+ ability to save/restore its state from/to a file.  
 
 ## Installation  
