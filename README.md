@@ -164,6 +164,20 @@ After that you can add functions to `after-switch-to-buffer-functions` and `afte
                      (persp-add-buffer bn))))
 ```
 
+## Set persp-add-buffer-on-after-change-major-mode to auto-add more buffers
+
+Buffers end up in a perspective after you manually add them or more often automatically when `find-file-hook` fires. This works well for buffers that visit a file, but not every buffer does. E.g. buffers created by Dired won't trigger `find-file-hook` and won't be added to current perspective. If you discover that some buffers you'd expect are missing you may be able to get the desired behavior by effecting `after-change-major-mode-hook`:
+
+```lisp
+;; see documentation for other possible values
+(setq persp-add-buffer-on-after-change-major-mode t)
+
+;; above setting will not discriminate and bring ephemeral buffers e.g.
+;; *magit* which you probably don't want. You can filter them out.
+(add-hook 'persp-common-buffer-filter-functions
+    #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
+```
+
 ## Auto perspectives  
 
 You can now define an auto perspective using the `def-auto-persp` function.  
