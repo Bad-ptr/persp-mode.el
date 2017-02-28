@@ -860,9 +860,8 @@ to a wrong one.")
 (defvar persp-read-multiple-exit-minibuffer-function #'exit-minibuffer
   "Function to call to exit minibuffer when reading multiple candidates.")
 
-(make-variable-buffer-local
- (defvar persp-buffer-in-persps nil
-   "Buffer-local list of perspective names this buffer belongs to."))
+(defvar persp-buffer-props-hash nil
+  "Cache to store buffer properties.")
 
 
 (defvar persp-backtrace-frame-function
@@ -1136,6 +1135,27 @@ to a wrong one.")
             (delq (assq param-name persp-nil-parameters)
                   persp-nil-parameters)))))
 
+(defun persp--buffer-in-persps (buf)
+  (cdr
+   (assq 'persp-buffer-in-persps
+         (gethash (persp-get-buffer-or-null buf)
+                  persp-buffer-props-hash))))
+
+(defun persp--buffer-in-persps-set (buf persps)
+  (let* ((oldcons (assq 'persp-buffer-in-persps
+                        (gethash
+                         buf persp-buffer-props-hash))))
+    (if oldcons
+        (setf (cdr oldcons) persps)
+      (puthash buf persps persp-buffer-props-hash))))
+
+(defun persp--buffer-in-persps-add (buf persp)
+  (persp--buffer-in-persps-set
+   buf (cons persp (persp--buffer-in-persps buf))))
+
+(defun persp--buffer-in-persps-remove (buf persp)
+  (persp--buffer-in-persps-set
+   buf (delq persp (persp--buffer-in-persps buf))))
 
 ;; Used in mode defenition:
 
@@ -1518,7 +1538,8 @@ named collections of buffers and window configurations."
               (add-hook 'after-make-frame-functions #'persp-mode-start-and-remove-from-make-frame-hook)
               (setq persp-mode nil))
 
-          (setq *persp-hash* (make-hash-table :test 'equal :size 10))
+          (setq *persp-hash* (make-hash-table :test #'equal :size 10))
+          (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))
 
           (push '(persp . writable) window-persistent-parameters)
 
@@ -1586,17 +1607,13 @@ named collections of buffers and window configurations."
     (when (fboundp 'tabbar-mode)
       (setq tabbar-buffer-list-function #'tabbar-buffer-list))
 
-    ;; TODO: do it properly -- remove buffers, kill perspectives
-    (mapc #'(lambda (b)
-              (with-current-buffer b
-                (setq persp-buffer-in-persps nil)))
-          (buffer-list))
-
     (setq window-persistent-parameters
           (delq (assq 'persp window-persistent-parameters)
                 window-persistent-parameters))
 
-    (setq *persp-hash* nil)))
+    ;; TODO: do it properly -- remove buffers, kill perspectives
+    (setq *persp-hash* nil)
+    (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))))
 
 
 ;; Hooks:
@@ -1652,37 +1669,38 @@ and then killed.\nWhat do you really want to do? "
   "This must be the last hook in the kill-buffer-query-functions.
 Otherwise if a next function in the list returns nil -- buffer will not be killed,
 but just removed from a perspective."
-  (block pkbqf
-    (when (and persp-mode persp-buffer-in-persps)
-      (let* ((buffer (current-buffer))
-             (persp (get-current-persp))
-             (pbcontain (persp-contain-buffer-p buffer persp))
-             (foreign-check-passed
-              (if pbcontain
-                  t
-                (let* ((base-buffer (buffer-base-buffer buffer))
-                       (fb-kill-behaviour
-                        (if (and base-buffer
-                                 (not (eq 'do-not-override
-                                          persp-kill-foreign-indirect-buffer-behaviour-override)))
-                            persp-kill-foreign-indirect-buffer-behaviour-override
-                          persp-kill-foreign-buffer-behaviour)))
-                  (if (and fb-kill-behaviour
-                           (not (persp-buffer-filtered-out-p buffer)))
-                      (persp--kill-buffer-query-function-foreign-check
-                       fb-kill-behaviour persp buffer base-buffer)
-                    t)))))
-        (if foreign-check-passed
-            (when (and persp (persp-buffer-in-other-p* buffer persp))
-              (if pbcontain
-                  (persp-remove-buffer buffer persp nil t nil nil)
-                (persp-remove-buffer buffer nil nil t nil nil))
-              (return-from pkbqf nil))
-          (return-from pkbqf nil))))
-    t))
+  (when persp-mode
+    (block pkbqf
+      (let ((buffer (current-buffer)))
+        (when (persp--buffer-in-persps buffer)
+          (let* ((persp (get-current-persp))
+                 (pbcontain (persp-contain-buffer-p buffer persp))
+                 (foreign-check-passed
+                  (if pbcontain
+                      t
+                    (let* ((base-buffer (buffer-base-buffer buffer))
+                           (fb-kill-behaviour
+                            (if (and base-buffer
+                                     (not (eq 'do-not-override
+                                              persp-kill-foreign-indirect-buffer-behaviour-override)))
+                                persp-kill-foreign-indirect-buffer-behaviour-override
+                              persp-kill-foreign-buffer-behaviour)))
+                      (if (and fb-kill-behaviour
+                               (not (persp-buffer-filtered-out-p buffer)))
+                          (persp--kill-buffer-query-function-foreign-check
+                           fb-kill-behaviour persp buffer base-buffer)
+                        t)))))
+            (if foreign-check-passed
+                (when (and persp (persp-buffer-in-other-p* buffer persp))
+                  (if pbcontain
+                      (persp-remove-buffer buffer persp nil t nil nil)
+                    (persp-remove-buffer buffer nil nil t nil nil))
+                  (return-from pkbqf nil))
+              (return-from pkbqf nil)))))
+      t)))
 
 (defun persp-kill-buffer-h ()
-  (when (and persp-mode persp-buffer-in-persps)
+  (when (and persp-mode (persp--buffer-in-persps (current-buffer)))
     (let (persp-autokill-buffer-on-remove)
       (persp-remove-buffer (current-buffer) nil t
                            persp-when-kill-switch-to-buffer-in-perspective t nil))))
@@ -1868,13 +1886,13 @@ but just removed from a perspective."
     ret))
 (defun* persp-other-persps-with-buffer-except-nil*
     (&optional (buff-or-name (current-buffer)) (persp (get-current-persp)) del-weak)
-  (with-current-buffer buff-or-name
-    (let ((persps persp-buffer-in-persps))
-      (when persp
-        (setq persps (remove (persp-name persp) persps)))
-      (when del-weak
-        (setq persps (remove-if #'safe-persp-weak persps :key #'persp-get-by-name)))
-      persps)))
+  (let ((persps (persp--buffer-in-persps
+                 (persp-get-buffer-or-null buff-or-name))))
+    (when persp
+      (setq persps (remq persp persps)))
+    (when del-weak
+      (setq persps (remove-if #'persp-weak persps)))
+    persps))
 
 (defun* persp-buffer-in-other-p
     (&optional (buff-or-name (current-buffer)) (persp (get-current-persp))
@@ -2016,31 +2034,31 @@ Return the created perspective."
   (setq buffer-or-name (if buffer-or-name
                            (persp-get-buffer-or-null buffer-or-name)
                          (current-buffer)))
-  (with-current-buffer buffer-or-name
-    (mapc #'(lambda (p)
-              (when p
-                (persp-add-buffer buffer-or-name p nil nil)))
-          (mapcar #'persp-get-by-name persp-buffer-in-persps))
-    (setq persp-buffer-in-persps
-          (mapcar #'persp-name
-                  (delete-if-not (apply-partially #'memq buffer-or-name)
-                                 (delq nil (persp-persps))
-                                 :key #'persp-buffers)))))
+  (mapc #'(lambda (p)
+            (when p
+              (persp-add-buffer buffer-or-name p nil nil)))
+        (persp--buffer-in-persps buffer-or-name))
+  (persp--buffer-in-persps-set
+   buffer-or-name
+   (delete-if-not (apply-partially #'memq buffer-or-name)
+                  (delq nil (persp-persps))
+                  :key #'persp-buffers)))
 
 (defun* persp-contain-buffer-p
     (&optional (buff-or-name (current-buffer)) (persp (get-current-persp)) delweak)
   (if (and delweak (safe-persp-weak persp))
       nil
     (if persp
-        (memq (persp-get-buffer-or-null buff-or-name) (persp-buffers persp))
+        (memq (persp-get-buffer-or-null buff-or-name)
+              (persp-buffers persp))
       t)))
 (defun* persp-contain-buffer-p*
     (&optional (buff-or-name (current-buffer)) (persp (get-current-persp)) delweak)
   (if (and delweak (safe-persp-weak persp))
       nil
     (if persp
-        (with-current-buffer buff-or-name
-          (member (persp-name persp) persp-buffer-in-persps))
+        (memq persp (persp--buffer-in-persps
+                     (persp-get-buffer-or-null buff-or-name)))
       t)))
 
 (defun* persp-add-buffer
@@ -2069,8 +2087,7 @@ Return the created perspective."
            (unless (persp-contain-buffer-p buffer persp)
              (push buffer (persp-buffers persp)))
            (unless (persp-contain-buffer-p* buffer persp)
-             (with-current-buffer buffer
-               (push (persp-name persp) persp-buffer-in-persps))))
+             (persp--buffer-in-persps-add buffer persp)))
          (when (and buffer switchorno (eq persp (get-current-persp)))
            (persp-switch-to-buffer buffer))
          buffer))
@@ -2139,10 +2156,9 @@ Return removed buffers."
                            (persp-remove-buffer buffer p nil switch
                                                 called-from-kill-buffer-hook called-interactively-p))
                        (persp-other-persps-with-buffer-except-nil buffer persp)))
+             (persp--buffer-in-persps-remove buffer persp)
              (when (memq buffer (persp-buffers persp))
                (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
-               (with-current-buffer buffer
-                 (setq persp-buffer-in-persps (delete (persp-name persp) persp-buffer-in-persps)))
                (when switch
                  (persp-switch-to-prev-buffer buffer persp))))
            (unless called-from-kill-buffer-hook
@@ -2313,11 +2329,12 @@ perspective buffers or nil."
 
 (defun persp-buffer-free-p (&optional buff-or-name del-weak)
   (unless buff-or-name (setq buff-or-name (current-buffer)))
-  (with-current-buffer buff-or-name
-    (if persp-buffer-in-persps
+  (let ((persps (persp--buffer-in-persps
+                 (persp-get-buffer-or-null buff-or-name))))
+    (if persps
         (if del-weak
             (not
-             (find-if-not #'safe-persp-weak persp-buffer-in-persps :key #'persp-get-by-name))
+             (find-if-not #'persp-weak persps))
           nil)
       t)))
 
@@ -2454,14 +2471,7 @@ Return that old buffer."
             (progn
               (persp-remove-from-menu persp)
               (remhash old-name phash)
-              (progn
-                (setf (persp-name persp) new-name)
-                (mapc #'(lambda (b)
-                          (with-current-buffer b
-                            (setq persp-buffer-in-persps
-                                  (cons new-name
-                                        (delete old-name persp-buffer-in-persps)))))
-                      (persp-buffers persp)))
+              (setf (persp-name persp) new-name)
               (puthash new-name persp phash)
               (persp-add-to-menu persp)
               (run-hook-with-args 'persp-renamed-functions persp old-name new-name)
@@ -3300,16 +3310,13 @@ does not exists or not a directory %S." p-save-dir)
           bufferlist-diff)
       (when (or (eq keep-others 'yes) (eq keep-others t))
         (let ((bufferlist-pre
-               (mapcar #'(lambda (b)
-                           (with-current-buffer b
-                             (cons b persp-buffer-in-persps)))
+               (mapcar #'(lambda (b) (cons b (persp--buffer-in-persps b)))
                        (funcall persp-buffer-list-function))))
           (persp-load-state-from-file fname temphash (cons :not (regexp-opt names)))
           (setq bufferlist-diff (delete-if #'(lambda (bcons)
                                                (destructuring-bind (buf . buf-persps) bcons
                                                  (when buf
-                                                   (with-current-buffer buf
-                                                     (setq persp-buffer-in-persps buf-persps))
+                                                   (persp--buffer-in-persps-set buf buf-persps)
                                                    t)))
                                            (funcall persp-buffer-list-function)
                                            :key #'(lambda (b) (assq b bufferlist-pre))))))
