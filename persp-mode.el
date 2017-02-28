@@ -118,6 +118,9 @@
 
 (defvar persp-mode nil)
 
+(defconst persp-not-persp :nil
+  "Something that is not a perspective.")
+
 (unless (fboundp 'condition-case-unless-debug)
   (defalias 'condition-case-unless-debug 'condition-case-no-debug))
 (unless (fboundp 'read-multiple-choice)
@@ -1740,7 +1743,7 @@ but just removed from a perspective."
   (unless name (setq name (number-to-string (random))))
   (macrolet ((namegen () `(format "%s:%s" name (random 9))))
     (do ((nname name (namegen)))
-        ((eq :+-123emptynooo (persp-get-by-name nname phash :+-123emptynooo)) nname))))
+        ((eq persp-not-persp (persp-get-by-name nname phash persp-not-persp)) nname))))
 
 (defsubst persp-is-frame-daemons-frame (f)
   (and (daemonp) (eq f terminal-frame)))
@@ -1977,9 +1980,9 @@ Return the removed perspective."
     (setq name (persp-read-persp "to remove" nil
                              (and (eq phash *persp-hash*) (safe-persp-name (get-current-persp)))
                              t t)))
-  (let ((persp (persp-get-by-name name phash :+-123emptynooo))
+  (let ((persp (persp-get-by-name name phash persp-not-persp))
         (persp-to-switch persp-nil-name))
-    (unless (eq persp :+-123emptynooo)
+    (unless (eq persp persp-not-persp)
       (persp-save-state persp)
       (if (and (eq phash *persp-hash*) (null persp))
           (message "[persp-mode] Error: Can't remove the 'nil' perspective")
@@ -2213,9 +2216,9 @@ cause it already contain all buffers.")))
   (interactive "i")
   (unless name
     (setq name (persp-read-persp "to import window configuration from" nil nil t nil t)))
-  (let ((persp-from (persp-get-by-name name phash :+-123emptynooo)))
+  (let ((persp-from (persp-get-by-name name phash persp-not-persp)))
     (unless (or (eq persp-to persp-from)
-                (eq persp-from :+-123emptynooo))
+                (eq persp-from persp-not-persp))
       (if persp-to
           (setf (persp-window-conf persp-to) (safe-persp-window-conf persp-from))
         (setq persp-nil-wconf (persp-window-conf persp-from)))
@@ -2367,8 +2370,8 @@ Return that old buffer."
   (let ((persp-to-switch (get-current-persp))
         (hidden-persps
          (mapcar #'(lambda (pn)
-                     (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
-                       (unless (eq persp :+-123emptynooo)
+                     (let ((persp (persp-get-by-name pn *persp-hash* persp-not-persp)))
+                       (unless (eq persp persp-not-persp)
                          (if persp
                              (setf (persp-hidden persp) t)
                            (setq persp-nil-hidden t)))
@@ -2377,7 +2380,7 @@ Return that old buffer."
     (when (safe-persp-hidden persp-to-switch)
       (setq persp-to-switch (car (persp-other-not-hidden-persps persp-to-switch))))
     (mapc #'(lambda (p)
-              (unless (eq p :+-123emptynooo)
+              (unless (eq p persp-not-persp)
                 (destructuring-bind (frames . windows)
                     (persp-frames-and-windows-with-persp p)
                   (dolist (w windows) (clear-window-persp w))
@@ -2397,8 +2400,8 @@ Return that old buffer."
             (persp-read-persp "to unhide" t (car hidden-persps) t nil nil hidden-persps t))))
   (when names
     (mapc #'(lambda (pn)
-              (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
-                (unless (eq persp :+-123emptynooo)
+              (let ((persp (persp-get-by-name pn *persp-hash* persp-not-persp)))
+                (unless (eq persp persp-not-persp)
                   (if persp
                       (setf (persp-hidden persp) nil)
                     (setq persp-nil-hidden nil)))))
@@ -2412,11 +2415,11 @@ Return that old buffer."
   (unless (listp names) (setq names (list names)))
   (unless names
     (setq names (persp-read-persp (concat "to kill"
-                                      (and dont-kill-buffers " not killing buffers"))
-                              t (safe-persp-name (get-current-persp)) t)))
+                                          (and dont-kill-buffers " not killing buffers"))
+                                  t (safe-persp-name (get-current-persp)) t)))
   (mapc #'(lambda (pn)
-            (let ((persp (persp-get-by-name pn *persp-hash* :+-123emptynooo)))
-              (unless (eq persp :+-123emptynooo)
+            (let ((persp (persp-get-by-name pn *persp-hash* persp-not-persp)))
+              (unless (eq persp persp-not-persp)
                 (when (or (not called-interactively-p)
                           (not (null persp))
                           (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
@@ -2504,8 +2507,8 @@ Return `NAME'."
 (defun persp-before-make-frame ()
   (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
                                  persp-last-persp-name)
-                            persp-nil-name) *persp-hash* :+-123emptynooo)))
-    (when (eq persp :+-123emptynooo)
+                            persp-nil-name) *persp-hash* persp-not-persp)))
+    (when (eq persp persp-not-persp)
       (when persp-set-last-persp-for-new-frames
         (setq persp-last-persp-name persp-nil-name))
       (setq persp (persp-add-new persp-nil-name)))
@@ -2605,8 +2608,8 @@ Return `NAME'."
                         (setq persp-name (or (and persp-set-last-persp-for-new-frames
                                                   persp-last-persp-name)
                                              persp-nil-name)
-                              persp (persp-get-by-name persp-name *persp-hash* :+-123emptynooo))
-                        (when (eq persp :+-123emptynooo)
+                              persp (persp-get-by-name persp-name *persp-hash* persp-not-persp))
+                        (when (eq persp persp-not-persp)
                           (setq persp-name persp-nil-name
                                 persp (persp-add-new persp-name))))))
         (typecase persp-init-frame-behaviour
@@ -2639,7 +2642,7 @@ Return `NAME'."
 
 (defun persp-delete-frame (frame)
   (condition-case-unless-debug err
-      (persp--deactivate frame :+-123emptynooo)
+      (persp--deactivate frame persp-not-persp)
     (error
      (message "[persp-mode] Error: Can not deactivate frame -- %s"
               err))))
