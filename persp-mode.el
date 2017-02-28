@@ -2016,14 +2016,16 @@ Return the created perspective."
   (setq buffer-or-name (if buffer-or-name
                            (persp-get-buffer-or-null buffer-or-name)
                          (current-buffer)))
-  (when buffer-or-name
-    (with-current-buffer buffer-or-name
-      (unless persp-buffer-in-persps
-        (setq persp-buffer-in-persps
-              (mapcar #'persp-name
-                      (delete-if-not (apply-partially #'memq buffer-or-name)
-                                     (delq nil (persp-persps))
-                                     :key #'persp-buffers)))))))
+  (with-current-buffer buffer-or-name
+    (mapc #'(lambda (p)
+              (when p
+                (persp-add-buffer buffer-or-name p nil nil)))
+          (mapcar #'persp-get-by-name persp-buffer-in-persps))
+    (setq persp-buffer-in-persps
+          (mapcar #'persp-name
+                  (delete-if-not (apply-partially #'memq buffer-or-name)
+                                 (delq nil (persp-persps))
+                                 :key #'persp-buffers)))))
 
 (defun* persp-contain-buffer-p
     (&optional (buff-or-name (current-buffer)) (persp (get-current-persp)) delweak)
