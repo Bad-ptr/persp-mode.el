@@ -1142,12 +1142,13 @@ to a wrong one.")
                   persp-buffer-props-hash))))
 
 (defun persp--buffer-in-persps-set (buf persps)
-  (let* ((oldcons (assq 'persp-buffer-in-persps
-                        (gethash
-                         buf persp-buffer-props-hash))))
-    (if oldcons
-        (setf (cdr oldcons) persps)
-      (puthash buf persps persp-buffer-props-hash))))
+  (let* ((buf-props (gethash buf persp-buffer-props-hash))
+         (cons (assq 'persp-buffer-in-persps buf-props)))
+    (if cons
+        (setf (cdr cons) persps)
+      (setq cons (cons 'persp-buffer-in-persps persps))
+      (push cons buf-props)
+      (puthash buf buf-props persp-buffer-props-hash))))
 
 (defun persp--buffer-in-persps-add (buf persp)
   (persp--buffer-in-persps-set
