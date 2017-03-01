@@ -860,7 +860,8 @@ to a wrong one.")
 (defvar persp-read-multiple-exit-minibuffer-function #'exit-minibuffer
   "Function to call to exit minibuffer when reading multiple candidates.")
 
-(defvar persp-buffer-props-hash nil
+(defvar persp-buffer-props-hash (when persp-mode
+                                  (make-hash-table :test #'eq :size 10))
   "Cache to store buffer properties.")
 
 
@@ -3573,6 +3574,9 @@ does not exists or not a directory %S." p-save-dir)
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
 
+(when persp-mode
+  (mapc #'persp-find-and-set-persps-for-buffer
+        (buffer-list)))
 
 (provide 'persp-mode)
 
