@@ -1614,7 +1614,7 @@ named collections of buffers and window configurations."
 
     ;; TODO: do it properly -- remove buffers, kill perspectives
     (setq *persp-hash* nil)
-    (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))))
+    (setq persp-buffer-props-hash nil)))
 
 
 ;; Hooks:
