@@ -911,6 +911,7 @@ to a wrong one.")
 (define-key persp-key-map (kbd "r") #'persp-rename)
 (define-key persp-key-map (kbd "c") #'persp-copy)
 (define-key persp-key-map (kbd "C") #'persp-kill)
+(define-key persp-key-map (kbd "z") #'persp-save-and-kill)
 (define-key persp-key-map (kbd "a") #'persp-add-buffer)
 (define-key persp-key-map (kbd "b") #'persp-switch-to-buffer)
 (define-key persp-key-map (kbd "t") #'persp-temporarily-display-buffer)
@@ -2476,7 +2477,25 @@ Return that old buffer."
 
 (defun persp-kill-without-buffers (names)
   (interactive "i")
-  (persp-kill names t))
+  (persp-kill names t nil))
+
+(defun* persp-save-and-kill (names &optional dont-kill-buffers
+                                   (called-interactively-p (called-interactively-p 'any)))
+  (interactive "i")
+  (when (and called-interactively-p current-prefix-arg)
+    (setq dont-kill-buffers (not dont-kill-buffers)))
+  (unless (listp names) (setq names (list names)))
+  (unless names
+    (setq names (persp-read-persp (concat "to save and kill"
+                                          (and dont-kill-buffers " not killing buffers"))
+                                  t (safe-persp-name (get-current-persp)) t)))
+  (let ((temphash (make-hash-table :test 'equal :size 10)))
+    (mapc #'(lambda (p)
+              (persp-add p temphash))
+          (mapcar #'(lambda (pn) (persp-get-by-name pn *persp-hash*)) names))
+    (persp-save-state-to-file persp-auto-save-fname temphash
+                              persp-auto-save-persps-to-their-file
+                              'yes)))
 
 (defun* persp-rename (new-name
                       &optional (persp (get-current-persp)) (phash *persp-hash*))
