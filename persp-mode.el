@@ -3267,7 +3267,8 @@ of the perspective %s can't be saved."
 
 (defun* persp-save-state-to-file
     (&optional (fname persp-auto-save-fname) (phash *persp-hash*)
-               (respect-persp-file-parameter persp-auto-save-persps-to-their-file))
+               (respect-persp-file-parameter persp-auto-save-persps-to-their-file)
+               (keep-others-in-non-parametric-file 'no))
   (interactive (list (read-file-name "Save perspectives to a file: "
                                      persp-save-dir)))
   (when (and fname phash)
@@ -3297,7 +3298,8 @@ does not exists or not a directory %S." p-save-dir)
                           (let ((names (mapcar #'safe-persp-name pl)))
                             (if pfname
                                 (persp-save-to-file-by-names pfname phash names 'yes nil)
-                              (persp-save-to-file-by-names p-save-file phash names 'no nil)))))
+                              (persp-save-to-file-by-names
+                               p-save-file phash names keep-others-in-non-parametric-file nil)))))
                     (persp-group-by (apply-partially #'persp-parameter 'persp-file)
                                     (persp-persps phash nil t) t)))
           (with-temp-buffer
