@@ -3128,10 +3128,13 @@ Return `NAME'."
     (when new-frame-p (sit-for 0.01))
     (with-selected-frame frame
       (let ((pwc (safe-persp-window-conf persp))
-            (split-width-threshold 0)
-            (split-height-threshold 0)
-            (window-min-height window-safe-min-height)
-            (window-min-width window-safe-min-width)
+            (split-width-threshold 2)
+            (split-height-threshold 2)
+            (window-safe-min-height 1)
+            (window-safe-min-width 1)
+            (window-min-height 1)
+            (window-min-width 1)
+            (window-resize-pixelwise t)
             (gr-mode (and (boundp 'golden-ratio-mode) golden-ratio-mode)))
         (when gr-mode
           (golden-ratio-mode -1))
