@@ -213,6 +213,15 @@ in the `persp-file' perspective parameter."
   :group 'persp-mode
   :type 'boolean)
 
+(defcustom persp-auto-save-persps-to-their-file-before-kill nil
+  "Whether or not perspectives will be saved before killed."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "Save perspectives which have `persp-file' parameter"
+                 :value persp-file)
+          (const :tag "Save all perspectives" :value t)
+          (const :tag "Don't save just kill" :value nil)))
+
 (defcustom persp-auto-save-opt 2
   "This variable controls the autosave functionality of the persp-mode:
 0 -- do not auto save;
@@ -2444,6 +2453,15 @@ Return that old buffer."
                 (when (or (not called-interactively-p)
                           (not (null persp))
                           (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
+                  (let ((pfile (persp-parameter 'persp-file persp)))
+                    (case persp-auto-save-persps-to-their-file-before-kill
+                      (persp-file nil)
+                      ('nil (setq pfile nil))
+                      (t (unless pfile
+                           (setq pfile persp-auto-save-fname))))
+                    (when pfile
+                      (persp-save-to-file-by-names
+                       pfile *persp-hash* (list pn) t nil)))
                   (run-hook-with-args 'persp-before-kill-functions persp)
                   (let (persp-autokill-persp-when-removed-last-buffer)
                     (if dont-kill-buffers
