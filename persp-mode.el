@@ -111,6 +111,7 @@
 
 ;;; Code:
 
+
 ;; Prerequirements:
 
 (require 'cl)
@@ -140,6 +141,7 @@
     (ignore remove) ;;Silence byte-compiler.
     (let ((x (assq key alist)))
       (if x (cdr x) default))))
+
 
 ;; Customization variables:
 
@@ -817,6 +819,7 @@ is 2, 2.5, 3 or 3.5."
   :type '(alist :key-type (string :tag "Name")
                 :value-type (alist :tag "Parameters"
                                    :key-type (symbol :tag "Keyword"))))
+
 
 ;; Global variables:
 
@@ -896,6 +899,7 @@ to a wrong one.")
   "Whether `persp-next' and `persp-prev' should wrap."
   :group 'persp-mode
   :type 'boolean)
+
 
 ;; Key bindings:
 
@@ -975,7 +979,7 @@ to a wrong one.")
 (define-obsolete-variable-alias
   'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
   "persp-mode 2.9")
-
+
 
 ;; Perspective struct:
 
@@ -1168,6 +1172,7 @@ to a wrong one.")
 (defun persp--buffer-in-persps-remove (buf persp)
   (persp--buffer-in-persps-set
    buf (delq persp (persp--buffer-in-persps buf))))
+
 
 ;; Used in mode defenition:
 
@@ -1205,7 +1210,7 @@ to a wrong one.")
 
 (defun persp-special-last-buffer-make-current ()
   (setq persp-special-last-buffer (current-buffer)))
-
+
 
 ;; Auto persp functions:
 
@@ -1523,7 +1528,7 @@ to a wrong one.")
                                           default-load-fun (with-no-warnings ',after-load-function))
                               `(funcall default-load-fun savelist))))))
               append)))
-
+
 
 ;; Mode itself:
 
@@ -1626,7 +1631,7 @@ named collections of buffers and window configurations."
     ;; TODO: do it properly -- remove buffers, kill perspectives
     (setq *persp-hash* nil)
     (setq persp-buffer-props-hash nil)))
-
+
 
 ;; Hooks:
 
@@ -1765,7 +1770,7 @@ but just removed from a perspective."
     (error
      (message "[persp-mode] Error: error in server-switch-hook -- %s"
               err))))
-
+
 
 ;; Misc funcs:
 
@@ -1956,7 +1961,7 @@ but just removed from a perspective."
                                                func
                                                (mapconcat 'identity blist ", ")))))
           (mapcar #'(lambda (b) (apply func b rest-args)) blist))))))
-
+
 
 ;; Perspective funcs:
 
@@ -2711,7 +2716,7 @@ Return `NAME'."
                 t)
               (eq persp (get-frame-persp f))))
      flist)))
-
+
 
 ;; Helper funcs:
 
@@ -3133,7 +3138,7 @@ Return `NAME'."
         (when (lookup-key mb-local-key-map toggle-filter-keys)
           (define-key mb-local-key-map toggle-filter-keys toggle-filter-keys-backup)))
       (setq persp-disable-buffer-restriction-once nil))))
-
+
 
 ;; Save/Load funcs:
 
