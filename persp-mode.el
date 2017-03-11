@@ -1553,10 +1553,11 @@ to a wrong one.")
 ;;;###autoload
 (defun* def-persp-buffer-save/load
     (&rest keyargs
-           &key buffer-name file-name mode mode-name minor-mode minor-mode-name predicate
-           tag-symbol save-vars save-function
-           load-function after-load-function append)
-  (let ((generated-save-predicate (apply #'persp--generate-buffer-predicate keyargs))
+           &key buffer-name file-name mode mode-name minor-mode minor-mode-name
+           predicate tag-symbol save-vars save-function load-function after-load-function
+           append)
+  (let ((generated-save-predicate
+         (apply #'persp--generate-buffer-predicate keyargs))
         save-body load-fun)
     (when save-vars
       (unless (listp save-vars) (setq save-vars (list save-vars)))
@@ -1564,51 +1565,67 @@ to a wrong one.")
         (push 'major-mode save-vars)))
     (unless tag-symbol (setq tag-symbol 'def-buffer-with-vars))
 
-    (setq save-body `(let ((vars-list
-                            (with-current-buffer buffer
-                              (delete-if-not #'(lambda (lvar)
-                                                 ,(persp--generate-predicate-loop-any-all
-                                                   save-vars
-                                                   '(and (if (persp-regexp-p item)
-                                                             (persp-string-match-p item (symbol-name lvar))
-                                                           (eq item lvar))
-                                                         (persp-elisp-object-readable-p (symbol-value lvar)))
-                                                   t))
-                                             (buffer-local-variables)
-                                             :key #'car-safe))))
-                       ,(if save-function
-                            `(funcall (with-no-warnings ',save-function) buffer ',tag-symbol vars-list)
-                          `(list ',tag-symbol (buffer-name buffer) vars-list)))
-          save-body `(when (funcall (with-no-warnings ',generated-save-predicate) buffer)
+    (setq save-body
+          `(let ((vars-list
+                  (with-current-buffer buffer
+                    (delete-if-not
+                     #'(lambda (lvar)
+                         ,(persp--generate-predicate-loop-any-all
+                           save-vars
+                           '(and
+                             (if (persp-regexp-p item)
+                                 (persp-string-match-p item
+                                                       (symbol-name lvar))
+                               (eq item lvar))
+                             (persp-elisp-object-readable-p
+                              (symbol-value lvar)))
+                           t))
+                     (buffer-local-variables)
+                     :key #'car-safe))))
+             ,(if save-function
+                  `(funcall (with-no-warnings ',save-function)
+                            buffer ',tag-symbol vars-list)
+                `(list ',tag-symbol (buffer-name buffer) vars-list)))
+          save-body `(when (funcall (with-no-warnings ',generated-save-predicate)
+                                    buffer)
                        ,save-body))
 
-    (setq load-fun `(lambda (savelist)
-                      (destructuring-bind (buffer-name vars-list &rest _rest) (cdr savelist)
-                        (let ((buf-file (alist-get 'buffer-file-name vars-list))
-                              (buf-mmode (alist-get 'major-mode vars-list)))
-                          (lexical-let ((persp-loaded-buffer
-                                         (persp-buffer-from-savelist
-                                          (list 'def-buffer buffer-name buf-file buf-mmode
-                                                (list (cons 'local-vars vars-list)))))
-                                        (persp-after-load-function (with-no-warnings ',after-load-function))
-                                        persp-after-load-lambda)
-                            (when (and persp-loaded-buffer persp-after-load-function)
-                              (setq persp-after-load-lambda #'(lambda (&rest pall-args)
-                                                                (apply persp-after-load-function persp-loaded-buffer pall-args)
-                                                                (remove-hook 'persp-after-load-state-functions
-                                                                             persp-after-load-lambda)))
-                              (add-hook 'persp-after-load-state-functions persp-after-load-lambda t))
-                            persp-loaded-buffer)))))
+    (setq load-fun
+          `(lambda (savelist)
+             (destructuring-bind
+                 (buffer-name vars-list &rest _rest) (cdr savelist)
+               (let ((buf-file (alist-get 'buffer-file-name vars-list))
+                     (buf-mmode (alist-get 'major-mode vars-list)))
+                 (lexical-let
+                     ((persp-loaded-buffer
+                       (persp-buffer-from-savelist
+                        (list 'def-buffer buffer-name buf-file buf-mmode
+                              (list (cons 'local-vars vars-list)))))
+                      (persp-after-load-function (with-no-warnings ',after-load-function))
+                      persp-after-load-lambda)
+                   (when (and persp-loaded-buffer persp-after-load-function)
+                     (setq persp-after-load-lambda
+                           #'(lambda (&rest pall-args)
+                               (apply persp-after-load-function
+                                      persp-loaded-buffer pall-args)
+                               (remove-hook 'persp-after-load-state-functions
+                                            persp-after-load-lambda)))
+                     (add-hook 'persp-after-load-state-functions
+                               persp-after-load-lambda t))
+                   persp-loaded-buffer)))))
 
-    (add-hook 'persp-save-buffer-functions (eval `(lambda (buffer) ,save-body)) append)
+    (add-hook 'persp-save-buffer-functions
+              (eval `(lambda (buffer) ,save-body)) append)
     (add-hook 'persp-load-buffer-functions
-              (eval `(lambda (savelist)
-                       (when (eq (car savelist) ',tag-symbol)
-                         (let ((default-load-fun (with-no-warnings ',load-fun)))
-                           ,(if load-function
-                                `(funcall (with-no-warnings ',load-function) savelist
-                                          default-load-fun (with-no-warnings ',after-load-function))
-                              `(funcall default-load-fun savelist))))))
+              (eval
+               `(lambda (savelist)
+                  (when (eq (car savelist) ',tag-symbol)
+                    (let ((default-load-fun (with-no-warnings ',load-fun)))
+                      ,(if load-function
+                           `(funcall (with-no-warnings ',load-function)
+                                     savelist default-load-fun
+                                     (with-no-warnings ',after-load-function))
+                         `(funcall default-load-fun savelist))))))
               append)))
 
 
@@ -1809,8 +1826,9 @@ but just removed from a perspective."
                            persp-when-kill-switch-to-buffer-in-perspective t nil))))
 
 (defun persp--restore-buffer-on-find-file ()
-  (set-window-buffer (or (get-buffer-window) (selected-window))
-                     persp-special-last-buffer)
+  (when (buffer-live-p persp-special-last-buffer)
+    (set-window-buffer (or (get-buffer-window) (selected-window))
+                       persp-special-last-buffer))
   (setq persp-special-last-buffer nil)
   (remove-hook 'window-configuration-change-hook #'persp--restore-buffer-on-find-file))
 (defun persp-add-or-not-on-find-file ()
