@@ -232,10 +232,10 @@ by effecting `after-change-major-mode-hook`:
 
 ## Auto perspectives  
 
-You can now define an auto perspective using the `def-auto-persp` function.  
+You can now define an auto perspective using the `persp-def-auto-persp` function.  
 This kind of perspective is intended to be dynamically created/destroyed/hided/unhided when a specific kind of buffers appears/disappears.  
 
-The argument list of the `def-auto-persp`:  
+The argument list of the `persp-def-auto-persp`:  
 
 The first argument is a string which will serve as a name for the auto perspective.  
 
@@ -250,7 +250,7 @@ Other arguments is a key - value pairs:
 `:predicate` -- function to check if the buffer is a good one(return nil if not).  
 
 `:hooks` -- a list of hooks (or symbol) to which you want to add checks.  
-  `def-auto-persp` tries to be smart about hooks to which it'll add checks, but sometimes you need more control.  
+  `persp-def-auto-persp` tries to be smart about hooks to which it'll add checks, but sometimes you need more control.  
 `:dyn-env` -- the list of variables and values to dynamically bind when the checks and action takes place. The format is the same as in the `let` form.  
 `:get-name` -- function to get a perspecive name.  
 `:get-buffer` -- function to get the buffer.  
@@ -265,7 +265,7 @@ Other arguments is a key - value pairs:
 
 All function parameters must accept a single argument -- the current `state` 
 and must return a new `state`(which can be the old `state`). 
-Where the `state` is the association list which initially contains all key-value arguments that were passed to the `def-auto-persp`.
+Where the `state` is the association list which initially contains all key-value arguments that were passed to the `persp-def-auto-persp`.
 The standard `:get-name` puts `'persp-name` cell to the state, the standard `get-buffer` puts `'buffer`, 
 standard `:get-persp` adds `'persp`.  
 However the `:predicate` function parameter is different -- it must accept a buffer as the first argument 
@@ -277,7 +277,7 @@ If the buffer is not satisfies the predicate it must return nil regardless of th
 
 Only the name string(first argument) is required. All other arguments can be omitted or combined in any way you like.  
 
-The `def-auto-persp` function creates an auto persp definition and adds it to the `persp-auto-persp-alist`. If a definition with same name already exists it will be replaced. If you want to delete a definition pass `t` as the `:delete` parameter.  
+The `persp-def-auto-persp` function creates an auto persp definition and adds it to the `persp-auto-persp-alist`. If a definition with same name already exists it will be replaced. If you want to delete a definition pass `t` as the `:delete` parameter.  
 Unless you pass `t` as the `:dont-pick-up-buffers` argument all existing buffers will be checked against the new auto persp definition.  
 
 Example of usage:  
@@ -286,7 +286,7 @@ Example of usage:
 
     (with-eval-after-load "persp-mode-autoload"
       (with-eval-after-load "dired"
-        (def-auto-persp "dired"
+        (persp-def-auto-persp "dired"
           :parameters '((dont-save-to-file . t))
           :mode 'dired-mode
           :dyn-env '(after-switch-to-buffer-functions ;; prevent recursion
