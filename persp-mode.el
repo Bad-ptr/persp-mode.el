@@ -1389,7 +1389,7 @@ to a wrong one.")
   state)
 
 ;;;###autoload
-(defun* def-auto-persp
+(defun* persp-def-auto-persp
     (name &rest keyargs
           &key buffer-name file-name mode mode-name minor-mode minor-mode-name
           predicate hooks dyn-env get-name get-buffer get-persp
@@ -1542,6 +1542,10 @@ to a wrong one.")
 
       (unless dont-pick-up-buffers
         (persp-auto-persp-pickup-buffers-for name)))))
+
+;;;###autoload
+(define-obsolete-function-alias 'def-auto-persp 'persp-def-auto-persp
+  "persp-mode 2.9.6")
 
 
 ;; Custom save/load functions
