@@ -995,6 +995,9 @@ to a wrong one.")
   (auto nil)
   (hidden nil))
 
+(defun persp-p (obj)
+  (or (null obj) (perspective-p obj)))
+
 (defvar persp-nil-wconf nil
   "Window configuration for the `nil' perspective.")
 
@@ -1887,7 +1890,8 @@ but just removed from a perspective."
   (unless name (setq name (number-to-string (random))))
   (macrolet ((namegen () `(format "%s:%s" name (random 9))))
     (do ((nname name (namegen)))
-        ((eq persp-not-persp (persp-get-by-name nname phash persp-not-persp)) nname))))
+        ((not (persp-p (persp-get-by-name nname phash persp-not-persp)))
+         nname))))
 
 (defsubst persp-is-frame-daemons-frame (f)
   (and (daemonp) (eq f terminal-frame)))
@@ -2121,12 +2125,13 @@ Switch all frames with that perspective to another one.
 Return the removed perspective."
   (interactive "i")
   (unless name
-    (setq name (persp-read-persp "to remove" nil
-                             (and (eq phash *persp-hash*) (safe-persp-name (get-current-persp)))
-                             t t)))
+    (setq name (persp-read-persp
+                "to remove" nil
+                (and (eq phash *persp-hash*) (safe-persp-name (get-current-persp)))
+                t t)))
   (let ((persp (persp-get-by-name name phash persp-not-persp))
         (persp-to-switch persp-nil-name))
-    (unless (eq persp persp-not-persp)
+    (when (persp-p persp)
       (persp-save-state persp)
       (if (and (eq phash *persp-hash*) (null persp))
           (message "[persp-mode] Error: Can't remove the 'nil' perspective")
@@ -2362,7 +2367,7 @@ cause it already contain all buffers.")))
     (setq name (persp-read-persp "to import window configuration from" nil nil t nil t)))
   (let ((persp-from (persp-get-by-name name phash persp-not-persp)))
     (unless (or (eq persp-to persp-from)
-                (eq persp-from persp-not-persp))
+                (not (persp-p persp-from)))
       (if persp-to
           (setf (persp-window-conf persp-to) (safe-persp-window-conf persp-from))
         (setq persp-nil-wconf (persp-window-conf persp-from)))
@@ -2516,7 +2521,7 @@ Return that old buffer."
         (hidden-persps
          (mapcar #'(lambda (pn)
                      (let ((persp (persp-get-by-name pn *persp-hash* persp-not-persp)))
-                       (unless (eq persp persp-not-persp)
+                       (when (persp-p persp)
                          (if persp
                              (setf (persp-hidden persp) t)
                            (setq persp-nil-hidden t)))
@@ -2525,7 +2530,7 @@ Return that old buffer."
     (when (safe-persp-hidden persp-to-switch)
       (setq persp-to-switch (car (persp-other-not-hidden-persps persp-to-switch))))
     (mapc #'(lambda (p)
-              (unless (eq p persp-not-persp)
+              (when (persp-p p)
                 (destructuring-bind (frames . windows)
                     (persp-frames-and-windows-with-persp p)
                   (dolist (w windows) (clear-window-persp w))
@@ -2546,7 +2551,7 @@ Return that old buffer."
   (when names
     (mapc #'(lambda (pn)
               (let ((persp (persp-get-by-name pn *persp-hash* persp-not-persp)))
-                (unless (eq persp persp-not-persp)
+                (when (persp-p persp)
                   (if persp
                       (setf (persp-hidden persp) nil)
                     (setq persp-nil-hidden nil)))))
@@ -2564,7 +2569,7 @@ Return that old buffer."
                                   t (safe-persp-name (get-current-persp)) t)))
   (mapc #'(lambda (pn)
             (let ((persp (persp-get-by-name pn *persp-hash* persp-not-persp)))
-              (unless (eq persp persp-not-persp)
+              (when (persp-p persp)
                 (when (or (not called-interactively-p)
                           (not (null persp))
                           (yes-or-no-p "Really kill the 'nil' perspective (It'l kill all buffers)?"))
@@ -2616,11 +2621,11 @@ Return that old buffer."
   "Change the name field of the `PERSP', returns old name on success, otherwise returns nil."
   (interactive "i")
   (if persp
-      (let ((opersp (gethash new-name phash))
+      (let ((opersp (persp-get-by-name new-name phash persp-not-persp))
             (old-name (safe-persp-name persp)))
         (unless new-name
           (setq new-name (read-string (concat "New name for the " old-name " perspective: "))))
-        (if (and (not opersp) new-name (not (string= old-name new-name)))
+        (if (and (not (persp-p opersp)) new-name (not (string= old-name new-name)))
             (progn
               (persp-remove-from-menu persp)
               (remhash old-name phash)
@@ -2670,10 +2675,12 @@ Return `NAME'."
   name)
 
 (defun persp-before-make-frame ()
-  (let ((persp (gethash (or (and persp-set-last-persp-for-new-frames
-                                 persp-last-persp-name)
-                            persp-nil-name) *persp-hash* persp-not-persp)))
-    (when (eq persp persp-not-persp)
+  (let ((persp (persp-get-by-name
+                (or (and persp-set-last-persp-for-new-frames
+                         persp-last-persp-name)
+                    persp-nil-name)
+                *persp-hash* persp-not-persp)))
+    (unless (persp-p persp)
       (when persp-set-last-persp-for-new-frames
         (setq persp-last-persp-name persp-nil-name))
       (setq persp (persp-add-new persp-nil-name)))
@@ -2774,7 +2781,7 @@ Return `NAME'."
                                                   persp-last-persp-name)
                                              persp-nil-name)
                               persp (persp-get-by-name persp-name *persp-hash* persp-not-persp))
-                        (when (eq persp persp-not-persp)
+                        (unless (persp-p persp)
                           (setq persp-name persp-nil-name
                                 persp (persp-add-new persp-name))))))
         (typecase persp-init-frame-behaviour
