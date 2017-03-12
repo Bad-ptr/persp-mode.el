@@ -1546,12 +1546,12 @@ to a wrong one.")
 ;;;###autoload
 (define-obsolete-function-alias 'def-auto-persp 'persp-def-auto-persp
   "persp-mode 2.9.6")
+
 
-
-;; Custom save/load functions
+;; Custom save/load functions:
 
 ;;;###autoload
-(defun* def-persp-buffer-save/load
+(defun* persp-def-buffer-save/load
     (&rest keyargs
            &key buffer-name file-name mode mode-name minor-mode minor-mode-name
            predicate tag-symbol save-vars save-function load-function after-load-function
@@ -1627,6 +1627,11 @@ to a wrong one.")
                                      (with-no-warnings ',after-load-function))
                          `(funcall default-load-fun savelist))))))
               append)))
+
+;;;###autoload
+(define-obsolete-function-alias
+  'def-persp-buffer-save/load 'persp-def-buffer-save/load
+  "persp-mode 2.9.6")
 
 
 ;; Mode itself:
