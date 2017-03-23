@@ -46,11 +46,12 @@
 ;; (with-eval-after-load "persp-mode-autoloads"
 ;;   (setq wg-morph-on nil)
 ;;   ;; switch off the animation of restoring window configuration
+;;   (setq persp-autokill-buffer-on-remove 'kill-weak)
 ;;   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 
 ;; When installed without generating an autoloads file:
 ;; (with-eval-after-load "persp-mode"
-;;   (setq wg-morph-on nil)
+;;   ;; .. all settings you want here
 ;;   (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
 ;; (require 'persp-mode)
 
@@ -60,53 +61,11 @@
 ;;  depends on the workgroups.el(https://github.com/tlh/workgroups.el)
 ;;   for the emacs versions < 24.4
 
-;; Keys:
-
-;; n -- switch to next perspective.
-;; p -- switch to previous perspective.
-;; s -- create/switch to perspective in frame.
-;; S -- create/switch to perspective in window.
-;; r -- rename perspective.
-;; c -- copy current perspective.
-;; C -- kill perspective.
-;;   Calling with prefix argument will not kill perspective's buffers
-;;   (however if you try to kill 'none' persp -- it'l kill all opened buffers).
-;; a -- add buffer to perspective.
-;;   Calling with prefix argument reverses the effect of the persp-switch-to-added-buffer.
-;; b -- switch to buffer in perspective.
-;; t -- switch to buffer without adding it to current perspective.
-;;   Calling with prefix argument allows to remove a buffer from perspective without
-;;   killing and switching to another buffer.
-;; i -- import all buffers from another perspective.
-;; I -- import window configuration from another perspective.
-;; k -- remove buffer from perspective.
-;;   Calling with prefix argument reverses the effect of the persp-auto-kill-buffer-on-remove.
-;; K -- kill buffer.
-;; w -- save perspectives to file.
-;; W -- save subset of perspectives to file.
-;; l -- load perspectives from file.
-;; L -- load subset of perspectives from file.
-;; o -- switch off persp-mode.
-;;   (This may be useful when you launch emacs just to edit a single file and don't want to
-;; restore buffers)
-
-;; These key sequences must follow the `persp-keymap-prefix' which you can customize
-;;  (by default it is 'C-c p' in older releases it was 'C-x x')
-;;   so if you want to invoke the < s - create/switch perspective > command
-;;    you must first type the prefix ('C-c p') and then 's'(full sequence is C-c p s).
-;;
-;; If you want to bind a new key for persp-mode, use the `persp-key-map`:
-;;  `(define-key persp-key-map (kbd ...) ...)`.
-
-;; If you kill a buffer with the 'C-x k' it will be killed only if it belongs to
-;;  a single perspective, otherwise it'l be just removed from the current perspective.
-;; But if you kill a buffer from the 'none'(nil) perspective --
-;;  it will be removed from all perspectives and then killed.
-
-
 ;; Customization:
 
 ;; M-x: customize-group RET persp-mode RET
+
+;; You can read more in README.md
 
 
 ;;; Code:
@@ -1098,38 +1057,48 @@ to a wrong one.")
      (persp-set-ido-hooks t)
      ,@body))
 
+;; TODO: rename
 (defun safe-persp-name (p)
   (if p (persp-name p)
     persp-nil-name))
 
+;; TODO: rename
 (defun safe-persp-buffers (p)
   (if p (persp-buffers p)
     (funcall persp-buffer-list-function)))
 
+;; TODO: rename
 (defun safe-persp-window-conf (p)
   (if p (persp-window-conf p)
     persp-nil-wconf))
 
+;; TODO: rename
 (defun safe-persp-parameters (p)
   (if p (persp-parameters p)
     persp-nil-parameters))
 
+;; TODO: rename
 (defun safe-persp-weak (p)
   (if p (persp-weak p)
     t))
 
+;; TODO: rename
 (defun safe-persp-auto (p)
   (if p (persp-auto p)
     nil))
 
+;; TODO: rename
 (defun safe-persp-hidden (p)
   (if p (persp-hidden p)
     persp-nil-hidden))
 
+
+;; TODO: rename
 (defun* modify-persp-parameters (alist &optional (persp (get-current-persp)))
   (loop for (name . value) in alist
         do (set-persp-parameter name value persp)))
 
+;; TODO: rename
 (defun* set-persp-parameter (param-name &optional value (persp (get-current-persp)))
   (let* ((params (safe-persp-parameters persp))
          (old-cons (assq param-name params)))
@@ -1144,6 +1113,7 @@ to a wrong one.")
 (defun* persp-parameter (param-name &optional (persp (get-current-persp)))
   (alist-get param-name (safe-persp-parameters persp)))
 
+;; TODO: rename
 (defun* delete-persp-parameter (param-name &optional (persp (get-current-persp)))
   (when (and (not (null param-name)) (symbolp param-name))
     (if persp
@@ -1644,7 +1614,9 @@ to a wrong one.")
 (define-minor-mode persp-mode
   "Toggle the persp-mode.
 When active, keeps track of multiple 'perspectives',
-named collections of buffers and window configurations."
+named collections of buffers and window configurations.
+Here is a keymap of this minor mode:
+\\{persp-mode-map}"
   :require    'persp-mode
   :group      'persp-mode
   :keymap     persp-mode-map
@@ -1914,9 +1886,11 @@ but just removed from a perspective."
       (filtered-frame-list #'(lambda (f) (not (persp-is-frame-daemons-frame f))))
     (frame-list)))
 
+;; TODO: rename
 (defun set-frame-persp (persp &optional frame)
   (set-frame-parameter frame 'persp persp))
 
+;; TODO: rename
 (defun get-frame-persp (&optional frame)
   (frame-parameter frame 'persp))
 
@@ -1929,33 +1903,41 @@ but just removed from a perspective."
         (nreverse ret)
       ret)))
 
+;; TODO: rename
 (defun set-window-persp* (persp-name &optional window)
   (when persp-name
     (set-window-parameter window 'persp persp-name)))
+;; TODO: rename
 (defun get-window-persp* (&optional window)
   (window-parameter window 'persp))
+;; TODO: rename
 (defun set-window-persp (persp &optional window)
   (let ((frame (window-frame window)))
     (if (eq persp (get-frame-persp frame))
         (clear-window-persp window)
       (set-window-persp* (safe-persp-name persp) window))))
+;; TODO: rename
 (defun window-persp-set-p (&optional window)
   (get-window-persp* window))
+;; TODO: rename
 (defun get-window-persp (&optional window)
   (let ((pn (get-window-persp* window)))
     (when pn
       (destructuring-bind (e . p)
           (persp-by-name-and-exists pn)
         (and e p)))))
+;; TODO: rename
 (defun clear-window-persp (&optional window)
   (set-window-parameter window 'persp nil))
 
+;; TODO: rename
 (defun get-current-persp (&optional frame window)
   (with-selected-frame (or frame (selected-frame))
     (if (window-persp-set-p window)
         (get-window-persp window)
       (get-frame-persp frame))))
 
+;; TODO: rename
 (defun set-current-persp (persp)
   (if (window-persp-set-p)
       (set-window-persp persp)
@@ -2830,6 +2812,7 @@ Return `NAME'."
      (message "[persp-mode] Error: Can not deactivate frame -- %s"
               err))))
 
+;; TODO: rename
 (defun* find-other-frame-with-persp (&optional (persp (get-frame-persp))
                                                (exframe (selected-frame))
                                                for-save)
@@ -3129,6 +3112,7 @@ Return `NAME'."
                                         (< (gethash a indices 10000)
                                            (gethash b indices 10000)))))))
 
+;; TODO: rename
 (defun ido-toggle-persp-filter ()
   (interactive)
   (setq persp-disable-buffer-restriction-once
@@ -3748,9 +3732,6 @@ does not exists or not a directory %S." p-save-dir)
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
 
-(when persp-mode
-  (mapc #'persp-find-and-set-persps-for-buffer
-        (buffer-list)))
 
 (provide 'persp-mode)
 
