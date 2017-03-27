@@ -2266,14 +2266,72 @@ Return the created perspective."
               (persp-remove-buffer buffer persp nil nil nil nil))))
         (persp-switch-to-buffer buffer t)))))
 
+
+(defun persp--buffer-do-auto-action-if-needed (buffer)
+  (when (and persp-autokill-buffer-on-remove
+             (persp-buffer-free-p
+              buffer
+              (eq 'kill-weak persp-autokill-buffer-on-remove)))
+    (let (persp-autokill-buffer-on-remove)
+      (persp-kill-buffer buffer))))
+
+(defun persp--remove-buffer-1 (buffer &optional persp)
+  (if persp
+      (progn
+        (when persp-when-remove-buffer-switch-to-other-buffer
+          (persp-switch-to-prev-buffer buffer persp))
+        (persp--buffer-in-persps-remove buffer persp)
+        (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
+        persp)
+    (mapcar (apply-partially #'persp--remove-buffer-1 buffer)
+            (persp-other-persps-with-buffer-except-nil buffer persp))))
+
+(defun persp--remove-buffer-2 (&optional persp buffer-or-name)
+  (let ((buffer (if buffer-or-name
+                    (persp-get-buffer-or-null buffer-or-name)
+                  (current-buffer))))
+    (when buffer
+      (persp--remove-buffer-1 buffer persp)
+      (persp--buffer-do-auto-action-if-needed buffer)
+      (persp--do-auto-action-if-needed persp))
+    buffer))
+
+(defun persp--remove-buffers-from-nil-p (buffs-or-names)
+  (typecase persp-remove-buffers-from-nil-persp-behaviour
+    (function
+     (funcall persp-remove-buffers-from-nil-persp-behaviour
+              buffs-or-names))
+    (symbol
+     (macrolet
+         ((ask () `(yes-or-no-p
+                    (format "Remove %s buffers from all perspectives?"
+                            buffs-or-names))))
+       (case persp-remove-buffers-from-nil-persp-behaviour
+         (ask-to-rem-from-all
+          (if (find-if-not #'persp-buffer-free-p buffs-or-names)
+              (ask) t))
+         (ask-if-in-non-weak-persp
+          (if (find-if-not
+               #'(lambda (bon)
+                   (persp-buffer-free-p bon t))
+               buffs-or-names)
+              (ask) t))
+         (t t))))
+    (t t)))
+
 (defun* persp-remove-buffer
-    (&optional buffs-or-names (persp (get-current-persp)) noask-to-remall (switch t)
+    (&optional buffs-or-names (persp (get-current-persp))
+               (rem-from-nil-opt persp-remove-buffers-from-nil-persp-behaviour)
+               (switch persp-when-remove-buffer-switch-to-other-buffer)
                called-from-kill-buffer-hook
                (called-interactively-p (called-interactively-p 'any)))
-  "Remove a buffer from a perspective. Switch all windows displaying that buffer
-to another one. If `PERSP' is nil -- remove the buffer from all perspectives.
-Return removed buffers."
+  "Remove BUFFS-OR-NAMES(which may be a single buffer or a list of buffers)
+from the PERSP. On success return removed buffers otherwise nil."
   (interactive "i")
+
+  ;; TODO: remove these parameters
+  (ignore called-from-kill-buffer-hook rem-from-nil-opt switch)
+
   (unless (listp buffs-or-names) (setq buffs-or-names (list buffs-or-names)))
   (unless buffs-or-names
     (setq buffs-or-names
@@ -2283,37 +2341,14 @@ Return removed buffers."
                 (persp-read-buffer "Remove buffers from the perspective: "
                                    (current-buffer) t nil t))
             (current-buffer))))
-  (mapc
-   #'(lambda (bon)
-       (let ((buffer (persp-get-buffer-or-null bon)))
-         (when buffer
-           (if (null persp)
-               (when (or noask-to-remall
-                         (yes-or-no-p (concat "Remove the " (buffer-name buffer)
-                                              " buffer from all perspectives?")))
-                 (mapc #'(lambda (p)
-                           (persp-remove-buffer buffer p nil switch
-                                                called-from-kill-buffer-hook called-interactively-p))
-                       (persp-other-persps-with-buffer-except-nil buffer persp)))
-             (persp--buffer-in-persps-remove buffer persp)
-             (when (memq buffer (persp-buffers persp))
-               (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
-               (when switch
-                 (persp-switch-to-prev-buffer buffer persp))))
-           (unless called-from-kill-buffer-hook
-             (let ((persp-autokill-buffer-on-remove
-                    (if (and called-interactively-p current-prefix-arg)
-                        (not persp-autokill-buffer-on-remove)
-                      persp-autokill-buffer-on-remove)))
-               (when (and persp-autokill-buffer-on-remove
-                          (persp-buffer-free-p
-                           buffer (eq 'kill-weak persp-autokill-buffer-on-remove)))
-                 (let (persp-kill-foreign-buffer-behaviour)
-                   (setq persp-autokill-buffer-on-remove nil)
-                   (persp-kill-buffer buffer)))))
-           (persp--do-auto-action-if-needed persp))))
-   buffs-or-names)
-  buffs-or-names)
+  (when (or persp
+            (persp--remove-buffers-from-nil-p buffs-or-names))
+    (let ((persp-autokill-buffer-on-remove
+           (if (and called-interactively-p current-prefix-arg)
+               (not persp-autokill-buffer-on-remove)
+             persp-autokill-buffer-on-remove)))
+      (mapcar (apply-partially #'persp--remove-buffer-2 persp)
+              buffs-or-names))))
 
 (defun persp-kill-buffer (&optional buffers-or-names)
   "Kill buffers, read buffer with restriction to current perspective."
