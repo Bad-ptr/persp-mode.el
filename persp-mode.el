@@ -1733,86 +1733,93 @@ Here is a keymap of this minor mode:
 
 ;; Hooks:
 
-(defun persp--kill-buffer-query-function-foreign-check (opt persp buf &optional base-buf)
-  (let ((buf-to-check buf)
-        pbcontain)
-    (when (and base-buf (eq 'as-base-buffer opt))
-      (setq opt persp-kill-foreign-buffer-behaviour
-            buf-to-check base-buf)
-      (setq pbcontain (persp-contain-buffer-p buf-to-check persp)))
+(defun persp--kill-buffer-query-function-foreign-check (persp buf)
+  (let ((opt persp-kill-foreign-buffer-behaviour))
     (cond
-     (pbcontain t)
      ((functionp opt) (funcall opt))
-     ((null opt) t)
-     ((eq opt 'kill) t)
-     ((and (eq 'dont-ask-weak opt)
-           (persp-buffer-free-p buf-to-check t)) t)
      (t
-      (let ((curwin (selected-window))
-            (prompt (format "You are going to kill a buffer(%s) \
-which is not in the current perspective. It will be removed from every perspective \
-and then killed.\nWhat do you really want to do? "
-                            (buffer-name buf))))
-        (macrolet
-            ((clwin (w)
-                    `(run-at-time 1 nil #'(lambda (ww) (when (window-live-p ww)
-                                                    (delete-window ww)))
-                                  ,w))
-             (swb (b w)
-                  `(run-at-time 1 nil
-                                #'(lambda (bb ww)
-                                    (with-selected-window ww
-                                      (persp-set-another-buffer-for-window bb ww)))
-                                ,b ,w)))
-          (destructuring-bind (char &rest _)
-              (read-multiple-choice
-               prompt
-               '((?q "do nothing")
-                 (?k "kill")
-                 (?K "kill and close window")
-                 (?c "close window")
-                 (?s "switch to another buffer")))
-            (case char
-              ((?q ?\C-g ?\C-\[) nil)
-              (?k t)
-              (?K (clwin curwin) t)
-              (?c (clwin curwin) nil)
-              (?s (swb buf curwin) nil)
-              (t t)))))))))
+      (if (case opt
+            ((kill nil) t)
+            (dont-ask-weak (persp-buffer-free-p buf t))
+            (t (persp-buffer-filtered-out-p buf)))
+          'kill
+        (let ((curwin (selected-window))
+              (prompt (format "You are going to kill a buffer(%s) \
+which is not in the current(%s) perspective. It will be removed from \
+%s perspectives and then killed.\nWhat do you really want to do? "
+                              (buffer-name buf)
+                              (safe-persp-name persp)
+                              (mapcar #'persp-name
+                                      (persp--buffer-in-persps buf)))))
+          (macrolet
+              ((clwin (w)
+                      `(run-at-time 1 nil #'(lambda (ww)
+                                              (when (window-live-p ww)
+                                                (delete-window ww)))
+                                    ,w))
+               (swb (b w)
+                    `(run-at-time
+                      1 nil
+                      #'(lambda (bb ww)
+                          (with-selected-window ww
+                            (persp-set-another-buffer-for-window
+                             bb ww)))
+                      ,b ,w)))
+            (destructuring-bind (char &rest _)
+                (let ((variants
+                       (list '(?q "do nothing")
+                             '(?k "kill")
+                             '(?K "kill and close window")
+                             '(?c "close window")
+                             '(?s "switch to another buffer")))
+                      (cwin (selected-window)))
+                  (when (minibuffer-window-active-p cwin)
+                    (setq cwin (minibuffer-selected-window)))
+                  (unless (eq buf (window-buffer cwin))
+                    (setq variants
+                          (delq (assq ?K variants)
+                                (delq (assq ?c variants)
+                                      (delq (assq ?s variants) variants)))))
+                  (read-multiple-choice prompt variants))
+              (case char
+                ((?q ?\C-g ?\C-\[) nil)
+                (?k 'kill)
+                (?K (clwin curwin) 'kill)
+                (?c (clwin curwin) nil)
+                (?s (swb buf curwin) nil)
+                (t t))))))))))
 
 (defun persp-kill-buffer-query-function ()
-  "This must be the last hook in the kill-buffer-query-functions.
-Otherwise if a next function in the list returns nil -- buffer will not be killed,
-but just removed from a perspective."
-  (when persp-mode
-    (block pkbqf
+  "This must be the last hook in the `kill-buffer-query-functions'.
+Otherwise if next function in the list returns nil -- the buffer will not be
+killed, but just removed from a perspective(s)."
+  (if persp-mode
       (let ((buffer (current-buffer)))
-        (when (persp--buffer-in-persps buffer)
-          (let* ((persp (get-current-persp))
-                 (pbcontain (persp-contain-buffer-p buffer persp))
-                 (foreign-check-passed
-                  (if pbcontain
-                      t
-                    (let* ((base-buffer (buffer-base-buffer buffer))
-                           (fb-kill-behaviour
-                            (if (and base-buffer
-                                     (not (eq 'do-not-override
-                                              persp-kill-foreign-indirect-buffer-behaviour-override)))
-                                persp-kill-foreign-indirect-buffer-behaviour-override
-                              persp-kill-foreign-buffer-behaviour)))
-                      (if (and fb-kill-behaviour
-                               (not (persp-buffer-filtered-out-p buffer)))
-                          (persp--kill-buffer-query-function-foreign-check
-                           fb-kill-behaviour persp buffer base-buffer)
-                        t)))))
-            (if foreign-check-passed
-                (when (and persp (persp-buffer-in-other-p* buffer persp))
-                  (if pbcontain
-                      (persp-remove-buffer buffer persp nil t nil nil)
-                    (persp-remove-buffer buffer nil nil t nil nil))
-                  (return-from pkbqf nil))
-              (return-from pkbqf nil)))))
-      t)))
+        (if (persp--buffer-in-persps buffer)
+            (let* ((persp (get-current-persp))
+                   (foreign-check
+                    (if (and persp
+                             (persp-contain-buffer-p buffer persp))
+                        'not-foreign
+                      (persp--kill-buffer-query-function-foreign-check
+                       persp buffer))))
+              (case foreign-check
+                (kill
+                 (let (persp-autokill-buffer-on-remove)
+                   (persp--remove-buffer-2 nil buffer))
+                 t)
+                (not-foreign
+                 (if (persp-buffer-in-other-p* buffer persp)
+                     (persp--remove-buffer-2 persp buffer)
+                   (if (or (not (buffer-live-p buffer))
+                           (persp--buffer-in-persps buffer))
+                       nil
+                     t)
+                   t))
+                (t
+                 nil)))
+          t))
+    t))
 
 (defun persp-kill-buffer-h ()
   (let ((buffer (current-buffer)))
