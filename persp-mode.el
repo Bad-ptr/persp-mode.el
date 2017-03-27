@@ -508,6 +508,15 @@ in the current perspective."
   'persp-when-remove-buffer-switch-to-other-buffer
   "persp-mode 2.9.7")
 
+(defcustom persp-remove-buffers-from-nil-persp-behaviour 'ask-to-rem-from-all
+  "What to do when removing a buffer from the nil perspective."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "Ask to remove from all perspectives" ask-to-rem-from-all)
+          (const :tag "Ask only if buffer belongs to a non-weak perspective"
+                 ask-if-in-non-weak-persp)
+          (const :tag "Don't ask" nil)
+          (function :tag "Run this function" (lambda (b-o-ns) b-o-ns))))
 
 (define-widget 'persp-kill-foreign-buffer-behaviour-choices 'lazy
   "What to do when manually killing a buffer that is not in the current perspective."
