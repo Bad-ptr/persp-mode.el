@@ -497,12 +497,17 @@ the currently selected window will be switched to that buffer."
   :group 'persp-mode
   :type 'boolean)
 
-(defcustom persp-when-kill-switch-to-buffer-in-perspective nil
-  "If t -- then after a buffer is killed the current window
-will be switched to some previous buffer in the current perspective,
-otherwise let  the emacs decide what to do."
+(defcustom persp-when-remove-buffer-switch-to-other-buffer t
+  "If t -- then after a buffer is removed all windows of the current
+perspective which showing that buffer will be switched to some previous buffer
+in the current perspective."
   :group 'persp-mode
   :type 'boolean)
+(define-obsolete-variable-alias
+  'persp-when-kill-switch-to-buffer-in-perspective
+  'persp-when-remove-buffer-switch-to-other-buffer
+  "persp-mode 2.9.7")
+
 
 (define-widget 'persp-kill-foreign-buffer-behaviour-choices 'lazy
   "What to do when manually killing a buffer that is not in the current perspective."
