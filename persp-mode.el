@@ -1134,10 +1134,8 @@ to a wrong one.")
                   persp-nil-parameters)))))
 
 (defun persp--buffer-in-persps (buf)
-  (cdr
-   (assq 'persp-buffer-in-persps
-         (gethash (persp-get-buffer-or-null buf)
-                  persp-buffer-props-hash))))
+  (cdr (assq 'persp-buffer-in-persps
+             (gethash buf persp-buffer-props-hash))))
 
 (defun persp--buffer-in-persps-set (buf persps)
   (let* ((buf-props (gethash buf persp-buffer-props-hash))
