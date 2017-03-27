@@ -1815,10 +1815,10 @@ but just removed from a perspective."
       t)))
 
 (defun persp-kill-buffer-h ()
-  (when (and persp-mode (persp--buffer-in-persps (current-buffer)))
-    (let (persp-autokill-buffer-on-remove)
-      (persp-remove-buffer (current-buffer) nil t
-                           persp-when-kill-switch-to-buffer-in-perspective t nil))))
+  (let ((buffer (current-buffer)))
+    (when (and persp-mode (persp--buffer-in-persps buffer))
+      (let (persp-autokill-buffer-on-remove)
+        (persp--remove-buffer-2 nil buffer)))))
 
 (defun persp--restore-buffer-on-find-file ()
   (when (buffer-live-p persp-special-last-buffer)
