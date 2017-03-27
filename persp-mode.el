@@ -538,14 +538,9 @@ in the current perspective."
 (define-obsolete-variable-alias 'persp-kill-foreign-buffer-action
   'persp-kill-foreign-buffer-behaviour "persp-mode 2.9.6")
 
-(defcustom persp-kill-foreign-indirect-buffer-behaviour-override 'do-not-override
-  "What to do if killing an indirect buffer."
-  :group 'persp-mode
-  :type '(choice
-          persp-kill-foreign-buffer-behaviour-choices
-          (const :tag "Do the action as if it were applyed to base buffer."
-                 :value as-base-buffer)
-          (const :tag "Do not override" :value do-not-override)))
+(make-obsolete-variable
+ 'persp-kill-foreign-indirect-buffer-behaviour-override
+ "Don't use this" "persp-mode 2.9.7")
 
 (defcustom persp-autokill-buffer-on-remove nil
   "Kill the buffer if it removed from every(or non weak) perspective."
