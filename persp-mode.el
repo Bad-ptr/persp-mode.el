@@ -1034,8 +1034,7 @@ the selected window to a wrong buffer.")
 
 (defun* persp-buffer-list-restricted
     (&optional
-     (frame (selected-frame))
-     (option *persp-restrict-buffers-to*)
+     (frame (selected-frame)) (option *persp-restrict-buffers-to*)
      (option-foreign-override persp-restrict-buffers-to-if-foreign-buffer)
      sure-not-killing)
   (unless frame (setq frame (selected-frame)))
@@ -1045,68 +1044,71 @@ the selected window to a wrong buffer.")
          (cb-foreign (not (persp-contain-buffer-p curbuf cpersp))))
     (when (and option-foreign-override cb-foreign)
       (setq option option-foreign-override))
-    (if (functionp option)
-        (funcall option frame)
-      (when (= option 2.5)
-        (setq option (if (null cpersp) -1 2)))
-      (when (= option 3.5)
-        (setq option (if (null cpersp) -1 3)))
-      (let ((bl
-             (case option
-               (-1
-                (funcall persp-buffer-list-function frame))
-               (0
-                (if cpersp
-                    (append (persp-buffers cpersp) nil)
-                  (funcall persp-buffer-list-function frame)))
-               (1
-                (let ((ret (if cpersp
-                               (let ((pbs (persp-buffers cpersp)))
-                                 (delete-if
-                                  #'(lambda (b) (memq b pbs))
-                                  (funcall persp-buffer-list-function frame)))
-                             nil)))
-                  (unless (persp-contain-buffer-p curbuf cpersp)
-                    (setq ret (cons curbuf (delete curbuf ret))))
-                  ret))
-               (2
-                (let ((ret
-                       (delete-if
-                        #'(lambda (b)
-                            (persp-buffer-in-other-p*
-                             b cpersp
-                             persp-dont-count-weaks-in-restricted-buffer-list))
-                        (if cpersp
-                            (append (persp-buffers cpersp) nil)
-                          (funcall persp-buffer-list-function frame)))))
-                  ret))
-               (3
-                (let ((ret
-                       (delete-if
-                        #'(lambda (b)
-                            (or
-                             (and cpersp
-                                  (persp-contain-buffer-p b cpersp))
+    (typecase option
+      (function (funcall option frame))
+      (t
+       (when (= option 2.5)
+         (setq option (if (null cpersp) -1 2)))
+       (when (= option 3.5)
+         (setq option (if (null cpersp) -1 3)))
+       (let ((bl
+              (case option
+                (-1
+                 (funcall persp-buffer-list-function frame))
+                (0
+                 (if cpersp
+                     (append (persp-buffers cpersp) nil)
+                   (funcall persp-buffer-list-function frame)))
+                (1
+                 (let ((ret (if cpersp
+                                (let ((pbs (persp-buffers cpersp)))
+                                  (delete-if
+                                   #'(lambda (b) (memq b pbs))
+                                   (funcall persp-buffer-list-function frame)))
+                              nil)))
+                   (unless (persp-contain-buffer-p curbuf cpersp)
+                     (setq ret (cons curbuf (delete curbuf ret))))
+                   ret))
+                (2
+                 (let ((ret
+                        (delete-if
+                         #'(lambda (b)
                              (persp-buffer-in-other-p*
                               b cpersp
-                              persp-dont-count-weaks-in-restricted-buffer-list)))
-                        (funcall persp-buffer-list-function frame))))
-                  ret)))))
-        (when persp-buffer-list-restricted-filter-functions
-          (setq bl
-                (delete-if #'(lambda (b)
-                               (persp-buffer-filtered-out-p
-                                b persp-buffer-list-restricted-filter-functions))
-                           bl)))
-        (when (and
-               (not sure-not-killing) cpersp
-               (symbolp this-command)
-               persp-kill-foreign-buffer-behaviour
-               (string-match-p "^.*?kill-buffer.*?$" (symbol-name this-command))
-               (not (memq curbuf bl))
-               (not (persp-buffer-filtered-out-p curbuf)))
-          (setq bl (cons curbuf bl)))
-        bl))))
+                              persp-dont-count-weaks-in-restricted-buffer-list))
+                         (if cpersp
+                             (append (persp-buffers cpersp) nil)
+                           (funcall persp-buffer-list-function frame)))))
+                   ret))
+                (3
+                 (let ((ret
+                        (delete-if
+                         #'(lambda (b)
+                             (or
+                              (and cpersp
+                                   (persp-contain-buffer-p b cpersp))
+                              (persp-buffer-in-other-p*
+                               b cpersp
+                               persp-dont-count-weaks-in-restricted-buffer-list)))
+                         (funcall persp-buffer-list-function frame))))
+                   ret)))))
+         (when persp-buffer-list-restricted-filter-functions
+           (setq bl
+                 (delete-if #'(lambda (b)
+                                (persp-buffer-filtered-out-p
+                                 b persp-buffer-list-restricted-filter-functions))
+                            bl)))
+         (when (and
+                (not sure-not-killing) cpersp
+                (symbolp this-command)
+                persp-kill-foreign-buffer-behaviour
+                (string-match-p "^.*?kill-buffer.*?$" (symbol-name this-command))
+                (not (memq curbuf bl))
+                ;; TODO: remove this
+                ;; (not (persp-buffer-filtered-out-p curbuf))
+                )
+           (push curbuf bl))
+         bl)))))
 
 (defmacro* with-persp-buffer-list
     ((&key
@@ -3344,9 +3346,7 @@ Return `NAME'."
       (setq prompt (car (split-string prompt ": *$" t)))
     (setq prompt "Please provide a buffer name: "))
 
-  (let* ((buffer-names (mapcar #'buffer-name
-                               (delete-if #'persp-buffer-filtered-out-p
-                                          (persp-buffer-list-restricted))))
+  (let* ((buffer-names (mapcar #'buffer-name (persp-buffer-list-restricted)))
          cp retlst
          (done_str "[>done<]") (not-finished default-mode)
 
@@ -3397,7 +3397,10 @@ Return `NAME'."
     (unwind-protect
         (progn
           (when (and default (not (member default buffer-names)))
-            (setq default nil))
+            (push default buffer-names)
+            ;; TODO: remove this
+            ;; (setq default nil)
+            )
           (when multiple
             (add-hook 'minibuffer-setup-hook persp-multiple-minibuffer-setup))
           (add-hook 'minibuffer-setup-hook persp-minibuffer-setup)
