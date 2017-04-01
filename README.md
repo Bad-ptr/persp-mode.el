@@ -26,8 +26,10 @@ Place the persp-mode.el file somewhere in the emacs' load-path and add
 ### Suggested configuration  
 
 If you use the [`workgroups.el`](https://github.com/tlh/workgroups.el)
+(note that workgroups sometimes do a better job restoring window configurations
+than standard emacs mechanism)
 it is a good idea to switch off the restore windows animation.  
-(it's clashing with the 
+(it's clashing with the
 [`golden-ratio-mode`](https://github.com/roman/golden-ratio.el) for example,
 sometimes erring when creating new frames and it is slow on remote network
 connections.)  

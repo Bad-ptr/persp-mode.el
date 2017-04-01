@@ -740,7 +740,7 @@ These functions must take 3 arguments:
   :type 'hook)
 
 (defcustom persp-use-workgroups (and (version< emacs-version "24.4")
-                                     (locate-library "workgroups.el"))
+                                     (locate-library "workgroups"))
   "If t -- use the workgroups.el package for saving/restoring
 windows configurations."
   :group 'persp-mode
