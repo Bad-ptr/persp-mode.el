@@ -2635,24 +2635,21 @@ perspective buffers or nil."
 (defun* persp-set-another-buffer-for-window
     (&optional (old-buff-or-name (current-buffer)) (window (selected-window))
                (persp (get-current-persp nil window)))
-  (let ((new-buf (when persp-set-frame-buffer-predicate
-                   (switch-to-prev-buffer window))))
-    (if new-buf
-        new-buf
-      (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
-             (p-bs (safe-persp-buffers persp))
-             (buffers (delete-if #'(lambda (bc)
-                                     (or
-                                      (and (bufferp bc) (eq bc old-buf))
-                                      (eq (car bc) old-buf)
-                                      (not (find (car bc) p-bs))))
-                                 (append (window-prev-buffers window)
-                                         (window-next-buffers window)))))
-        (set-window-buffer
-         window
-         (or (persp-get-buffer (and buffers (car (first buffers))) persp)
-             (car (persp-buffer-list-restricted (window-frame window) 2.5))
-             (car (buffer-list))))))))
+  (unless (window-minibuffer-p window)
+    (let* ((old-buf (persp-get-buffer-or-null old-buff-or-name))
+           (new-buf (if persp-set-frame-buffer-predicate
+                        (other-buffer old-buf)
+                      (find-if #'(lambda (bc)
+                                   (and (bufferp bc) (not (eq bc old-buf))
+                                        (persp-contain-buffer-p bc persp)))
+                               (append (mapcar #'car
+                                               (window-prev-buffers window))
+                                       (window-next-buffers window))))))
+      (set-window-buffer
+       window
+       (or (and (buffer-live-p new-buf) new-buf)
+           (car (persp-buffer-list-restricted (window-frame window) 2.5))
+           (car (buffer-list)))))))
 
 (defun* persp-switch-to-prev-buffer
     (&optional (old-buff-or-name (current-buffer)) (persp (get-current-persp)))
