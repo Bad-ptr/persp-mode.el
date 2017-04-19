@@ -1905,7 +1905,10 @@ killed, but just removed from a perspective(s)."
 (defun persp-kill-buffer-h ()
   (let ((buffer (current-buffer)))
     (when (and persp-mode (persp--buffer-in-persps buffer))
-      (let (persp-autokill-buffer-on-remove)
+      (let (persp-autokill-buffer-on-remove
+            (persp-when-remove-buffer-switch-to-other-buffer
+             (unless persp-set-frame-buffer-predicate
+               persp-when-remove-buffer-switch-to-other-buffer)))
         (persp--remove-buffer-2 nil buffer)))))
 
 (defun persp--restore-buffer-on-find-file ()
