@@ -3534,7 +3534,7 @@ configuration, because of the error -- %s" err)
 
 (defun* persp-frame-save-state
     (&optional (frame (selected-frame)) set-persp-special-last-buffer)
-  (when (and frame
+  (when (and (frame-live-p frame)
              (not (persp-is-frame-daemons-frame frame))
              (not (frame-parameter frame 'persp-ignore-wconf))
              (not (frame-parameter frame 'persp-ignore-wconf-once)))
