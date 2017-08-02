@@ -796,7 +796,7 @@ second -- a root window(default is the root window of the selected frame)."
       #'(lambda (pwc &optional frame rwin)
           (when (or frame (setq frame (selected-frame)))
             (with-selected-frame frame
-              (flet ((wg-switch-to-window-buffer
+              (cl-flet ((wg-switch-to-window-buffer
                       (win)
                       "Switch to a buffer determined from WIN's fname and bname.
 Return the buffer if it was found, nil otherwise."
@@ -1123,7 +1123,7 @@ the selected window to a wrong buffer.")
            (persp-restrict-buffers-to-if-foreign-buffer
             ,restriction-foreign-override)
            ,@(if cache `(persp-buffer-list-cache) nil))
-       (flet ((buffer-list (&optional frame)
+       (cl-flet ((buffer-list (&optional frame)
                            ,(if cache
                                 `(if persp-buffer-list-cache
                                      persp-buffer-list-cache
