@@ -438,7 +438,11 @@ Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs)
 
 ### Projectile  
 
-[persp-mode-projectile-bridge.el](https://github.com/Bad-ptr/persp-mode-projectile-bridge.el)  
+[persp-mode-projectile-bridge.el](https://github.com/Bad-ptr/persp-mode-projectile-bridge.el).  
+
+### multi-term  
+
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-multi-term-el).  
 
 ### Speedbar  
 
@@ -448,7 +452,17 @@ Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs)
 
 ```
 
+### Olivetti  
+
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-olivetti-el)
+
 ## Hints  
+
+### Keep most recently used perspectives on top  
+
+[gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-mru-el)
+
+### Launch Emacs to quickly edit a file without perspectives loading/saving  
 
 If you often launch emacs to edit a single file and you don't want to wait the
 persp-mode resuming process(and don't want to use the emacs daemon) -- you can
