@@ -796,16 +796,16 @@ second -- a root window(default is the root window of the selected frame)."
       #'(lambda (pwc &optional frame rwin)
           (when (or frame (setq frame (selected-frame)))
             (with-selected-frame frame
-              (flet ((wg-switch-to-window-buffer
-                      (win)
-                      "Switch to a buffer determined from WIN's fname and bname.
+              (letf (((symbol-function 'wg-switch-to-window-buffer)
+                      #'(lambda (win)
+                          "Switch to a buffer determined from WIN's fname and bname.
 Return the buffer if it was found, nil otherwise."
-                      (wg-abind
-                       win (fname bname)
-                       (cond ((wg-awhen (get-buffer bname)
-                                        (persp-switch-to-buffer it)))
-                             (t (persp-switch-to-buffer wg-default-buffer)
-                                nil)))))
+                          (wg-abind
+                           win (fname bname)
+                           (cond ((wg-awhen (get-buffer bname)
+                                            (persp-switch-to-buffer it)))
+                                 (t (persp-switch-to-buffer wg-default-buffer)
+                                    nil))))))
                 (wg-restore-wconfig pwc)))))
     #'(lambda (pwc &optional frame rwin)
         (when (or rwin (setq rwin (frame-root-window
@@ -1123,12 +1123,13 @@ the selected window to a wrong buffer.")
            (persp-restrict-buffers-to-if-foreign-buffer
             ,restriction-foreign-override)
            ,@(if cache `(persp-buffer-list-cache) nil))
-       (flet ((buffer-list (&optional frame)
-                           ,(if cache
-                                `(if persp-buffer-list-cache
-                                     persp-buffer-list-cache
-                                   (setq persp-buffer-list-cache ,pblf-body))
-                              pblf-body)))
+       (letf (((symbol-function 'buffer-list)
+               #'(lambda (&optional frame)
+                   ,(if cache
+                        `(if persp-buffer-list-cache
+                             persp-buffer-list-cache
+                           (setq persp-buffer-list-cache ,pblf-body))
+                      pblf-body))))
          ,@body))))
 
 (defmacro with-persp-ido-hooks (&rest body)
