@@ -385,6 +385,8 @@ This must work for most buffer listing commands that internally use the
 
 ```
 
+There is also `with-persp-read-buffer` macro.  
+
 ##### bs-show  
 
 ```lisp
@@ -458,7 +460,14 @@ Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs)
 
 ## Hints  
 
-### Keep most recently used perspectives on top  
+### Changing the order of the perspectives(how it looks when you are prompted for a perspective name(s)):
+
+See the `C-h v persp-names-cache RET`.  
+You can manually edit the order of the perspectives by editing the
+`persp-names-cache` variable using the
+[`edit-list`](https://github.com/emacsmirror/edit-list) package.  
+
+#### Keep most recently used perspectives on top  
 
 [gist](https://gist.github.com/Bad-ptr/1aca1ec54c3bdb2ee80996eb2b68ad2d#file-persp-mru-el)
 
