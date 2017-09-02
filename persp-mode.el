@@ -2496,13 +2496,19 @@ from the PERSP. On success return removed buffers otherwise nil."
 
 (defun persp-switch-to-buffer (buffer-or-name
                                &optional norecord force-same-window)
+
   "Switch to buffer, read buffer with restriction to current perspective."
+
   (interactive (list
                 (let ((*persp-restrict-buffers-to* 0)
                       persp-restrict-buffers-to-if-foreign-buffer)
                   (if persp-mode
-                      (persp-read-buffer "Switch to buffer: " (current-buffer) t)
-                    (read-buffer "Switch to buffer: " (current-buffer) t)))))
+                      (let ((dflt (other-buffer (current-buffer))))
+                        (unless (memq dflt (safe-persp-buffers
+                                            (get-current-persp)))
+                          (psetq dflt (current-buffer)))
+                        (persp-read-buffer "Switch to buffer: " dflt t))
+                    (read-buffer-to-switch "Switch to buffer: ")))))
   (when (and buffer-or-name
              (persp-get-buffer-or-null (get-buffer buffer-or-name)))
     (switch-to-buffer buffer-or-name norecord force-same-window)))
@@ -3374,7 +3380,9 @@ Return `NAME'."
 
 (defun* persp-read-buffer
     (prompt &optional default require-match predicate multiple (default-mode t))
+
   "Read buffers with restriction."
+
   (setq persp-disable-buffer-restriction-once nil)
 
   (when default
