@@ -3661,9 +3661,17 @@ of the perspective %s can't be saved."
      ,(safe-persp-hidden persp)))
 
 (defun persps-to-savelist (&optional phash names-regexp)
-  (mapcar #'persp-to-savelist
-          (delete-if (apply-partially #'persp-parameter 'dont-save-to-file)
-                     (persp-persps (or phash *persp-hash*) names-regexp t))))
+  (mapcar
+   #'persp-to-savelist
+   (delete-if
+    (apply-partially #'persp-parameter 'dont-save-to-file)
+    (if (eq phash *persp-hash*)
+        (mapcar #'(lambda (pn)
+                    (when (or (not names-regexp)
+                              (persp-string-match-p names-regexp pn))
+                      (persp-get-by-name pn *persp-hash* nil)))
+                (nreverse (persp-names-current-frame-fast-ordered)))
+      (persp-persps (or phash *persp-hash*) names-regexp t)))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
