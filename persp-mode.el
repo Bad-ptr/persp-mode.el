@@ -680,7 +680,8 @@ will be added to a temporary hash)."
 
 (defcustom persp-renamed-functions nil
   "Functions to run if a perspective was renamed.
-Each must take three arguments: 1) perspective; 2) old name; 3) new name."
+Each must take three arguments: 1) perspective; 2) old name; 3) new name.
+These functions only run when renaming a perspective from `*persp-hash*'."
   :group 'persp-mode
   :type 'hook)
 
@@ -858,18 +859,29 @@ otherwise nil.")
   "Menu for the persp-mode.")
 
 (defvar *persp-hash* nil
-  "The hash table that contain perspectives")
+  "The hash table that contain perspectives.")
+
 (defvar persp-names-cache (when *persp-hash* (persp-names))
   "List of perspective names.
 Used by the `persp-read-persp' and other UI functions, so it can be used
 to alter the order of perspective names present to user. To achieve that
 you must add functions to `persp-created-functions', `persp-renamed-functions',
-`persp-before-kill-functions', `persp-before-switch-functions',
-`persp-after-load-state-functions'.")
+`persp-before-kill-functions', `persp-before-switch-functions' and
+`persp-after-load-state-functions' or just set the
+`persp-names-sort-before-read-function'.")
+
+(defcustom persp-names-sort-before-read-function nil
+  "Function(or nil) to sort `persp-names-cache' before prompting a user for a
+perspective name(s). The function must take a list of perspective names and
+return a sorted list."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "No sort." :value nil)
+          (function :tag "Function" :value #'identity)))
 
 (defvar persp-temporarily-display-buffer nil
   "This variable dynamically bound to t inside
-the `persp-temporarily-display-buffer'")
+the `persp-temporarily-display-buffer'.")
 
 (defvar persp-saved-read-buffer-function read-buffer-function
   "Save the `read-buffer-function' to restore it on deactivation.")
@@ -2279,8 +2291,9 @@ Return the created perspective."
         (if e p
           (setq p (if (string= persp-nil-name name)
                       nil (make-persp :name name)))
+          (persp-add p phash)
           (run-hook-with-args 'persp-created-functions p phash)
-          (persp-add p phash)))
+          p))
     (message "[persp-mode] Error: Can't create a perspective with empty name.")
     nil))
 
@@ -2814,13 +2827,15 @@ Return old name on success, otherwise nil."
         (if (and (not (persp-p opersp)) new-name
                  (not (string= old-name new-name)))
             (progn
-              (persp-remove-from-menu persp)
+              (when (eq phash *persp-hash*)
+                (persp-remove-from-menu persp))
               (remhash old-name phash)
               (setf (persp-name persp) new-name)
               (puthash new-name persp phash)
-              (persp-add-to-menu persp)
-              (run-hook-with-args
-               'persp-renamed-functions persp old-name new-name)
+              (when (eq phash *persp-hash*)
+                (persp-add-to-menu persp)
+                (run-hook-with-args
+                 'persp-renamed-functions persp old-name new-name))
               old-name)
           (message
            "[persp-mode] Error: There is already a perspective with that name: %s."
