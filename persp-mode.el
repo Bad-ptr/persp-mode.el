@@ -1076,7 +1076,7 @@ the selected window to a wrong buffer.")
                  (funcall persp-buffer-list-function frame))
                 (0
                  (if cpersp
-                     (append (persp-buffers cpersp) nil)
+                     (copy-list (persp-buffers cpersp))
                    (funcall persp-buffer-list-function frame)))
                 (1
                  (let ((ret (if cpersp
@@ -1096,7 +1096,7 @@ the selected window to a wrong buffer.")
                               b cpersp
                               persp-dont-count-weaks-in-restricted-buffer-list))
                          (if cpersp
-                             (append (persp-buffers cpersp) nil)
+                             (copy-list (persp-buffers cpersp))
                            (funcall persp-buffer-list-function frame)))))
                    ret))
                 (3
@@ -2580,7 +2580,7 @@ cause it already contain all buffers.")))
            (new-buffers
             (if (and current-persp
                      (not (and called-interactively-p current-prefix-arg)))
-                (append (persp-buffers current-persp) nil)
+                (copy-list (persp-buffers current-persp))
               (delete-if-not
                (destructuring-bind (char &rest _)
                    (read-multiple-choice
@@ -2606,7 +2606,7 @@ cause it already contain all buffers.")))
                    (?a nil)
                    (t nil)))
                (if current-persp
-                   (append (persp-buffers current-persp) nil)
+                   (copy-list (persp-buffers current-persp))
                  (safe-persp-buffers current-persp)))))
            (new-persp (persp-add-new new-name)))
       (when new-persp
@@ -2614,7 +2614,7 @@ cause it already contain all buffers.")))
         (setf (persp-window-conf new-persp)
               (safe-persp-window-conf current-persp)
               (persp-parameters new-persp)
-              (append (safe-persp-parameters current-persp) nil)
+              (copy-list (safe-persp-parameters current-persp))
               (persp-weak new-persp)
               (if current-persp (persp-weak current-persp) nil))
         (when (listp choosen-buffers)
