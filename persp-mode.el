@@ -1892,7 +1892,8 @@ killed, but just removed from a perspective(s)."
                  t)
                 (not-foreign
                  (if (persp-buffer-in-other-p* buffer persp)
-                     (persp--remove-buffer-2 persp buffer)
+                     (progn (persp--remove-buffer-2 persp buffer)
+                            nil)
                    (if (or (not (buffer-live-p buffer))
                            (persp--buffer-in-persps buffer))
                        nil
