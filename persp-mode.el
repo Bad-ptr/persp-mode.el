@@ -1080,13 +1080,17 @@ the selected window to a wrong buffer.")
                    (funcall persp-buffer-list-function frame)))
                 (1
                  (let ((ret (if cpersp
-                                (let ((pbs (persp-buffers cpersp)))
+                                (let ((pbs (copy-list (persp-buffers cpersp))))
                                   (delete-if
-                                   #'(lambda (b) (memq b pbs))
+                                   #'(lambda (b) (let ((cns (memq b pbs)))
+                                              (when cns
+                                                (setcar cns (cadr cns))
+                                                (setcdr cns (cddr cns))
+                                                t)))
                                    (funcall persp-buffer-list-function frame)))
                               nil)))
                    (unless (persp-contain-buffer-p curbuf cpersp)
-                     (setq ret (cons curbuf (delete curbuf ret))))
+                     (setq ret (cons curbuf (delete* curbuf ret :count 1))))
                    ret))
                 (2
                  (let ((ret
@@ -3066,7 +3070,7 @@ Return `NAME'."
 
 (defun persp-remove-from-menu (persp)
   (let ((name (safe-persp-name persp)))
-    (psetq persp-names-cache (delete name persp-names-cache))
+    (psetq persp-names-cache (delete* name persp-names-cache :count 1))
     (easy-menu-remove-item persp-minor-mode-menu nil name)
     (when persp
       (easy-menu-remove-item persp-minor-mode-menu '("kill") name))))
@@ -3101,9 +3105,9 @@ Return `NAME'."
            (persp-names-current-frame-fast-ordered)))
 
   (when delnil
-    (setq persp-list (delete persp-nil-name persp-list)))
+    (setq persp-list (delete* persp-nil-name persp-list :count 1)))
   (when delcur
-    (setq persp-list (delete (safe-persp-name (get-current-persp)) persp-list)))
+    (setq persp-list (delete* (safe-persp-name (get-current-persp)) persp-list :count 1)))
   (unless show-hidden
     (setq persp-list
           (delete-if #'safe-persp-hidden persp-list :key #'persp-get-by-name)))
@@ -3169,13 +3173,13 @@ Return `NAME'."
                              (if (eq 'reverse multiple)
                                  (setq retlst (append retlst (list cp)))
                                (push cp retlst))
-                             (setq persp-list (delete cp persp-list)
+                             (setq persp-list (delete* cp persp-list :count 1)
                                    default done_str)))
                          (when not-finished
                            (setq not-finished default-mode)))
                         (pop
                          (let ((last-item (pop retlst)))
-                           (unless retlst (setq persp-list (delete done_str persp-list)
+                           (unless retlst (setq persp-list (delete* done_str persp-list :count 1)
                                                 default nil))
                            (when last-item
                              (push last-item persp-list)))
@@ -3479,13 +3483,13 @@ Return `NAME'."
                    (if (eq 'reverse multiple)
                        (setq retlst (append retlst (list cp)))
                      (push cp retlst))
-                   (setq buffer-names (delete cp buffer-names)
+                   (setq buffer-names (delete* cp buffer-names :count 1)
                          default done_str)))
                (when not-finished
                  (setq not-finished default-mode)))
               (pop
                (let ((last-item (pop retlst)))
-                 (unless retlst (setq buffer-names (delete done_str buffer-names)
+                 (unless retlst (setq buffer-names (delete* done_str buffer-names :count 1)
                                       default nil))
                  (when last-item
                    (push last-item buffer-names)))
