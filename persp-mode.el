@@ -1151,6 +1151,10 @@ the selected window to a wrong buffer.")
                       pblf-body))))
          ,@body))))
 
+(defmacro* with-persp-read-buffer ((&key multiple (default-mode t)) &rest body)
+  `(letf (((symbol-function 'read-buffer) #'persp-read-buffer))
+     ,@body))
+
 (defmacro with-persp-ido-hooks (&rest body)
   `(let ((ido-make-buffer-list-hook ido-make-buffer-list-hook)
          (ido-setup-hook ido-setup-hook))
