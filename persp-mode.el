@@ -2984,12 +2984,12 @@ Return `NAME'."
   (let ((persp-init-frame-behaviour
          (cond
           ((and client
-                (not (eq -1 persp-emacsclient-init-frame-behaviour-override)))
+                (not (eql -1 persp-emacsclient-init-frame-behaviour-override)))
            persp-emacsclient-init-frame-behaviour-override)
           ((and (eq this-command 'make-frame)
-                (not (eq -1 persp-interactive-init-frame-behaviour-override)))
+                (not (eql -1 persp-interactive-init-frame-behaviour-override)))
            persp-interactive-init-frame-behaviour-override)
-          ((and new-frame-p (not (eq -1 persp-init-new-frame-behaviour-override)))
+          ((and new-frame-p (not (eql -1 persp-init-new-frame-behaviour-override)))
            persp-init-new-frame-behaviour-override)
           (t persp-init-frame-behaviour))))
     (let (persp-name persp)
@@ -3959,7 +3959,7 @@ of the perspective %s can't be saved."
                       0)))
     (list
      (format "%S" version)
-     (if (eq version 0)
+     (if (eql version 0)
          savelist
        (cdr savelist)))))
 
