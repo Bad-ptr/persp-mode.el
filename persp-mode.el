@@ -3077,7 +3077,8 @@ Return `NAME'."
 
 (defun persp-add-to-menu (persp)
   (let ((name (safe-persp-name persp)))
-    (push name persp-names-cache)
+    (psetq persp-names-cache
+           (append persp-names-cache (list name)))
     (lexical-let ((str_name name))
       (easy-menu-add-item persp-minor-mode-menu nil
                           (vector str_name #'(lambda () (interactive)
