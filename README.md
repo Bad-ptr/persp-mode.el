@@ -463,9 +463,10 @@ Also, you can take a look at [Spacemacs](https://github.com/syl20bnr/spacemacs)
 ### Changing the order of the perspectives(how it looks when you are prompted for a perspective name(s)):
 
 See the `C-h v persp-names-cache RET`.  
-You can manually edit the order of the perspectives by editing the
-`persp-names-cache` variable using the
-[`edit-list`](https://github.com/emacsmirror/edit-list) package.  
+You can manually edit the order of the perspectives by editing the 
+`persp-names-cache` variable using 
+[`edit-list`](https://github.com/emacsmirror/edit-list) or 
+[`refine`](https://github.com/Wilfred/refine) packages.  
 
 #### Keep most recently used perspectives on top  
 
