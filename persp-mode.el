@@ -3671,7 +3671,7 @@ of the perspective %s can't be saved."
                     (when (or (not names-regexp)
                               (persp-string-match-p names-regexp pn))
                       (persp-get-by-name pn *persp-hash* nil)))
-                (nreverse (persp-names-current-frame-fast-ordered)))
+                (persp-names-current-frame-fast-ordered))
       (persp-persps (or phash *persp-hash*) names-regexp t)))))
 
 (defsubst persp-save-with-backups (fname)
