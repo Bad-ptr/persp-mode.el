@@ -3701,8 +3701,11 @@ of the perspective %s can't be saved."
      (respect-persp-file-parameter persp-auto-save-persps-to-their-file)
      (keep-others-in-non-parametric-file 'no))
   (interactive (list (read-file-name "Save perspectives to a file: "
-                                     persp-save-dir)))
-  (when (and fname phash)
+                                     persp-save-dir "")))
+  (when (and (stringp fname) phash)
+    (when (< (string-width (file-name-nondirectory fname)) 1)
+      (message "[persp-mode] Error: You must provide nonempty filename to save perspectives.")
+      (return-from persp-save-state-to-file nil))
     (let* ((p-save-dir (or (file-name-directory fname)
                            (expand-file-name persp-save-dir)))
            (p-save-file (concat p-save-dir (file-name-nondirectory fname))))
