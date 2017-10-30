@@ -136,7 +136,7 @@
 
 (defface persp-face-lighter-buffer-not-in-persp
   '((default . (:background "#F00" :foreground "#00F" :weight bold)))
-  "Face for the ligher when the current buffer is not in a perspective."
+  "Face for the lighter when the current buffer is not in a perspective."
   :group 'persp-mode)
 (defface persp-face-lighter-nil-persp
   '((t :inherit bold-italic))
