@@ -3534,6 +3534,16 @@ Return `NAME'."
 
 ;; Save/Load funcs:
 
+(defun persp-delete-other-windows ()
+  (let ((win (selected-window)))
+    (when (window-parameter win 'window-side)
+      (setq win (cl-loop
+                 for win in (window-list nil 1)
+                 unless (window-parameter win 'window-side)
+                 return win)))
+    (when win
+      (delete-other-windows win))))
+
 (defun* persp-restore-window-conf (&optional (frame (selected-frame))
                                              (persp (get-frame-persp frame))
                                              new-frame-p)
@@ -3563,7 +3573,7 @@ Return `NAME'."
              (t
               (if pwc
                   (progn
-                    (delete-other-windows)
+                    (persp-delete-other-windows)
                     (set-window-dedicated-p nil nil)
                     (condition-case-unless-debug err
                         (funcall persp-window-state-put-function pwc frame)
@@ -3582,7 +3592,7 @@ configuration, because of the error -- %s" err)
                 (when persp-reset-windows-on-nil-window-conf
                   (if (functionp persp-reset-windows-on-nil-window-conf)
                       (funcall persp-reset-windows-on-nil-window-conf)
-                    (delete-other-windows)
+                    (persp-delete-other-windows)
                     (set-window-dedicated-p nil nil)
                     (let* ((pbs (safe-persp-buffers persp))
                            (w (selected-window))
