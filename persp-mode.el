@@ -1662,16 +1662,16 @@ the selected window to a wrong buffer.")
                   (with-current-buffer buffer
                     (delete-if-not
                      #'(lambda (lvar)
-                         ,(persp--generate-predicate-loop-any-all
-                           save-vars
-                           '(and
-                             (if (persp-regexp-p item)
+                         (and
+                          ,(persp--generate-predicate-loop-any-all
+                            save-vars
+                            '(if (persp-regexp-p item)
                                  (persp-string-match-p item
                                                        (symbol-name lvar))
                                (eq item lvar))
-                             (persp-elisp-object-readable-p
-                              (symbol-value lvar)))
-                           t))
+                            t)
+                          (persp-elisp-object-readable-p
+                           (symbol-value lvar))))
                      (buffer-local-variables)
                      :key #'car-safe))))
              ,(if save-function
