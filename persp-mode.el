@@ -1747,7 +1747,7 @@ Here is a keymap of this minor mode:
   :global     t
   :lighter    (:eval persp-lighter)
   (if persp-mode
-      (progn
+      (when (or (eq 'persp-force-restart persp-mode) (null *persp-hash*))
         (setq persp-special-last-buffer nil)
         (add-hook 'find-file-hook #'persp-special-last-buffer-make-current)
         (if (or noninteractive
