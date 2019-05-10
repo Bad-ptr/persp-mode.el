@@ -2626,8 +2626,11 @@ cause it already contain all buffers.")))
               (copy-list (safe-persp-parameters current-persp))
               (persp-weak new-persp)
               (if current-persp (persp-weak current-persp) nil))
-        (when (listp choosen-buffers)
-          (persp-add-buffer choosen-buffers new-persp nil nil))
+        (let ((buffers (if (listp choosen-buffers)
+                           choosen-buffers
+                         new-buffers)))
+          (when buffers
+            (persp-add-buffer buffers new-persp nil nil)))
         (case switch
           (window (persp-window-switch new-name))
           (frame (persp-frame-switch new-name))
