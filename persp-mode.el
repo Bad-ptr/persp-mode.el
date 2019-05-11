@@ -2350,16 +2350,15 @@ Return the created perspective."
     (setq switchorno (not switchorno)))
   (unless buffs-or-names
     (setq buffs-or-names
-          (if called-interactively-p
-              (let ((*persp-restrict-buffers-to* 1)
-                    persp-restrict-buffers-to-if-foreign-buffer)
-                (persp-read-buffer (concat
-                                    "Add buffers to the perspective"
-                                    (and switchorno
-                                         " and switch to first added buffer")
-                                    ": ")
-                                   (current-buffer) t nil t))
-            (current-buffer))))
+          (when called-interactively-p
+            (let ((*persp-restrict-buffers-to* 1)
+                  persp-restrict-buffers-to-if-foreign-buffer)
+              (persp-read-buffer (concat
+                                  "Add buffers to the perspective"
+                                  (and switchorno
+                                       " and switch to first added buffer")
+                                  ": ")
+                                 (current-buffer) t nil t)))))
   (unless (listp buffs-or-names) (setq buffs-or-names (list buffs-or-names)))
   (mapc
    #'(lambda (bon)
