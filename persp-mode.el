@@ -2583,41 +2583,40 @@ cause it already contain all buffers.")))
          "[persp-mode] Error: There is already a perspective with that name %s"
          new-name)
         nil)
-    (let* ((current-persp (get-current-persp))
-           (choosen-buffers t)
-           (new-buffers
-            (if (and current-persp
-                     (not (and called-interactively-p current-prefix-arg)))
-                (copy-list (persp-buffers current-persp))
-              (delete-if-not
-               (destructuring-bind (char &rest _)
-                   (read-multiple-choice
-                    "What buffers to copy? "
-                    '((?a "all")
-                      (?d "displayed")
-                      (?f "free and displayed")
-                      (?F "free")
-                      (?c "choose")
-                      (?n "none")))
-                 (case char
-                   (?d #'(lambda (b) (get-buffer-window-list b 'no-minibuf)))
-                   (?f #'(lambda (b) (or (persp-buffer-free-p b t)
-                                    (get-buffer-window-list b 'no-minibuf))))
-                   (?F #'(lambda (b) (persp-buffer-free-p b t)))
-                   (?c #'(lambda (b)
-                           (unless (listp choosen-buffers)
-                             (setq choosen-buffers
-                                   (persp-read-buffer
-                                    "" (current-buffer) t nil t 'push)))
-                           nil))
-                   (?n #'not)
-                   (?a nil)
-                   (t nil)))
-               (if current-persp
-                   (copy-list (persp-buffers current-persp))
-                 (safe-persp-buffers current-persp)))))
-           (new-persp (persp-add-new new-name)))
+    (let* ((new-persp (persp-add-new new-name))
+           (current-persp (get-current-persp))
+           (new-buffers (when new-persp
+                          (if current-persp
+                              (copy-list (persp-buffers current-persp))
+                            (safe-persp-buffers current-persp)))))
       (when new-persp
+        (when (and called-interactively-p current-prefix-arg)
+          (setq new-buffers
+                (let (choosen-buffers)
+                  (delete-if-not
+                   (destructuring-bind (char &rest _)
+                       (read-multiple-choice
+                        "What buffers to copy? "
+                        '((?a "all")
+                          (?d "displayed")
+                          (?f "free and displayed")
+                          (?F "free")
+                          (?c "choose")
+                          (?n "none")))
+                     (case char
+                       (?d #'(lambda (b) (get-buffer-window-list b 'no-minibuf)))
+                       (?f #'(lambda (b) (or (persp-buffer-free-p b t)
+                                        (get-buffer-window-list b 'no-minibuf))))
+                       (?F #'(lambda (b) (persp-buffer-free-p b t)))
+                       (?c (setq choosen-buffers
+                                 (mapcar #'get-buffer
+                                         (persp-read-buffer
+                                          "" (current-buffer) t nil t 'push)))
+                           #'(lambda (b) (memq b choosen-buffers)))
+                       (?n #'not)
+                       (?a nil)
+                       (t nil)))
+                   new-buffers))))
         (persp-save-state current-persp)
         (setf (persp-window-conf new-persp)
               (safe-persp-window-conf current-persp)
@@ -2625,11 +2624,7 @@ cause it already contain all buffers.")))
               (copy-list (safe-persp-parameters current-persp))
               (persp-weak new-persp)
               (if current-persp (persp-weak current-persp) nil))
-        (let ((buffers (if (listp choosen-buffers)
-                           choosen-buffers
-                         new-buffers)))
-          (when buffers
-            (persp-add-buffer buffers new-persp nil nil)))
+        (persp-add-buffer new-buffers new-persp nil nil)
         (case switch
           (window (persp-window-switch new-name))
           (frame (persp-frame-switch new-name))
