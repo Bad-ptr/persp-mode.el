@@ -4077,6 +4077,17 @@ of the perspective %s can't be saved."
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
 
+;;; IBuffer integration
+(define-ibuffer-filter persp-files
+    "show ibuffer with buffers in current perspective"
+  (:reader nil :description nil)
+  (memq buf (persp-buffer-list)))
+
+(defun persp-ibuffer ()
+  "List buffers in the current perspective."
+  (interactive)
+  (ibuffer nil (format "*%s persp buffers" (persp-name (get-current-persp)))
+           (list (cons 'persp-files ())) nil t))
 
 (provide 'persp-mode)
 
