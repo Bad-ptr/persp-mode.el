@@ -4086,7 +4086,7 @@ of the perspective %s can't be saved."
 (defun persp-ibuffer ()
   "List buffers in the current perspective."
   (interactive)
-  (ibuffer nil (format "*%s persp buffers" (persp-name (get-current-persp)))
+  (ibuffer t (format "*%s persp buffers" (persp-name (get-current-persp)))
            (list (cons 'persp-files ())) nil t))
 
 (provide 'persp-mode)
