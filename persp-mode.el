@@ -76,6 +76,24 @@
 (require 'cl)
 (require 'easymenu)
 
+(declare-function golden-ratio-mode "ext:golden-ratio")
+(declare-function tabbar-buffer-list "ext:tabbar-mode")
+
+(declare-function tramp-dissect-file-name "tramp")
+(declare-function tramp-file-name-hop "tramp")
+(declare-function tramp-file-name-host "tramp")
+(declare-function tramp-file-name-localname "tramp")
+(declare-function tramp-file-name-method "tramp")
+(declare-function tramp-file-name-user "tramp")
+(declare-function tramp-tramp-file-p "tramp")
+
+(defvar ido-cur-item)
+(defvar ido-exit)
+(defvar ido-temp-list)
+(defvar ido-text)
+(defvar ido-text-init)
+(defvar tabbar-buffer-list-function)
+
 (defvar persp-mode nil)
 
 (defconst persp-not-persp :nil
