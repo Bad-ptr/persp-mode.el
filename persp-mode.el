@@ -627,7 +627,7 @@ functions returns a non nil value the buffer considered as 'filtered out'."
            (custom-set-default sym (mapcar #'byte-compile val))))
 
 (defcustom persp-buffer-list-restricted-filter-functions nil
-  "Additional filters for use inside pthe `persp-buffer-list-restricted'."
+  "Additional filters for use inside the `persp-buffer-list-restricted'."
   :group 'persp-mode
   :type 'hook
   :set #'(lambda (sym val)
@@ -2232,11 +2232,12 @@ killed, but just removed from a perspective(s)."
         (setq blist
               (remove-if-not
                (apply-partially #'persp-string-match-p regexp)
-               blist))
+               (mapcar #'get-buffer blist)
+               :key #'buffer-name))
         (when (and blist
                    (or noask (y-or-n-p (format "Do %s on these buffers:\n%s?\n"
                                                func
-                                               (mapconcat 'identity blist ", ")))))
+                                               (mapconcat #'buffer-name blist ", ")))))
           (mapcar #'(lambda (b) (apply func b rest-args)) blist))))))
 
 
