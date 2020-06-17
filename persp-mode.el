@@ -618,28 +618,22 @@ the current perspective."
 
 (defcustom persp-common-buffer-filter-functions
   (list #'(lambda (b) (or (string-prefix-p " " (buffer-name b))
-                     (eq (buffer-local-value 'major-mode b) 'helm-major-mode))))
+                          (eq (buffer-local-value 'major-mode b) 'helm-major-mode))))
   "The list of functions wich takes a buffer as an argument. If one of these
 functions returns a non nil value the buffer considered as 'filtered out'."
   :group 'persp-mode
-  :type 'hook
-  :set #'(lambda (sym val)
-           (custom-set-default sym (mapcar #'byte-compile val))))
+  :type 'hook)
 
 (defcustom persp-buffer-list-restricted-filter-functions nil
   "Additional filters for use inside the `persp-buffer-list-restricted'."
   :group 'persp-mode
-  :type 'hook
-  :set #'(lambda (sym val)
-           (custom-set-default sym (mapcar #'byte-compile val))))
+  :type 'hook)
 
 (defcustom persp-add-buffer-on-after-change-major-mode-filter-functions nil
   "Additional filters to know which buffers we dont want to add to
 the current perspective after the `after-change-major-mode-hook' is fired."
   :group 'persp-mode
-  :type 'hook
-  :set #'(lambda (sym val)
-           (custom-set-default sym (mapcar #'byte-compile val))))
+  :type 'hook)
 
 (defcustom persp-filter-save-buffers-functions
   (list #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
