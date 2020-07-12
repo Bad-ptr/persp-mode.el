@@ -1761,68 +1761,59 @@ Here is a keymap of this minor mode:
       (when (or (eq 'persp-force-restart persp-mode) (null *persp-hash*))
         (setq persp-special-last-buffer nil)
         (add-hook 'find-file-hook #'persp-special-last-buffer-make-current)
-        (if (or noninteractive
-                (and (daemonp)
-                     (null (cdr (frame-list)))
-                     (eq (selected-frame) terminal-frame)))
-            (progn
-              (add-hook 'after-make-frame-functions
-                        #'persp-mode-start-and-remove-from-make-frame-hook)
-              (setq persp-mode nil))
+        (setq *persp-hash* (make-hash-table :test #'equal :size 10))
+        (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))
+        (setq persp-names-cache nil)
 
-          (setq *persp-hash* (make-hash-table :test #'equal :size 10))
-          (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))
-          (setq persp-names-cache nil)
+        (push '(persp . writable) window-persistent-parameters)
 
-          (push '(persp . writable) window-persistent-parameters)
+        (persp-add-minor-mode-menu)
+        (persp-add-new persp-nil-name)
 
-          (persp-add-minor-mode-menu)
-          (persp-add-new persp-nil-name)
+        (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
+        (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+        (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
+        (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
+        (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
+        (add-hook 'delete-frame-functions      #'persp-delete-frame)
+        (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
+        (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
+        (add-hook 'server-switch-hook          #'persp-server-switch)
+        (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
 
-          (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-          (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
-          (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
-          (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
-          (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
-          (add-hook 'delete-frame-functions      #'persp-delete-frame)
-          (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
-          (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
-          (add-hook 'server-switch-hook          #'persp-server-switch)
-          (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+        (persp-set-ido-hooks persp-set-ido-hooks)
+        (persp-set-read-buffer-function persp-set-read-buffer-function)
 
-          (persp-set-ido-hooks persp-set-ido-hooks)
-          (persp-set-read-buffer-function persp-set-read-buffer-function)
+        (persp-update-completion-system persp-interactive-completion-system)
 
-          (persp-update-completion-system persp-interactive-completion-system)
+        (condition-case-unless-debug err
+            (mapc #'persp-init-frame (persp-frame-list-without-daemon))
+          (error
+           (message "[persp-mode] Error: Can not initialize frame -- %s"
+                    err)))
 
-          (condition-case-unless-debug err
-              (mapc #'persp-init-frame (persp-frame-list-without-daemon))
-            (error
-             (message "[persp-mode] Error: Can not initialize frame -- %s"
-                      err)))
+        (when (fboundp 'tabbar-mode)
+          (setq tabbar-buffer-list-function #'persp-buffer-list))
 
-          (when (fboundp 'tabbar-mode)
-            (setq tabbar-buffer-list-function #'persp-buffer-list))
+        (persp-auto-persps-activate-hooks)
 
-          (persp-auto-persps-activate-hooks)
-
-          (if (> persp-auto-resume-time 0)
-              (run-at-time
-               persp-auto-resume-time nil
-               #'(lambda ()
-                   (remove-hook 'find-file-hook
-                                #'persp-special-last-buffer-make-current)
-                   (when (> persp-auto-resume-time 0)
-                     (condition-case-unless-debug err
-                         (persp-load-state-from-file)
-                       (error
-                        (message
-                         "[persp-mode] Error: Can not autoresume perspectives -- %s"
-                         err)))
-                     (when (persp-get-buffer-or-null persp-special-last-buffer)
-                       (persp-switch-to-buffer persp-special-last-buffer)))))
-            (remove-hook 'find-file-hook
-                         #'persp-special-last-buffer-make-current))))
+        (if (> persp-auto-resume-time 0)
+            (run-at-time
+             persp-auto-resume-time nil
+             #'(lambda ()
+                 (remove-hook 'find-file-hook
+                              #'persp-special-last-buffer-make-current)
+                 (when (> persp-auto-resume-time 0)
+                   (condition-case-unless-debug err
+                       (persp-load-state-from-file)
+                     (error
+                      (message
+                       "[persp-mode] Error: Can not autoresume perspectives -- %s"
+                       err)))
+                   (when (persp-get-buffer-or-null persp-special-last-buffer)
+                     (persp-switch-to-buffer persp-special-last-buffer)))))
+          (remove-hook 'find-file-hook
+                       #'persp-special-last-buffer-make-current)))
 
     (run-hooks 'persp-mode-deactivated-hook)
     (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
