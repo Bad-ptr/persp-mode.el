@@ -3806,10 +3806,11 @@ of the perspective %s can't be saved."
            fname temphash (cons :not (regexp-opt names)))
           (setq bufferlist-diff
                 (cl-delete-if #'(lambda (bcons)
-                                  (cl-destructuring-bind (buf . buf-persps) bcons
-                                    (when buf
-                                      (persp--buffer-in-persps-set buf buf-persps)
-                                      t)))
+                                  (when bcons
+                                    (cl-destructuring-bind (buf . buf-persps) bcons
+                                      (when buf
+                                        (persp--buffer-in-persps-set buf buf-persps)
+                                        t))))
                               (funcall persp-buffer-list-function)
                               :key #'(lambda (b) (assq b bufferlist-pre))))))
       (mapc #'(lambda (p)
