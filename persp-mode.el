@@ -779,6 +779,7 @@ function -- run that function."
   :type
   '(choice
     (const :tag "Standard action" :value t)
+    (const :tag "Do nothing" :value nil)
     (function :tag "Run function"
               :value (lambda (frame persp new-frame-p) nil))))
 
@@ -3577,6 +3578,7 @@ Return `NAME'."
             (cond
              ((functionp persp-restore-window-conf-method)
               (funcall persp-restore-window-conf-method frame persp new-frame-p))
+             ((null persp-restore-window-conf-method) nil)
              (t
               (if pwc
                   (progn
