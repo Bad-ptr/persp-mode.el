@@ -44,7 +44,7 @@ see the `persp-autokill-buffer-on-remove` variable.
     (with-eval-after-load "persp-mode-autoloads"
       (setq wg-morph-on nil) ;; switch off animation
       (setq persp-autokill-buffer-on-remove 'kill-weak)
-      (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
+      (add-hook 'window-setup-hook #'(lambda () (persp-mode 1))))
 
 ```
 
@@ -55,7 +55,7 @@ see the `persp-autokill-buffer-on-remove` variable.
     (with-eval-after-load "persp-mode"
       (setq wg-morph-on nil)
       (setq persp-autokill-buffer-on-remove 'kill-weak)
-      (add-hook 'after-init-hook #'(lambda () (persp-mode 1))))
+      (add-hook 'window-setup-hook #'(lambda () (persp-mode 1))))
     (require 'persp-mode)
 
 ```
