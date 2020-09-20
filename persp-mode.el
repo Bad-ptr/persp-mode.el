@@ -783,6 +783,20 @@ function -- run that function."
     (function :tag "Run function"
               :value (lambda (frame persp new-frame-p) nil))))
 
+(defcustom persp-restore-window-conf-filter-functions
+  (list #'(lambda (f p new-f-p)
+            (or (null f)
+                (frame-parameter f 'persp-ignore-wconf)
+                (let ((old-piw (frame-parameter f 'persp-ignore-wconf-once)))
+                  (when old-piw
+                    (set-frame-parameter f 'persp-ignore-wconf-once nil)
+                    old-piw)))))
+  "The list of functions which takes a frame, persp and new-frame-p as arguments.
+If one of these functions return a non nil value then the window configuration
+of the persp will not be restored for the frame"
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
       #'(lambda (&optional frame rwin)
@@ -3555,13 +3569,9 @@ Return `NAME'."
 (cl-defun persp-restore-window-conf (&optional (frame (selected-frame))
                                                (persp (get-frame-persp frame))
                                                new-frame-p)
-  (when (and frame (not (frame-parameter frame 'persp-ignore-wconf))
-             (not (let ((old-piw (frame-parameter
-                                  frame 'persp-ignore-wconf-once)))
-                    (when old-piw
-                      (set-frame-parameter frame 'persp-ignore-wconf-once nil))
-                    old-piw)))
-    (when new-frame-p (sit-for 0.01))
+  (when new-frame-p (sit-for 0.01))
+  (unless (run-hook-with-args-until-success 'persp-restore-window-conf-filter-functions
+                                            frame persp new-frame-p)
     (with-selected-frame frame
       (let ((pwc (safe-persp-window-conf persp))
             (split-width-threshold 2)
