@@ -312,9 +312,9 @@ function -- use that function as buffer-predicate."
                    th #'(lambda ()
                           (run-at-time
                            10 nil #'(lambda ()
-                                      (remove-hook 'emacs-startup-hook th)
+                                      (remove-hook 'window-setup-hook th)
                                       (persp-update-frames-buffer-predicate)))))
-                  (add-hook 'emacs-startup-hook th))
+                  (add-hook 'window-setup-hook th))
               (add-hook 'persp-mode-hook
                         #'persp-update-frames-buffer-predicate)))
         (persp-update-frames-buffer-predicate t))))
