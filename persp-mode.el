@@ -3568,7 +3568,8 @@ Return `NAME'."
                  unless (window-parameter win 'window-side)
                  return win)))
     (when win
-      (delete-other-windows win))))
+      (let ((ignore-window-parameters t))
+        (delete-other-windows win)))))
 
 (cl-defun persp-restore-window-conf (&optional (frame (selected-frame))
                                                (persp (get-frame-persp frame))
