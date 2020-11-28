@@ -1305,9 +1305,11 @@ the selected window to a wrong buffer.")
     (remove-hook 'find-file-hook
                  #'persp-special-last-buffer-make-current)))
 
-(defun persp-asave-on-exit (&optional interactive-query)
+(defun persp-asave-on-exit (&optional interactive-query opt)
   (when persp-mode
-    (if (> persp-auto-save-opt 0)
+    (when (null opt)
+      (setq opt 0))
+    (if (> persp-auto-save-opt opt)
         (condition-case-unless-debug err
             (persp-save-state-to-file)
           (error
@@ -1838,7 +1840,9 @@ Here is a keymap of this minor mode:
           (persp-mode-restore-and-remove-from-make-frame-hook)))
 
     (run-hooks 'persp-mode-deactivated-hook)
-    (when (> persp-auto-save-opt 1) (persp-save-state-to-file))
+    (unless (memq #'persp-mode-restore-and-remove-from-make-frame-hook
+                  after-make-frame-functions)
+      (persp-asave-on-exit t 1))
 
     (remove-hook 'find-file-hook               #'persp-add-or-not-on-find-file)
     (remove-hook 'kill-buffer-query-functions  #'persp-kill-buffer-query-function)
