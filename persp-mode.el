@@ -3786,7 +3786,7 @@ of the perspective %s can't be saved."
              ";; -*- mode: emacs-lisp; eval: (progn (pp-buffer) (indent-buffer)) -*-")
             (newline)
             (insert (let (print-length print-level)
-                      (prin1-to-string (persps-to-savelist phash))))
+                      (pp-to-string (persps-to-savelist phash))))
             (persp-save-with-backups p-save-file)))))))
 
 (cl-defun persp-save-to-file-by-names
