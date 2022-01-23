@@ -2868,7 +2868,7 @@ Return old name on success, otherwise nil."
         (unless new-name
           (setq new-name
                 (read-string
-                 (concat "New name for the " old-name " perspective: "))))
+                 (concat "New name for the " old-name " perspective: ") old-name)))
         (if (and (not (persp-p opersp)) new-name
                  (not (equal old-name new-name)))
             (progn
