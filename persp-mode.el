@@ -246,6 +246,16 @@ nil -- do nothing."
           (const    :tag "Do nothing"         :value nil)
           (function :tag "Run function"       :value (lambda () nil))))
 
+(defcustom persp-add-cloned-indirect-buffers t
+  "Whether to add cloned indirect buffers to the current perspective.
+Indirect buffers can be created via e.g., the function
+`clone-indirect-buffer'; should they be automatically added to
+the current workspace?"
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "Add clone buffer if base-buffer in current perspective" :value t)
+          (const :tag "Always add clone buffer regardless of base-buffer affiliation" :value always)
+          (const :tag "Do not automatically add clone buffers to current buffer" :value nil)))
 
 (define-widget 'persp-buffer-list-restriction-choices 'lazy
   "Variants of how the buffer-list can be restricted."
@@ -1814,6 +1824,7 @@ Here is a keymap of this minor mode:
         (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
         (add-hook 'server-switch-hook          #'persp-server-switch)
         (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+        (add-hook 'clone-indirect-buffer-hook  #'persp-add-clone-buffer-maybe-no-switch)
 
         (persp-set-ido-hooks persp-set-ido-hooks)
         (persp-set-read-buffer-function persp-set-read-buffer-function)
@@ -2402,6 +2413,19 @@ Return the created perspective."
          buffer))
    buffs-or-names)
   buffs-or-names)
+
+(defun persp-add-clone-buffer-maybe-no-switch ()
+  "Conditionally add the current buffer to the current
+perspective, but do not switch to it."
+  (let* ((persp-switch-to-added-buffer nil)
+        (buffer (current-buffer))
+        (base-buffer (buffer-base-buffer))
+        (persp (get-current-persp))
+        (base-in-persp (persp-contain-buffer-p base-buffer persp)))
+    (cond ((eq persp-add-cloned-indirect-buffers 'always)
+           (persp-add-buffer buffer))
+          ((and persp-add-cloned-indirect-buffers base-in-persp)
+           (persp-add-buffer buffer)))))
 
 (cl-defun persp-add-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
   (interactive)
