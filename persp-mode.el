@@ -1168,7 +1168,7 @@ the selected window to a wrong buffer.")
       sortp cache)
      &rest body)
   (let ((pblf-body `(persp-buffer-list-restricted frame)))
-    (when sortp (setq pblf-body `(sort ,pblf-body (with-no-warnings ',sortp))))
+    (when sortp (setq pblf-body `(sort ,pblf-body (with-no-warnings ,sortp))))
     `(let ((*persp-restrict-buffers-to* ,restriction)
            (persp-restrict-buffers-to-if-foreign-buffer
             ,restriction-foreign-override)
