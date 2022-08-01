@@ -3902,64 +3902,80 @@ of the perspective %s can't be saved."
 (defun persp-buffer-from-savelist (savelist)
   (when (eq (car savelist) 'def-buffer)
     (let (persp-add-buffer-on-find-file
+          buf
           (def-buffer
-            #'(lambda (name fname mode &optional parameters)
-                (let ((buf (persp-get-buffer-or-null name)))
-                  (if buf
-                      (if (or (null fname)
-                              (string= fname (buffer-file-name buf)))
-                          buf
-                        (if (file-exists-p fname)
-                            (setq buf (find-file-noselect fname))
-                          (message
-                           "[persp-mode] Warning: The file %s no longer exists."
-                           fname)
-                          (setq buf nil)))
-                    (if (and fname (file-exists-p fname))
-                        (setq buf (find-file-noselect fname))
-                      (when fname
+            #'(lambda (bname fname mode &optional parameters)
+                (setq buf (persp-get-buffer-or-null bname))
+                (if buf
+                    (if (or (null fname)
+                            (string= fname (buffer-file-name buf)))
+                        buf
+                      (if (file-exists-p fname)
+                          (setq buf (find-file-noselect fname))
                         (message
                          "[persp-mode] Warning: The file %s no longer exists."
-                         fname))
-                      (setq buf (get-buffer-create name))))
-                  (when (buffer-live-p buf)
-                    (cl-macrolet
-                        ((restorevars
-                          ()
-                          `(mapc
-                            #'(lambda (varcons)
-                                (cl-destructuring-bind (vname . vvalue) varcons
-                                  (unless (or (eq vname 'buffer-file-name)
-                                              (eq vname 'major-mode))
-                                    (set (make-local-variable vname) vvalue))))
-                            (alist-get 'local-vars parameters))))
-                      (with-current-buffer buf
-                        (restorevars)
-                        (cond
-                         ((and (boundp 'persp-load-buffer-mode-restore-function)
-                               (variable-binding-locus 'persp-load-buffer-mode-restore-function)
-                               (functionp persp-load-buffer-mode-restore-function))
-                          (funcall persp-load-buffer-mode-restore-function mode)
-                          (restorevars))
-                         ((functionp mode)
-                          (when (and (not (eq major-mode mode))
-                                     (not (eq major-mode 'not-loaded-yet)))
-                            (funcall mode)
-                            (restorevars)))))))
-                  buf))))
-      (persp-car-as-fun-cdr-as-args savelist))))
+                         fname)
+                        (setq buf nil)))
+                  (if (and fname (file-exists-p fname))
+                      (with-current-buffer (setq buf (find-file-noselect fname))
+                        (unless (string= bname (buffer-name buf))
+                          (rename-buffer bname t)))
+                    (when fname
+                      (message
+                       "[persp-mode] Warning: The file %s no longer exists."
+                       fname))
+                    (setq buf (get-buffer-create bname))))
+                (when (buffer-live-p buf)
+                  (cl-macrolet
+                      ((restorevars
+                        ()
+                        `(mapc
+                          #'(lambda (varcons)
+                              (cl-destructuring-bind (vname . vvalue) varcons
+                                (unless (or (eq vname 'buffer-file-name)
+                                            (eq vname 'major-mode))
+                                  (set (make-local-variable vname) vvalue))))
+                          (alist-get 'local-vars parameters))))
+                    (with-current-buffer buf
+                      (restorevars)
+                      (cond
+                       ((and (boundp 'persp-load-buffer-mode-restore-function)
+                             (variable-binding-locus 'persp-load-buffer-mode-restore-function)
+                             (functionp persp-load-buffer-mode-restore-function))
+                        (funcall persp-load-buffer-mode-restore-function mode)
+                        (restorevars))
+                       ((functionp mode)
+                        (when (and (not (eq major-mode mode))
+                                   (not (eq major-mode 'not-loaded-yet)))
+                          (funcall mode)
+                          (restorevars)))))))
+                buf)))
+      (condition-case-unless-debug err
+          (persp-car-as-fun-cdr-as-args savelist)
+        (error
+         (message "[persp-mode] Error details: %s" savelist)
+         (message "[persp-mode] Error: persp-buffer-from-savelist failed to restore a buffer -- %s" err)
+         buf)))))
 
 (defun persp-buffers-from-savelist-0 (savelist)
   (cl-delete-if-not
    #'persp-get-buffer-or-null
    (let (find-ret)
-     (mapcar #'(lambda (saved-buf)
-                 (setq find-ret nil)
-                 (cl-find-if #'(lambda (lb) (when lb (setq find-ret lb)))
-                             persp-load-buffer-functions
-                             :key #'(lambda (l-f) (funcall l-f saved-buf)))
-                 find-ret)
-             savelist))))
+     (mapcar
+      #'(lambda (saved-buf)
+          (setq find-ret nil)
+          (cl-find-if
+           #'(lambda (lb) (when lb (setq find-ret lb)))
+           persp-load-buffer-functions
+           :key #'(lambda (l-f)
+                    (condition-case-unless-debug err
+                        (funcall l-f saved-buf)
+                      (error
+                       (message "[persp-mode] Error details: %s" saved-buf)
+                       (message "[persp-mode] Error: Failed to resume buffer using %s load buffer function -- %s" l-f err)
+                       nil))))
+          find-ret)
+      savelist))))
 
 (defvar def-wconf nil)
 (defun persp-window-conf-from-savelist-0 (savelist)
@@ -3979,14 +3995,30 @@ of the perspective %s can't be saved."
                      (persp (persp-add-new pname phash)))
                 (mapc #'(lambda (b)
                           (persp-add-buffer b persp nil nil))
-                      (persp-buffers-from-savelist-0 dbufs))
-                (if persp
-                    (setf (persp-window-conf persp)
-                          (persp-window-conf-from-savelist-0 dwc))
-                  (setq persp-nil-wconf
-                        (persp-window-conf-from-savelist-0 dwc)))
+                      (condition-case-unless-debug err
+                          (persp-buffers-from-savelist-0 dbufs)
+                        (error
+                         (message "[persp-mode] Error details: %s" dbufs)
+                         (message "[persp-mode] Error: failed to load buffers for %s perspective from %S file -- %s" pname persp-file err)
+                         nil)))
+                (let ((loaded-wconf
+                       (condition-case-unless-debug err
+                           (persp-window-conf-from-savelist-0 dwc)
+                         (error
+                          (message "[persp-mode] Error details: %s" dwc)
+                          (message "[persp-mode] Error: failed to load window configuration for %s perspective from %S file -- %s" pname persp-file err)
+                          nil))))
+                  (if (and persp loaded-wconf)
+                      (setf (persp-window-conf persp) loaded-wconf)
+                    (setq persp-nil-wconf loaded-wconf)))
                 (modify-persp-parameters
-                 (persp-parameters-from-savelist-0 dparams) persp)
+                 (condition-case-unless-debug err
+                     (persp-parameters-from-savelist-0 dparams)
+                   (error
+                    (message "[persp-mode] Error details: %s" dparams)
+                    (message "[persp-mode] Error: Failed to load %s perspective parameters from %S file -- %s" pname persp-file err)
+                    nil))
+                 persp)
                 (when persp
                   (setf (persp-weak persp) weak
                         (persp-auto persp) auto))
@@ -4004,14 +4036,20 @@ of the perspective %s can't be saved."
     (savelist phash persp-file set-persp-file names-regexp)
   (when (and names-regexp (not (consp names-regexp)))
     (setq names-regexp (cons t names-regexp)))
-  (mapcar #'(lambda (pd)
-              (persp-from-savelist-0 pd phash (and set-persp-file persp-file)))
-          (if names-regexp
-              (cl-delete-if-not
-               (apply-partially #'persp-string-match-p names-regexp)
-               savelist
-               :key #'(lambda (pd) (or (cadr pd) persp-nil-name)))
-            savelist)))
+  (delq nil
+        (mapcar #'(lambda (pd)
+                    (condition-case-unless-debug err
+                        (persp-from-savelist-0 pd phash (and set-persp-file persp-file))
+                      (error
+                       (message "[persp-mode] Error details: %s" pd)
+                       (message "[persp-mode] Error: Can not load a perspective from %S file -- %s" persp-file err)
+                       nil)))
+                (if names-regexp
+                    (cl-delete-if-not
+                     (apply-partially #'persp-string-match-p names-regexp)
+                     savelist
+                     :key #'(lambda (pd) (or (cadr pd) persp-nil-name)))
+                  savelist))))
 
 (defun persp-names-from-savelist-0 (savelist)
   (mapcar #'(lambda (pd) (or (cadr pd) persp-nil-name)) savelist))
@@ -4051,7 +4089,7 @@ of the perspective %s can't be saved."
           persp-names)
       (message
        "[persp-mode] Error: Can not load perspectives from savelist: %s
-\tloaded from %s" savelist persp-file)
+\tloaded from %S" savelist persp-file)
       nil)))
 
 (defun persp-list-persp-names-in-file (fname)
