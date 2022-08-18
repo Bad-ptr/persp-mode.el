@@ -1298,7 +1298,7 @@ the selected window to a wrong buffer.")
                  (persp-load-state-from-file)
                (error
                 (message
-                 "[persp-mode] Error: Can not autoresume perspectives -- %s"
+                 "[persp-mode] Error: Can not autoresume perspectives -- %S"
                  err)))
              (when (persp-get-buffer-or-null persp-special-last-buffer)
                (persp-switch-to-buffer persp-special-last-buffer)))))
@@ -1313,7 +1313,7 @@ the selected window to a wrong buffer.")
         (condition-case-unless-debug err
             (persp-save-state-to-file)
           (error
-           (message "[persp-mode] Error: Can not autosave perspectives -- %s"
+           (message "[persp-mode] Error: Can not autosave perspectives -- %S"
                     err)
            (when (or noninteractive
                      (progn
@@ -1823,7 +1823,7 @@ Here is a keymap of this minor mode:
         (condition-case-unless-debug err
             (mapc #'persp-init-frame (persp-frame-list-without-daemon))
           (error
-           (message "[persp-mode] Error: Can not initialize frame -- %s"
+           (message "[persp-mode] Error: Can not initialize frame -- %S"
                     err)))
 
         (when (fboundp 'tabbar-mode)
@@ -2031,7 +2031,7 @@ killed, but just removed from a perspective(s)."
             (funcall persp-server-switch-hook frame))
           (set-frame-parameter frame 'persp-server-switch-hook nil)))
     (error
-     (message "[persp-mode] Error: error in server-switch-hook -- %s"
+     (message "[persp-mode] Error: error in server-switch-hook -- %S"
               err))))
 
 
@@ -2609,7 +2609,7 @@ cause it already contain all buffers.")))
   (if (member new-name (persp-names))
       (progn
         (message
-         "[persp-mode] Error: There is already a perspective with that name %s"
+         "[persp-mode] Error: There is already a perspective with that name %S"
          new-name)
         nil)
     (let* ((new-persp (persp-add-new new-name))
@@ -2883,7 +2883,7 @@ Return old name on success, otherwise nil."
                  'persp-renamed-functions persp old-name new-name))
               old-name)
           (message
-           "[persp-mode] Error: There is already a perspective with that name: %s."
+           "[persp-mode] Error: There is already a perspective with that name: %S."
            new-name)
           nil))
     (message
@@ -3013,7 +3013,7 @@ Return `NAME'."
   (condition-case-unless-debug err
       (persp-init-frame frame t (frame-parameter frame 'client))
     (error
-     (message "[persp-mode] Error: Can not initialize frame -- %s"
+     (message "[persp-mode] Error: Can not initialize frame -- %S"
               err))))
 (cl-defun persp-init-frame (frame &optional new-frame-p client)
   (let ((persp-init-frame-behaviour
@@ -3071,7 +3071,7 @@ Return `NAME'."
   (condition-case-unless-debug err
       (persp--deactivate frame persp-not-persp)
     (error
-     (message "[persp-mode] Error: Can not deactivate frame -- %s"
+     (message "[persp-mode] Error: Can not deactivate frame -- %S"
               err))))
 
 ;; TODO: rename
@@ -3604,7 +3604,7 @@ Return `NAME'."
                       (error
                        (message
                         "[persp-mode] Warning: Can not restore the window \
-configuration, because of the error -- %s" err)
+configuration, because of the error -- %S" err)
                        (let* ((cw (selected-window))
                               (cwb (window-buffer cw)))
                          (unless (persp-contain-buffer-p cwb persp)
@@ -3686,7 +3686,7 @@ configuration, because of the error -- %s" err)
                  #'(lambda (param)
                      (and (not (persp-elisp-object-readable-p param))
                           (message "[persp-mode] Info: The parameter %S \
-of the perspective %s can't be saved."
+of the perspective %S can't be saved."
                                    param (safe-persp-name persp))
                           t))
                  (safe-persp-parameters persp))))
@@ -3896,7 +3896,7 @@ of the perspective %s can't be saved."
                      (symbol-value ,kar))))
        (if (functionp fun)
            (apply fun args)
-         (message "[persp-mode] Error: %s is not a function." fun)))))
+         (message "[persp-mode] Error: %S is not a function." fun)))))
 
 (defvar def-buffer nil)
 (defun persp-buffer-from-savelist (savelist)
@@ -3913,7 +3913,7 @@ of the perspective %s can't be saved."
                       (if (file-exists-p fname)
                           (setq buf (find-file-noselect fname))
                         (message
-                         "[persp-mode] Warning: The file %s no longer exists."
+                         "[persp-mode] Warning: The file %S no longer exists."
                          fname)
                         (setq buf nil)))
                   (if (and fname (file-exists-p fname))
@@ -3922,7 +3922,7 @@ of the perspective %s can't be saved."
                           (rename-buffer bname t)))
                     (when fname
                       (message
-                       "[persp-mode] Warning: The file %s no longer exists."
+                       "[persp-mode] Warning: The file %S no longer exists."
                        fname))
                     (setq buf (get-buffer-create bname))))
                 (when (buffer-live-p buf)
@@ -3953,8 +3953,8 @@ of the perspective %s can't be saved."
       (condition-case-unless-debug err
           (persp-car-as-fun-cdr-as-args savelist)
         (error
-         (message "[persp-mode] Error details: %s" savelist)
-         (message "[persp-mode] Error: persp-buffer-from-savelist failed to restore a buffer -- %s" err)
+         (message "[persp-mode] Error details: %S" savelist)
+         (message "[persp-mode] Error: persp-buffer-from-savelist failed to restore a buffer -- %S" err)
          buf)))))
 
 (defun persp-buffers-from-savelist-0 (savelist)
@@ -3971,8 +3971,8 @@ of the perspective %s can't be saved."
                     (condition-case-unless-debug err
                         (funcall l-f saved-buf)
                       (error
-                       (message "[persp-mode] Error details: %s" saved-buf)
-                       (message "[persp-mode] Error: Failed to resume buffer using %s load buffer function -- %s" l-f err)
+                       (message "[persp-mode] Error details: %S" saved-buf)
+                       (message "[persp-mode] Error: Failed to resume buffer using %S load buffer function -- %S" l-f err)
                        nil))))
           find-ret)
       savelist))))
@@ -3998,15 +3998,15 @@ of the perspective %s can't be saved."
                       (condition-case-unless-debug err
                           (persp-buffers-from-savelist-0 dbufs)
                         (error
-                         (message "[persp-mode] Error details: %s" dbufs)
-                         (message "[persp-mode] Error: failed to load buffers for %s perspective from %S file -- %s" pname persp-file err)
+                         (message "[persp-mode] Error details: %S" dbufs)
+                         (message "[persp-mode] Error: failed to load buffers for %S perspective from %S file -- %S" pname persp-file err)
                          nil)))
                 (let ((loaded-wconf
                        (condition-case-unless-debug err
                            (persp-window-conf-from-savelist-0 dwc)
                          (error
-                          (message "[persp-mode] Error details: %s" dwc)
-                          (message "[persp-mode] Error: failed to load window configuration for %s perspective from %S file -- %s" pname persp-file err)
+                          (message "[persp-mode] Error details: %S" dwc)
+                          (message "[persp-mode] Error: failed to load window configuration for %S perspective from %S file -- %S" pname persp-file err)
                           nil))))
                   (if (and persp loaded-wconf)
                       (setf (persp-window-conf persp) loaded-wconf)
@@ -4015,8 +4015,8 @@ of the perspective %s can't be saved."
                  (condition-case-unless-debug err
                      (persp-parameters-from-savelist-0 dparams)
                    (error
-                    (message "[persp-mode] Error details: %s" dparams)
-                    (message "[persp-mode] Error: Failed to load %s perspective parameters from %S file -- %s" pname persp-file err)
+                    (message "[persp-mode] Error details: %S" dparams)
+                    (message "[persp-mode] Error: Failed to load %S perspective parameters from %S file -- %S" pname persp-file err)
                     nil))
                  persp)
                 (when persp
@@ -4041,8 +4041,8 @@ of the perspective %s can't be saved."
                     (condition-case-unless-debug err
                         (persp-from-savelist-0 pd phash (and set-persp-file persp-file))
                       (error
-                       (message "[persp-mode] Error details: %s" pd)
-                       (message "[persp-mode] Error: Can not load a perspective from %S file -- %s" persp-file err)
+                       (message "[persp-mode] Error details: %S" pd)
+                       (message "[persp-mode] Error: Can not load a perspective from %S file -- %S" persp-file err)
                        nil)))
                 (if names-regexp
                     (cl-delete-if-not
@@ -4088,7 +4088,7 @@ of the perspective %s can't be saved."
                               persp-names)
           persp-names)
       (message
-       "[persp-mode] Error: Can not load perspectives from savelist: %s
+       "[persp-mode] Error: Can not load perspectives from savelist: %S
 \tloaded from %S" savelist persp-file)
       nil)))
 
