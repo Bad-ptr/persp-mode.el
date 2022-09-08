@@ -3843,7 +3843,7 @@ of the perspective %S can't be saved."
                      (tramp-tramp-file-p buf-f-name))
             (let ((dissected-f-name (tramp-dissect-file-name buf-f-name))
                   tmh)
-              (if (tramp-file-name-hop dissected-f-name)
+              (if (tramp-file-name-method dissected-f-name)
                   (when (and
                          (or (featurep 'tramp-sh) (require 'tramp-sh nil t))
                          (fboundp 'tramp-compute-multi-hops)
