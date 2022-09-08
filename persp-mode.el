@@ -3562,14 +3562,18 @@ Return `NAME'."
 
 (defun persp-delete-other-windows ()
   (let ((win (selected-window)))
-    (when (window-parameter win 'window-side)
+    (when (or (window-parameter win 'window-side)
+              (window-minibuffer-p win))
       (setq win (cl-loop
                  for win in (window-list nil 1)
                  unless (window-parameter win 'window-side)
                  return win)))
     (when win
       (let ((ignore-window-parameters t))
-        (delete-other-windows win)))))
+        (condition-case-unless-debug err
+            (delete-other-windows win)
+          (error
+           (message "[persp-mode] Warning: Can not delete-other-windows -- %S" err)))))))
 
 (cl-defun persp-restore-window-conf (&optional (frame (selected-frame))
                                                (persp (get-frame-persp frame))
