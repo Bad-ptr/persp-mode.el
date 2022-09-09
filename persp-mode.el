@@ -3861,16 +3861,20 @@ of the perspective %S can't be saved."
                                (method   (tramp-file-name-method hop))
                                (user     (tramp-file-name-user hop))
                                (host     (tramp-file-name-host hop))
+                               (port     (tramp-file-name-port hop))
                                (filename (tramp-file-name-localname hop)))
                           (setq persp-tramp-file-name
                                 (concat
                                  persp-tramp-file-name
                                  method tramp-postfix-method-format
                                  user (when user tramp-postfix-user-format)
-                                 host (if (= (string-width filename) 0)
-                                          tramp-postfix-hop-format
-                                        (concat
-                                         tramp-postfix-host-format filename)))
+                                 host
+                                 (when port tramp-prefix-port-format)
+                                 port
+                                 (if (= (string-width filename) 0)
+                                     tramp-postfix-hop-format
+                                   (concat
+                                    tramp-postfix-host-format filename)))
                                 tmh (cdr tmh))))
                       persp-tramp-file-name))
                 buf-f-name)))))
