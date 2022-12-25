@@ -1766,7 +1766,7 @@ the selected window to a wrong buffer.")
                            `(funcall (with-no-warnings ',load-function)
                                      savelist default-load-fun
                                      (with-no-warnings ',after-load-function))
-                         `(funcall default-load-fun savelist))))))
+                         `(funcall (eval default-load-fun t) savelist))))))
               append)))
 
 ;;;###autoload
