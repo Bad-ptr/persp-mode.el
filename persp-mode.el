@@ -3502,6 +3502,13 @@ Return `NAME'."
                            (and retlst
                                 (concat
                                  "< " (mapconcat #'identity retlst " ") " >"))
+                           (and persp-toggle-read-buffer-filter-keys
+                                (concat
+                                 " [`"
+                                 (help-key-description
+                                  persp-toggle-read-buffer-filter-keys
+                                  nil)
+                                 "' toggles filter]"))
                            ": ")
                    buffer-names predicate require-match nil nil default))
             (cl-case not-finished
