@@ -4165,4 +4165,9 @@ of the perspective %S can't be saved."
 
 (provide 'persp-mode)
 
+
+;; Local Variables:
+;; indent-tabs-mode: nil
+;; End:
+
 ;;; persp-mode.el ends here
