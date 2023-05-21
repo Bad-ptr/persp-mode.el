@@ -752,6 +752,23 @@ These functions must take 3 arguments:
   :group 'persp-mode
   :type 'hook)
 
+(defun persp-switch-to-last-active (_state-file phash _persp-names)
+  "Switch to the last active perspective.
+
+_PHASH is the hash were the loaded perspectives were placed, and
+PERSP-NAMES are the names of these perspectives."
+  (let ((active-persps '()))
+    (maphash (lambda (persp-name persp)
+               (when (safe-persp-active persp) (push persp active-persps)))
+             phash)
+    (let ((first-active-persp (car active-persps)))
+      (message "persp-switch-to-last-active:")
+      (message "  (persp-activate `%s')" (safe-persp-name first-active-persp))
+      (persp-activate first-active-persp))))
+
+(add-hook 'persp-after-load-state-functions
+          #'persp-switch-to-last-active)
+
 (defcustom persp-use-workgroups (and (version< emacs-version "24.4")
                                      (locate-library "workgroups"))
   "If t -- use the workgroups.el package for saving/restoring
@@ -1061,7 +1078,8 @@ the selected window to a wrong buffer.")
   (parameters nil)
   (weak nil)
   (auto nil)
-  (hidden nil))
+  (hidden nil)
+  (active nil))
 
 (defun persp-p (obj)
   (or (null obj) (perspective-p obj)))
@@ -1073,7 +1091,10 @@ the selected window to a wrong buffer.")
   "Parameters of the `nil' perspective.")
 
 (defvar persp-nil-hidden nil
-  "Hidden filed for the `nil' perspective.")
+  "Hidden field for the `nil' perspective.")
+
+(defvar persp-nil-active t
+  "Active field for the `nil' perspective.")
 
 (defun persp-buffer-list (&optional frame window)
   (safe-persp-buffers (get-current-persp frame window)))
@@ -1227,6 +1248,10 @@ the selected window to a wrong buffer.")
   (if p (persp-hidden p)
     persp-nil-hidden))
 
+;; TODO: rename
+(defun safe-persp-active (p)
+  (if p (persp-active p)
+    persp-nil-active))
 
 ;; TODO: rename
 (cl-defun modify-persp-parameters (alist &optional (persp (get-current-persp)))
@@ -2993,6 +3018,18 @@ Return `NAME'."
                  (not (eq old-persp persp)))
         (unless new-frame-p
           (persp--deactivate frame-or-window persp))
+
+
+        (if old-persp
+            (setf (persp-active old-persp) nil)
+          (setq persp-nil-active nil))
+
+        (if persp
+            (setf (persp-active persp) t)
+          (setq persp-nil-active t))
+
+        (message "persp-activate called on old/new perspectives: `%s'/`%s'." (safe-persp-name old-persp) (safe-persp-name persp))
+
         (cl-case type
           (frame
            (setq persp-last-persp-name (safe-persp-name persp))
@@ -3709,7 +3746,8 @@ of the perspective %S can't be saved."
      ,(persp-parameters-to-savelist persp)
      ,(safe-persp-weak persp)
      ,(safe-persp-auto persp)
-     ,(safe-persp-hidden persp)))
+     ,(safe-persp-hidden persp)
+     ,(safe-persp-active persp)))
 
 (defun persps-to-savelist (&optional phash names-regexp)
   (mapcar
@@ -4005,7 +4043,7 @@ of the perspective %S can't be saved."
 (defvar def-persp nil)
 (defun persp-from-savelist-0 (savelist phash persp-file)
   (let ((def-persp
-          #'(lambda (name dbufs dwc &optional dparams weak auto hidden)
+          #'(lambda (name dbufs dwc &optional dparams weak auto hidden active)
               (let* ((pname (or name persp-nil-name))
                      (persp (persp-add-new pname phash)))
                 (mapc #'(lambda (b)
@@ -4041,6 +4079,10 @@ of the perspective %S can't be saved."
                 (if persp
                     (setf (persp-hidden persp) hidden)
                   (setq persp-nil-hidden hidden))
+
+                (if persp
+                    (setf (persp-active persp) active)
+                  (setq persp-nil-active active))
 
                 (when persp-file
                   (set-persp-parameter 'persp-file persp-file persp))
