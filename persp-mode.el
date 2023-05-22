@@ -762,8 +762,8 @@ PERSP-NAMES are the names of these perspectives."
                (when (safe-persp-active persp) (push persp active-persps)))
              phash)
     (let ((first-active-persp (car active-persps)))
-      (message "persp-switch-to-last-active:")
-      (message "  (persp-activate `%s')" (safe-persp-name first-active-persp))
+      ;; (message "persp-switch-to-last-active:")
+      ;; (message "  (persp-activate `%s')" (safe-persp-name first-active-persp))
       (persp-activate first-active-persp))))
 
 (add-hook 'persp-after-load-state-functions
@@ -3028,7 +3028,7 @@ Return `NAME'."
             (setf (persp-active persp) t)
           (setq persp-nil-active t))
 
-        (message "persp-activate called on old/new perspectives: `%s'/`%s'." (safe-persp-name old-persp) (safe-persp-name persp))
+        ;; (message "persp-activate called on old/new perspectives: `%s'/`%s'." (safe-persp-name old-persp) (safe-persp-name persp))
 
         (cl-case type
           (frame
