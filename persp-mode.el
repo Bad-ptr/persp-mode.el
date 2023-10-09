@@ -680,6 +680,13 @@ If a function return 'skip -- don't restore a buffer."
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-names-cache-changed-functions nil
+  "Functions to run after the `persp-names-cache' was changed.
+These functions must take two arguments: a list of olds names and
+a list of new names."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-created-functions nil
   "Functions to run after a perspective was created.
 These functions must accept two arguments -- the created perspective
@@ -895,7 +902,8 @@ to alter the order of perspective names present to user. To achieve that
 you must add functions to `persp-created-functions', `persp-renamed-functions',
 `persp-before-kill-functions', `persp-before-switch-functions' and
 `persp-after-load-state-functions' or just set the
-`persp-names-sort-before-read-function'.")
+`persp-names-sort-before-read-function'.
+You must update `persp-names-cache' with `persp-update-names-cache'")
 
 (defcustom persp-names-sort-before-read-function nil
   "Function(or nil) to sort `persp-names-cache' before prompting a user for a
@@ -1797,7 +1805,7 @@ Here is a keymap of this minor mode:
 
         (setq *persp-hash* (make-hash-table :test #'equal :size 10))
         (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))
-        (setq persp-names-cache nil)
+        (persp-update-names-cache nil)
 
         (push '(persp . writable) window-persistent-parameters)
 
@@ -1872,7 +1880,7 @@ Here is a keymap of this minor mode:
     ;; TODO: do it properly -- remove buffers, kill perspectives
     (setq *persp-hash* nil)
     (setq persp-buffer-props-hash nil)
-    (setq persp-names-cache nil)))
+    (persp-update-names-cache nil)))
 
 
 ;; Hooks:
@@ -2252,6 +2260,13 @@ killed, but just removed from a perspective(s)."
 
 
 ;; Perspective funcs:
+
+(defun persp-update-names-cache (new-persp-names)
+  "Update `persp-names-cache' with `NEW-PERSP-NAMES'."
+  (let ((old-persp-names persp-names-cache))
+    (cl-psetq persp-names-cache new-persp-names)
+    (run-hook-with-args 'persp-names-cache-changed-functions
+                        old-persp-names new-persp-names)))
 
 (defun persp-next ()
   "Switch to next perspective (to the right)."
@@ -3101,15 +3116,14 @@ Return `NAME'."
 
 (defun persp-remove-from-menu (persp)
   (let ((name (safe-persp-name persp)))
-    (cl-psetq persp-names-cache (cl-delete name persp-names-cache :count 1))
+    (persp-update-names-cache (cl-delete name persp-names-cache :count 1))
     (easy-menu-remove-item persp-minor-mode-menu nil name)
     (when persp
       (easy-menu-remove-item persp-minor-mode-menu '("kill") name))))
 
 (defun persp-add-to-menu (persp)
   (let ((name (safe-persp-name persp)))
-    (cl-psetq persp-names-cache
-           (append persp-names-cache (list name)))
+    (persp-update-names-cache (append persp-names-cache (list name)))
     (let ((str_name name))
       (easy-menu-add-item persp-minor-mode-menu nil
                           (vector str_name #'(lambda () (interactive)
@@ -3126,9 +3140,9 @@ Return `NAME'."
   "Read perspective name(s)."
 
   (when persp-names-sort-before-read-function
-    (cl-psetq persp-names-cache
-           (funcall persp-names-sort-before-read-function
-                    persp-names-cache)))
+    (persp-update-names-cache
+     (funcall persp-names-sort-before-read-function
+              persp-names-cache)))
 
   (cl-psetq persp-list
          (if persp-list
