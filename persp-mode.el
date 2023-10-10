@@ -87,6 +87,12 @@
 (declare-function tramp-file-name-user "tramp")
 (declare-function tramp-tramp-file-p "tramp")
 
+(declare-function wg-restore-wconfig "workgroups")
+(declare-function wg-awhen "workgroups")
+(declare-function wg-abind "workgroups")
+(declare-function wg-make-wconfig "workgroups")
+
+
 (defvar ido-cur-item)
 (defvar ido-exit)
 (defvar ido-temp-list)
@@ -142,7 +148,7 @@
   :set #'(lambda (sym val)
            (when val
              (when persp-mode
-               (cl-destructuring-bind (frames . windows)
+               (cl-destructuring-bind (_frames . windows)
                    (persp-frames-and-windows-with-persp
                     (persp-get-by-name persp-nil-name *persp-hash* nil))
                  (dolist (win windows)
@@ -748,7 +754,7 @@ Each function in this list will be called with 3 arguments:
   :type 'hook)
 
 (defcustom persp-after-load-state-functions
-  (list #'(lambda (file phash persp-names)
+  (list #'(lambda (_file phash persp-names)
             (when (eq phash *persp-hash*)
               (persp-update-frames-window-confs persp-names))))
   "Functions that runs after perspectives state was loaded.
@@ -791,7 +797,7 @@ function -- run that function."
               :value (lambda (frame persp new-frame-p) nil))))
 
 (defcustom persp-restore-window-conf-filter-functions
-  (list #'(lambda (f p new-f-p)
+  (list #'(lambda (f _p _new-f-p)
             (or (null f)
                 (frame-parameter f 'persp-ignore-wconf)
                 (let ((old-piw (frame-parameter f 'persp-ignore-wconf-once)))
@@ -806,7 +812,7 @@ of the persp will not be restored for the frame"
 
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
-      #'(lambda (&optional frame rwin)
+      #'(lambda (&optional frame _rwin)
           (when (or frame (setq frame (selected-frame)))
             (with-selected-frame frame (wg-make-wconfig))))
     (if (version< emacs-version "24.4")
@@ -828,7 +834,7 @@ second -- a root window(default is the root window of the selected frame)."
 
 (defcustom persp-window-state-put-function
   (if persp-use-workgroups
-      #'(lambda (pwc &optional frame rwin)
+      #'(lambda (pwc &optional frame _rwin)
           (when (or frame (setq frame (selected-frame)))
             (with-selected-frame frame
               (cl-letf (((symbol-function 'wg-switch-to-window-buffer)
@@ -1022,7 +1028,7 @@ the selected window to a wrong buffer.")
   "The prefix for activating the persp-mode keymap."
   :group 'persp-mode
   :type 'key-sequence
-  :set #'(lambda (sym val) (persp-set-keymap-prefix val)))
+  :set #'(lambda (_sym val) (persp-set-keymap-prefix val)))
 
 ;; TODO: remove this function
 (defun persp-set-toggle-read-buffer-filter-keys (keys)
@@ -1053,7 +1059,7 @@ the selected window to a wrong buffer.")
   "Keysequence to toggle the buffer filtering during read-buffer."
   :group 'persp-mode
   :type 'key-sequence
-  :set #'(lambda (sym val)
+  :set #'(lambda (_sym val)
            (persp-set-toggle-read-buffer-filter-keys val)))
 
 
@@ -1170,7 +1176,8 @@ the selected window to a wrong buffer.")
 
 (cl-defmacro with-persp-buffer-list
     ((&key
-      (buffer-list-function persp-buffer-list-function)
+      ;; TODO: _buffer-list-function ?
+      (_buffer-list-function persp-buffer-list-function)
       (restriction *persp-restrict-buffers-to*)
       (restriction-foreign-override persp-restrict-buffers-to-if-foreign-buffer)
       sortp cache)
@@ -1190,7 +1197,8 @@ the selected window to a wrong buffer.")
                          pblf-body))))
          ,@body))))
 
-(cl-defmacro with-persp-read-buffer ((&key multiple (default-mode t)) &rest body)
+;;TODO: _multiple, _default-mode ?
+(cl-defmacro with-persp-read-buffer ((&key _multiple (_default-mode t)) &rest body)
   `(let ((read-buffer-function #'persp-read-buffer))
      ,@body))
 
@@ -1292,7 +1300,7 @@ the selected window to a wrong buffer.")
 
 ;; Used in mode defenition:
 
-(defun persp-mode-restore-and-remove-from-make-frame-hook (&optional f)
+(defun persp-mode-restore-and-remove-from-make-frame-hook (&optional _f)
   (remove-hook 'after-make-frame-functions
                #'persp-mode-restore-and-remove-from-make-frame-hook)
   (if (> persp-auto-resume-time 0)
@@ -1536,6 +1544,8 @@ the selected window to a wrong buffer.")
           switch parameters noauto weak user-data
           on-match after-match dont-pick-up-buffers delete)
 
+  (ignore minor-mode minor-mode-name switch parameters noauto weak user-data)
+
   (if delete
       (let ((ap-cons (assoc name persp-auto-persp-alist)))
         (persp-auto-persp-deactivate-hooks name)
@@ -1544,7 +1554,7 @@ the selected window to a wrong buffer.")
 
     (let (auto-persp-parameters
           generated-predicate generated-hook
-          hook-body main-action)
+          main-action)
 
       (cl-loop for (key val) on keyargs by #'cddr
                when (and val (not (or (eq key :dont-pick-up-buffers))))
@@ -1701,6 +1711,9 @@ the selected window to a wrong buffer.")
      predicate tag-symbol save-vars save-function load-function after-load-function
      mode-restore-function
      append)
+
+  (ignore buffer-name file-name minor-mode minor-mode-name predicate)
+
   (let ((generated-save-predicate
          (apply #'persp--generate-buffer-predicate keyargs))
         save-body load-fun)
@@ -1917,7 +1930,7 @@ which is not in the current(%s) perspective. It will be removed from \
                             (persp-set-another-buffer-for-window
                              bb ww)))
                       ,b ,w)))
-            (cl-destructuring-bind (char &rest _)
+            (cl-destructuring-bind (char &rest rest)
                 (let ((variants
                        (list '(?q "do nothing")
                              '(?k "kill")
@@ -2083,7 +2096,7 @@ killed, but just removed from a perspective(s)."
 
 (cl-defun persp-names (&optional (phash *persp-hash*) (reverse t))
   (let (ret)
-    (maphash #'(lambda (k p)
+    (maphash #'(lambda (k _p)
                  (push k ret))
              phash)
     (if reverse
@@ -2638,7 +2651,7 @@ cause it already contain all buffers.")))
           (setq new-buffers
                 (let (choosen-buffers)
                   (cl-delete-if-not
-                   (cl-destructuring-bind (char &rest _)
+                   (cl-destructuring-bind (char &rest rest)
                        (read-multiple-choice
                         "What buffers to copy? "
                         '((?a "all")
@@ -3873,7 +3886,7 @@ of the perspective %S can't be saved."
                          (or (featurep 'tramp-sh) (require 'tramp-sh nil t))
                          (fboundp 'tramp-compute-multi-hops)
                          (setq tmh
-                               (condition-case-unless-debug err
+                               (condition-case-unless-debug _err
                                    (tramp-compute-multi-hops dissected-f-name)
                                  (error nil))))
                     (let ((persp-tramp-file-name tramp-prefix-format))
@@ -3919,7 +3932,7 @@ of the perspective %S can't be saved."
   (let ((kar (gensym "lst-car")))
     `(let* ((,kar (car-safe ,lst))
             (args (cdr-safe ,lst))
-            (fun (or (condition-case-unless-debug err
+            (fun (or (condition-case-unless-debug _err
                          (symbol-function ,kar)
                        (error nil))
                      (symbol-value ,kar))))
@@ -3931,7 +3944,7 @@ of the perspective %S can't be saved."
 (defun persp-buffer-from-savelist (savelist)
   (when (eq (car savelist) 'def-buffer)
     (let (persp-add-buffer-on-find-file
-          buf
+          (buf nil)
           (def-buffer
             #'(lambda (bname fname mode &optional parameters)
                 (setq buf (persp-get-buffer-or-null bname))
