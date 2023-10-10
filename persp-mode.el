@@ -82,25 +82,120 @@
 (declare-function tramp-dissect-file-name "tramp")
 (declare-function tramp-file-name-hop "tramp")
 (declare-function tramp-file-name-host "tramp")
+(declare-function tramp-file-name-port "tramp")
 (declare-function tramp-file-name-localname "tramp")
 (declare-function tramp-file-name-method "tramp")
 (declare-function tramp-file-name-user "tramp")
 (declare-function tramp-tramp-file-p "tramp")
+
+(defvar tramp-prefix-format)
+(defvar tramp-postfix-method-format)
+(defvar tramp-postfix-user-format)
+(defvar tramp-prefix-port-format)
+(defvar tramp-postfix-hop-format)
+(defvar tramp-postfix-host-format)
 
 (declare-function wg-restore-wconfig "workgroups")
 (declare-function wg-awhen "workgroups")
 (declare-function wg-abind "workgroups")
 (declare-function wg-make-wconfig "workgroups")
 
+(defvar wg-default-buffer)
 
 (defvar ido-cur-item)
 (defvar ido-exit)
 (defvar ido-temp-list)
 (defvar ido-text)
 (defvar ido-text-init)
+
 (defvar tabbar-buffer-list-function)
 
 (defvar persp-mode nil)
+(defvar persp-key-map nil)
+
+
+
+
+;; Global variables:
+
+;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
+(defvar persp-is-ibc-as-f-supported
+  (or
+   (not (version< emacs-version "24.4"))
+   (not
+    (null
+     (assq 'function
+           (cdr (cl-getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
+  "t if the `initial-buffer-choice' as a function is supported in your emacs,
+otherwise nil.")
+
+(defvar persp-minor-mode-menu nil
+  "Menu for the persp-mode.")
+
+(defvar *persp-hash* nil
+  "The hash table that contain perspectives.")
+
+(defvar persp-names-cache (when *persp-hash* (persp-names))
+  "List of perspective names.
+Used by the `persp-read-persp' and other UI functions, so it can be used
+to alter the order of perspective names present to user. To achieve that
+you must add functions to `persp-created-functions', `persp-renamed-functions',
+`persp-before-kill-functions', `persp-before-switch-functions' and
+`persp-after-load-state-functions' or just set the
+`persp-names-sort-before-read-function'.
+You must update `persp-names-cache' with `persp-update-names-cache'")
+
+(defvar persp-temporarily-display-buffer nil
+  "This variable dynamically bound to t inside
+the `persp-temporarily-display-buffer'.")
+
+(defvar persp-saved-read-buffer-function read-buffer-function
+  "Save the `read-buffer-function' to restore it on deactivation.")
+
+(defvar persp-special-last-buffer nil
+  "Special variable to handle the case when new frames are switching
+the selected window to a wrong buffer.")
+
+(defvar persp-frame-buffer-predicate nil
+  "Current buffer-predicate.")
+
+(defvar persp-frame-buffer-predicate-buffer-list-cache nil
+  "Variable to cache the perspective buffer list for buffer-predicate.")
+
+(defvar persp-frame-server-switch-hook nil
+  "Current persp-server-switch-hook.")
+
+(defvar persp-disable-buffer-restriction-once nil
+  "The flag used for toggling buffer filtering during read-buffer.")
+
+(defvar persp-inhibit-switch-for nil
+  "List of frames/windows for which the switching of perspectives is inhibited.")
+
+(defvar persp-read-multiple-exit-minibuffer-function #'exit-minibuffer
+  "Function to call to exit minibuffer when reading multiple candidates.")
+
+(defvar persp-buffer-props-hash (when persp-mode
+                                  (make-hash-table :test #'eq :size 10))
+  "Cache to store buffer properties.")
+
+
+(defvar persp-backtrace-frame-function
+  (if (version< emacs-version "24.4")
+      (lambda (nframes &optional base)
+        (let ((i (if base
+                     (let ((k 8) found bt)
+                       (while (and (not found)
+                                   (setq bt (cadr (funcall #'backtrace-frame
+                                                           (cl-incf k)))))
+                         ;; (message "%s:%s" k (backtrace-frame k))
+                         (when (eq bt base) (setq found t)))
+                       (when found (+ nframes (- k 3))))
+                   (+ nframes 6))))
+          (when i
+            (funcall #'backtrace-frame i))))
+    #'backtrace-frame)
+  "Backtrace function with base argument.")
+
 
 (defconst persp-not-persp :nil
   "Something that is not a perspective.")
@@ -371,6 +466,14 @@ function -- use that function as buffer-predicate."
          (when persp-mode
            (persp-set-ido-hooks val))))
 
+(defcustom persp-names-sort-before-read-function nil
+  "Function(or nil) to sort `persp-names-cache' before prompting a user for a
+perspective name(s). The function must take a list of perspective names and
+return a sorted list."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "No sort." :value nil)
+          (function :tag "Function" :value #'identity)))
 
 ;; TODO: remove this var, just call the completing-read
 (defvar persp-interactive-completion-function #'completing-read
@@ -379,6 +482,27 @@ to interactivly read user input with completion.")
 (make-obsolete-variable
  'persp-interactive-completion-function
  "`completing-read-function'" "persp-mode 2.7")
+
+;; TODO: remove this var
+(defcustom persp-interactive-completion-system 'completing-read
+  "What completion system to use."
+  :group 'persp-mode
+  :type '(choice
+          (const :tag "ido"             :value ido)
+          (const :tag "completing-read" :value completing-read))
+  :set (lambda (sym val)
+         (if persp-mode
+             (persp-update-completion-system val)
+           (custom-set-default sym val))))
+(make-obsolete-variable
+ 'persp-interactive-completion-system
+ "`persp-set-read-buffer-function', `persp-set-ido-hooks', `persp-interactive-completion-function'"
+ "persp-mode 2.6")
+
+(define-obsolete-variable-alias
+  'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
+  "persp-mode 2.9")
+(defvar persp-toggle-read-buffer-filter-keys)
 
 (defun persp-update-completion-system (&optional system remove)
   (interactive "i")
@@ -411,22 +535,6 @@ to interactivly read user input with completion.")
           (t nil))
         (persp-set-toggle-read-buffer-filter-keys
          persp-toggle-read-buffer-filter-keys)))))
-
-;; TODO: remove this var
-(defcustom persp-interactive-completion-system 'completing-read
-  "What completion system to use."
-  :group 'persp-mode
-  :type '(choice
-          (const :tag "ido"             :value ido)
-          (const :tag "completing-read" :value completing-read))
-  :set (lambda (sym val)
-         (if persp-mode
-             (persp-update-completion-system val)
-           (custom-set-default sym val))))
-(make-obsolete-variable
- 'persp-interactive-completion-system
- "`persp-set-read-buffer-function', `persp-set-ido-hooks', `persp-interactive-completion-function'"
- "persp-mode 2.6")
 
 (define-widget 'persp-init-frame-behaviour-choices 'lazy
   "Choices of the init-frame behavoiurs for the persp-mode."
@@ -885,106 +993,12 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   :type '(alist :key-type (string :tag "Name")
                 :value-type (alist :tag "Parameters"
                                    :key-type (symbol :tag "Keyword"))))
-
-
-;; Global variables:
-
-;; check if the initial-buffer-choice may be a function (emacs >= 24.4)
-(defvar persp-is-ibc-as-f-supported
-  (or
-   (not (version< emacs-version "24.4"))
-   (not
-    (null
-     (assq 'function
-           (cdr (cl-getf (symbol-plist 'initial-buffer-choice) 'custom-type))))))
-  "t if the `initial-buffer-choice' as a function is supported in your emacs,
-otherwise nil.")
-
-(defvar persp-minor-mode-menu nil
-  "Menu for the persp-mode.")
-
-(defvar *persp-hash* nil
-  "The hash table that contain perspectives.")
-
-(defvar persp-names-cache (when *persp-hash* (persp-names))
-  "List of perspective names.
-Used by the `persp-read-persp' and other UI functions, so it can be used
-to alter the order of perspective names present to user. To achieve that
-you must add functions to `persp-created-functions', `persp-renamed-functions',
-`persp-before-kill-functions', `persp-before-switch-functions' and
-`persp-after-load-state-functions' or just set the
-`persp-names-sort-before-read-function'.
-You must update `persp-names-cache' with `persp-update-names-cache'")
-
-(defcustom persp-names-sort-before-read-function nil
-  "Function(or nil) to sort `persp-names-cache' before prompting a user for a
-perspective name(s). The function must take a list of perspective names and
-return a sorted list."
-  :group 'persp-mode
-  :type '(choice
-          (const :tag "No sort." :value nil)
-          (function :tag "Function" :value #'identity)))
-
-(defvar persp-temporarily-display-buffer nil
-  "This variable dynamically bound to t inside
-the `persp-temporarily-display-buffer'.")
-
-(defvar persp-saved-read-buffer-function read-buffer-function
-  "Save the `read-buffer-function' to restore it on deactivation.")
-
-(defvar persp-last-persp-name persp-nil-name
-  "The last activated perspective. New frames will be created with
-that perspective if `persp-set-last-persp-for-new-frames' is t.")
-
-(defvar persp-special-last-buffer nil
-  "Special variable to handle the case when new frames are switching
-the selected window to a wrong buffer.")
-
-(defvar persp-frame-buffer-predicate nil
-  "Current buffer-predicate.")
-
-(defvar persp-frame-buffer-predicate-buffer-list-cache nil
-  "Variable to cache the perspective buffer list for buffer-predicate.")
-
-(defvar persp-frame-server-switch-hook nil
-  "Current persp-server-switch-hook.")
-
-(defvar persp-disable-buffer-restriction-once nil
-  "The flag used for toggling buffer filtering during read-buffer.")
-
-(defvar persp-inhibit-switch-for nil
-  "List of frames/windows for which the switching of perspectives is inhibited.")
-
-(defvar persp-read-multiple-exit-minibuffer-function #'exit-minibuffer
-  "Function to call to exit minibuffer when reading multiple candidates.")
-
-(defvar persp-buffer-props-hash (when persp-mode
-                                  (make-hash-table :test #'eq :size 10))
-  "Cache to store buffer properties.")
-
-
-(defvar persp-backtrace-frame-function
-  (if (version< emacs-version "24.4")
-      (lambda (nframes &optional base)
-        (let ((i (if base
-                     (let ((k 8) found bt)
-                       (while (and (not found)
-                                   (setq bt (cadr (funcall #'backtrace-frame
-                                                           (cl-incf k)))))
-                         ;; (message "%s:%s" k (backtrace-frame k))
-                         (when (eq bt base) (setq found t)))
-                       (when found (+ nframes (- k 3))))
-                   (+ nframes 6))))
-          (when i
-            (funcall #'backtrace-frame i))))
-    #'backtrace-frame)
-  "Backtrace function with base argument.")
-
 
 (defcustom persp-switch-wrap t
   "Whether `persp-next' and `persp-prev' should wrap."
   :group 'persp-mode
   :type 'boolean)
+
 
 
 ;; Key bindings:
@@ -1035,6 +1049,7 @@ the selected window to a wrong buffer.")
   :type 'key-sequence
   :set (lambda (_sym val) (persp-set-keymap-prefix val)))
 
+(defvar persp-read-multiple-keys)
 ;; TODO: remove this function
 (defun persp-set-toggle-read-buffer-filter-keys (keys)
   (interactive
@@ -1057,15 +1072,13 @@ the selected window to a wrong buffer.")
   :tag "Keys for reading multiple items"
   :type '(alist :key-type symbol :value-type key-sequence))
 
-(define-obsolete-variable-alias
-  'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
-  "persp-mode 2.9")
 (defcustom persp-toggle-read-buffer-filter-keys (kbd "C-x C-p")
   "Keysequence to toggle the buffer filtering during read-buffer."
   :group 'persp-mode
   :type 'key-sequence
   :set (lambda (_sym val)
          (persp-set-toggle-read-buffer-filter-keys val)))
+
 
 
 ;; Perspective struct:
@@ -3948,55 +3961,55 @@ of the perspective %S can't be saved."
 (defvar def-buffer nil)
 (defun persp-buffer-from-savelist (savelist)
   (when (eq (car savelist) 'def-buffer)
-    (let (persp-add-buffer-on-find-file
-          (buf nil)
-          (def-buffer
-            (lambda (bname fname mode &optional parameters)
-              (setq buf (persp-get-buffer-or-null bname))
-              (if buf
-                  (if (or (null fname)
-                          (string= fname (buffer-file-name buf)))
-                      buf
-                    (if (file-exists-p fname)
-                        (setq buf (find-file-noselect fname))
-                      (message
-                       "[persp-mode] Warning: The file %S no longer exists."
-                       fname)
-                      (setq buf nil)))
-                (if (and fname (file-exists-p fname))
-                    (with-current-buffer (setq buf (find-file-noselect fname))
-                      (unless (string= bname (buffer-name buf))
-                        (rename-buffer bname t)))
-                  (when fname
-                    (message
-                     "[persp-mode] Warning: The file %S no longer exists."
-                     fname))
-                  (setq buf (get-buffer-create bname))))
-              (when (buffer-live-p buf)
-                (cl-macrolet
-                    ((restorevars
-                      ()
-                      `(mapc
-                        (lambda (varcons)
-                          (cl-destructuring-bind (vname . vvalue) varcons
-                            (unless (or (eq vname 'buffer-file-name)
-                                        (eq vname 'major-mode))
-                              (set (make-local-variable vname) vvalue))))
-                        (alist-get 'local-vars parameters))))
-                  (with-current-buffer buf
-                    (restorevars)
-                    (cond
-                     ((and (boundp 'persp-load-buffer-mode-restore-function)
-                           (variable-binding-locus 'persp-load-buffer-mode-restore-function)
-                           (functionp persp-load-buffer-mode-restore-function))
-                      (funcall persp-load-buffer-mode-restore-function mode)
-                      (restorevars))
-                     ((functionp mode)
-                      (when (and (not (eq major-mode mode))
-                                 (not (eq major-mode 'not-loaded-yet)))
-                        (funcall mode)
-                        (restorevars)))))))
-              buf)))
+    (let* (persp-add-buffer-on-find-file
+           (buf nil)
+           (def-buffer
+             (lambda (bname fname mode &optional parameters)
+               (setq buf (persp-get-buffer-or-null bname))
+               (if buf
+                   (if (or (null fname)
+                           (string= fname (buffer-file-name buf)))
+                       buf
+                     (if (file-exists-p fname)
+                         (setq buf (find-file-noselect fname))
+                       (message
+                        "[persp-mode] Warning: The file %S no longer exists."
+                        fname)
+                       (setq buf nil)))
+                 (if (and fname (file-exists-p fname))
+                     (with-current-buffer (setq buf (find-file-noselect fname))
+                       (unless (string= bname (buffer-name buf))
+                         (rename-buffer bname t)))
+                   (when fname
+                     (message
+                      "[persp-mode] Warning: The file %S no longer exists."
+                      fname))
+                   (setq buf (get-buffer-create bname))))
+               (when (buffer-live-p buf)
+                 (cl-macrolet
+                     ((restorevars
+                       ()
+                       `(mapc
+                         (lambda (varcons)
+                           (cl-destructuring-bind (vname . vvalue) varcons
+                             (unless (or (eq vname 'buffer-file-name)
+                                         (eq vname 'major-mode))
+                               (set (make-local-variable vname) vvalue))))
+                         (alist-get 'local-vars parameters))))
+                   (with-current-buffer buf
+                     (restorevars)
+                     (cond
+                      ((and (boundp 'persp-load-buffer-mode-restore-function)
+                            (variable-binding-locus 'persp-load-buffer-mode-restore-function)
+                            (functionp persp-load-buffer-mode-restore-function))
+                       (funcall persp-load-buffer-mode-restore-function mode)
+                       (restorevars))
+                      ((functionp mode)
+                       (when (and (not (eq major-mode mode))
+                                  (not (eq major-mode 'not-loaded-yet)))
+                         (funcall mode)
+                         (restorevars)))))))
+               buf)))
       (condition-case-unless-debug err
           (persp-car-as-fun-cdr-as-args savelist)
         (error
