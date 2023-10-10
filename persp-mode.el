@@ -1520,7 +1520,7 @@ the selected window to a wrong buffer.")
         (switch (alist-get :switch state)))
     (persp-unhide persp-name)
     (cl-case switch
-      ('nil nil)
+      ((nil) nil)
       (window (persp-window-switch persp-name))
       (frame (persp-frame-switch persp-name))
       (t (persp-switch persp-name)))
@@ -1995,7 +1995,7 @@ killed, but just removed from a perspective(s)."
          (not (funcall persp-backtrace-frame-function 0 'find-file))))
     (and
      (cl-case persp-add-buffer-on-find-file
-       ('nil nil)
+       ((nil) nil)
        (if-not-autopersp
         (let ((ret (not (persp-buffer-match-auto-persp-p (current-buffer)))))
           (unless (or ret no-select)
@@ -2021,7 +2021,7 @@ killed, but just removed from a perspective(s)."
     (when
         (and
          (cl-case persp-add-buffer-on-after-change-major-mode
-           ('nil nil)
+           ((nil) nil)
            (free (persp-buffer-free-p buf))
            (t t))
          (not
@@ -2828,7 +2828,7 @@ Return that old buffer."
                   (let ((pfile (persp-parameter 'persp-file persp)))
                     (cl-case persp-auto-save-persps-to-their-file-before-kill
                       (persp-file nil)
-                      ('nil (setq pfile nil))
+                      ((nil) (setq pfile nil))
                       (t (unless pfile
                            (setq pfile persp-auto-save-fname))))
                     (when pfile
@@ -3281,7 +3281,7 @@ Return `NAME'."
                            (cl-delete-if #'persp-buffer-filtered-out-p ret)))))))
                (symbol
                 (cl-case opt
-                  ('nil t)
+                  ((nil) t)
                   (restricted-buffer-list
                    '(progn
                       (memq
@@ -3327,7 +3327,7 @@ Return `NAME'."
                                        old-pred (setq old-pred cur-pred)))
               (setq new-pred
                     (cl-case old-pred
-                      ('nil persp-frame-buffer-predicate)
+                      ((nil) persp-frame-buffer-predicate)
                       (t `(lambda (b)
                             (and
                              (funcall (with-no-warnings
