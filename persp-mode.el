@@ -230,7 +230,7 @@ If <= 0 -- do not autoresume."
   :type 'float)
 
 (defcustom persp-set-last-persp-for-new-frames t
-  "If nil new frames will be created with the 'nil' perspective,
+  "If nil new frames will be created with the `nil' perspective,
 otherwise with a last activated perspective."
   :group 'persp-mode
   :type 'boolean)
@@ -521,7 +521,7 @@ predicate from `persp-auto-persp-alist'"
   "t -- add the current buffer to the current perspective when
 the `after-change-major-mode-hook' fires;
 nil -- do not add;
-'free -- add only _free_ buffers;
+\\='free -- add only _free_ buffers;
 function -- run that function."
   :group 'persp-mode
   :type '(choice
@@ -620,7 +620,7 @@ the current perspective."
   (list #'(lambda (b) (or (string-prefix-p " " (buffer-name b))
                           (eq (buffer-local-value 'major-mode b) 'helm-major-mode))))
   "The list of functions wich takes a buffer as an argument. If one of these
-functions returns a non nil value the buffer considered as 'filtered out'."
+functions return a non nil value the buffer considered as \\='filtered out\\='."
   :group 'persp-mode
   :type 'hook)
 
@@ -657,16 +657,16 @@ the current perspective after the `after-change-major-mode-hook' is fired."
                ,(buffer-file-name b)
                ,(buffer-local-value 'major-mode b))))
   "Convert a buffer to a structure that could be saved to a file.
-If a function return nil -- follow to the next function in the list.
-If a function return 'skip -- don't save a buffer."
+If a function returns nil -- follow to the next function in the list.
+If a function returns \\='skip -- don\\='t save a buffer."
   :group 'persp-mode
   :type 'hook)
 
 (defcustom persp-load-buffer-functions
   (list #'persp-buffer-from-savelist)
   "Restore a buffer from a saved structure.
-If a function return nil -- follow to the next function in the list.
-If a function return 'skip -- don't restore a buffer."
+If a function returns nil -- follow to the next function in the list.
+If a function returns \\='skip -- don\\='t restore a buffer."
   :group 'persp-mode
   :type 'hook)
 
@@ -721,8 +721,8 @@ as current) and a frame or a window for which the switching will take place."
 (defcustom persp-activated-functions nil
   "Functions that runs after a perspective has been activated.
 These functions must take one argument -- a symbol,
-if it is eq 'frame -- then the perspective is activated for `selected-frame',
-if it is eq 'window -- then the perspective is activated for `selected-window'.
+if it eq \\='frame -- then the perspective is activated for `selected-frame',
+if it eq \\='window -- then the perspective is activated for `selected-window'.
 The activated perspective is available with `get-current-persp'."
   :group 'persp-mode
   :type 'hook)
@@ -731,8 +731,8 @@ The activated perspective is available with `get-current-persp'."
   "Functions that runs before the current perspective has been deactivated
 for selected frame or window.
 These functions must take one argument -- a symbol,
-if it's 'frame -- perspective will be deactivated for the `selected-frame',
-if it's 'window -- perspective will be deactivated for the `selected-window'.
+if it\\='s \\='frame -- perspective will be deactivated for the `selected-frame',
+if it\\='s \\='window -- perspective will be deactivated for the `selected-window'.
 The perspective is available with `get-current-persp'."
   :group 'persp-mode
   :type 'hook)
@@ -1788,7 +1788,7 @@ the selected window to a wrong buffer.")
 ;;;###autoload
 (define-minor-mode persp-mode
   "Toggle the persp-mode.
-When active, keeps track of multiple 'perspectives',
+When active, keeps track of multiple \\='perspectives\\=',
 named collections of buffers and window configurations.
 Here is a keymap of this minor mode:
 \\{persp-mode-map}"
