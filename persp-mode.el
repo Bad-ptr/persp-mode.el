@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Constantin Kulikov
 
 ;; Author: Constantin Kulikov (Bad_ptr) <zxnotdead@gmail.com>
-;; Version: 3.0.7
+;; Version: 3.0.8
 ;; Package-Requires: ((emacs "24.3"))
 ;; Keywords: perspectives, session, workspace, persistence, windows, buffers, convenience
 ;; URL: https://github.com/Bad-ptr/persp-mode.el
@@ -1857,6 +1857,7 @@ Here is a keymap of this minor mode:
         (persp-set-ido-hooks persp-set-ido-hooks)
         (persp-set-read-buffer-function persp-set-read-buffer-function)
 
+        ;; TODO: isn't `persp-interactive-completion-system' deprecated ?
         (persp-update-completion-system persp-interactive-completion-system)
 
         (condition-case-unless-debug err
