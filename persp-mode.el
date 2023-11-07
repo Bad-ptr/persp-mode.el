@@ -3167,7 +3167,7 @@ Return `NAME'."
 
 (cl-defun persp-read-persp
     (&optional action multiple default require-match delnil delcur persp-list
-               show-hidden (default-mode t))
+               show-hidden (default-mode t) to-load)
 
   "Read perspective name(s)."
 
@@ -3176,17 +3176,20 @@ Return `NAME'."
      (funcall persp-names-sort-before-read-function
               persp-names-cache)))
 
-  (cl-psetq persp-list
-         (if persp-list
-             (cl-delete-if-not (lambda (pn) (member pn persp-list))
-                               (persp-names-current-frame-fast-ordered))
-           (persp-names-current-frame-fast-ordered)))
+  ;; when loading from file, don't filter persps
+  (unless to-load
+    (cl-psetq persp-list
+              (if persp-list
+                  (cl-delete-if-not (lambda (pn) (member pn persp-list))
+                                    (persp-names-current-frame-fast-ordered))
+                (persp-names-current-frame-fast-ordered))))
+
 
   (when delnil
     (setq persp-list (cl-delete persp-nil-name persp-list :count 1)))
   (when delcur
     (setq persp-list (cl-delete (safe-persp-name (get-current-persp)) persp-list :count 1)))
-  (unless show-hidden
+  (unless (or show-hidden to-load)
     (setq persp-list
           (cl-delete-if #'safe-persp-hidden persp-list :key #'persp-get-by-name)))
   (when (and default (not (member default persp-list)))
@@ -4203,7 +4206,7 @@ of the perspective %S can't be saved."
            (available-names (persp-list-persp-names-in-file p-save-file)))
       (setq names
             (persp-read-persp
-             "to load" 'reverse nil t nil nil available-names nil 'push))))
+             "to load" 'reverse nil t nil nil available-names nil 'push t))))
   (when names
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
