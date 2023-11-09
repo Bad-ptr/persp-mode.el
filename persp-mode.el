@@ -741,24 +741,24 @@ the current perspective."
   "The list of functions wich takes a buffer as an argument. If one of these
 functions return a non nil value the buffer considered as \\='filtered out\\='."
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-buffer-list-restricted-filter-functions nil
   "Additional filters for use inside the `persp-buffer-list-restricted'."
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-add-buffer-on-after-change-major-mode-filter-functions nil
   "Additional filters to know which buffers we dont want to add to
 the current perspective after the `after-change-major-mode-hook' is fired."
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-filter-save-buffers-functions
   (list (lambda (b) (string-prefix-p "*" (buffer-name b))))
   "Additional filters to not save unneeded buffers."
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-save-buffer-functions
   (list (lambda (b)
@@ -779,7 +779,7 @@ the current perspective after the `after-change-major-mode-hook' is fired."
 If a function returns nil -- follow to the next function in the list.
 If a function returns \\='skip -- don\\='t save a buffer."
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-load-buffer-functions
   (list #'persp-buffer-from-savelist)
@@ -787,7 +787,7 @@ If a function returns \\='skip -- don\\='t save a buffer."
 If a function returns nil -- follow to the next function in the list.
 If a function returns \\='skip -- don\\='t restore a buffer."
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-mode-hook nil
   "The hook that's run after the `persp-mode' has been activated."
@@ -921,7 +921,7 @@ function -- run that function."
 If one of these functions return a non nil value then the window configuration
 of the persp will not be restored for the frame"
   :group 'persp-mode
-  :type 'hook)
+  :type '(repeat function))
 
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
