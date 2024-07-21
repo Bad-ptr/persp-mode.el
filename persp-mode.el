@@ -641,14 +641,14 @@ predicate from `persp-auto-persp-alist'"
 the `after-change-major-mode-hook' fires;
 nil -- do not add;
 \\='free -- add only _free_ buffers;
-function -- run that function."
+function -- run that function with buffer as argument."
   :group 'persp-mode
   :type '(choice
           (const :tag "Always add" :value t)
           (const :tag "Don't add" :value nil)
           (const :tag "\nAdd if the buffer is not already in any other persp"
                  :value free)
-          (function :tag "Run this function" :value (lambda () nil)))
+          (function :tag "Run this function" :value (lambda (buf) nil)))
   :set
   (lambda (sym val)
     (custom-set-default sym val)
@@ -2058,10 +2058,13 @@ killed, but just removed from a perspective(s)."
     (persp-find-and-set-persps-for-buffer buf)
     (when
         (and
-         (cl-case persp-add-buffer-on-after-change-major-mode
-           ((nil) nil)
-           (free (persp-buffer-free-p buf))
-           (t t))
+         (cond
+          ((functionp persp-add-buffer-on-after-change-major-mode)
+           (funcall persp-add-buffer-on-after-change-major-mode buf))
+          (t (cl-case persp-add-buffer-on-after-change-major-mode
+               ((nil) nil)
+               (free (persp-buffer-free-p buf))
+               (t persp-add-buffer-on-after-change-major-mode))))
          (not
           (persp-buffer-filtered-out-p
            buf persp-add-buffer-on-after-change-major-mode-filter-functions)))
