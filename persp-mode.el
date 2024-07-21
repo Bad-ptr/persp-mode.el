@@ -1816,6 +1816,51 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 
 ;; Mode itself:
 
+(defun persp-mode-setup-hooks ()
+  (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
+  (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
+  (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
+  (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
+  (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
+  (add-hook 'delete-frame-functions      #'persp-delete-frame)
+  (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
+  (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
+  (add-hook 'server-switch-hook          #'persp-server-switch)
+  (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+
+  (persp-set-ido-hooks persp-set-ido-hooks)
+  (persp-set-read-buffer-function persp-set-read-buffer-function)
+
+  ;; TODO: isn't `persp-interactive-completion-system' deprecated ?
+  (persp-update-completion-system persp-interactive-completion-system)
+
+  (persp-auto-persps-activate-hooks)
+
+  (when (fboundp 'tabbar-mode)
+    (setq tabbar-buffer-list-function #'persp-buffer-list)))
+
+(defun persp-mode-remove-hooks ()
+  (remove-hook 'find-file-hook               #'persp-add-or-not-on-find-file)
+  (remove-hook 'kill-buffer-query-functions  #'persp-kill-buffer-query-function)
+  (remove-hook 'kill-buffer-hook             #'persp-kill-buffer-h)
+  (remove-hook 'before-make-frame-hook       #'persp-before-make-frame)
+  (remove-hook 'after-make-frame-functions   #'persp-init-new-frame)
+  (remove-hook 'delete-frame-functions       #'persp-delete-frame)
+  (remove-hook 'kill-emacs-query-functions   #'persp-kill-emacs-query-function)
+  (remove-hook 'kill-emacs-hook              #'persp-kill-emacs-h)
+  (remove-hook 'server-switch-hook           #'persp-server-switch)
+  (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+
+  (persp-set-ido-hooks)
+  (persp-set-read-buffer-function)
+  (persp-update-frames-buffer-predicate t)
+  (persp-update-completion-system nil t)
+
+  (persp-auto-persps-deactivate-hooks)
+
+  (when (fboundp 'tabbar-mode)
+    (setq tabbar-buffer-list-function #'tabbar-buffer-list)))
+
 ;;;###autoload
 (define-minor-mode persp-mode
   "Toggle the persp-mode.
@@ -1843,33 +1888,13 @@ Here is a keymap of this minor mode:
         (persp-add-minor-mode-menu)
         (persp-add-new persp-nil-name)
 
-        (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-        (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
-        (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
-        (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
-        (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
-        (add-hook 'delete-frame-functions      #'persp-delete-frame)
-        (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
-        (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
-        (add-hook 'server-switch-hook          #'persp-server-switch)
-        (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
-
-        (persp-set-ido-hooks persp-set-ido-hooks)
-        (persp-set-read-buffer-function persp-set-read-buffer-function)
-
-        ;; TODO: isn't `persp-interactive-completion-system' deprecated ?
-        (persp-update-completion-system persp-interactive-completion-system)
+        (persp-mode-setup-hooks)
 
         (condition-case-unless-debug err
             (mapc #'persp-init-frame (persp-frame-list-without-daemon))
           (error
            (message "[persp-mode] Error: Can not initialize frame -- %S"
                     err)))
-
-        (when (fboundp 'tabbar-mode)
-          (setq tabbar-buffer-list-function #'persp-buffer-list))
-
-        (persp-auto-persps-activate-hooks)
 
         (if (or noninteractive
                 (and (daemonp)
@@ -1884,26 +1909,7 @@ Here is a keymap of this minor mode:
                   after-make-frame-functions)
       (persp-asave-on-exit t 1))
 
-    (remove-hook 'find-file-hook               #'persp-add-or-not-on-find-file)
-    (remove-hook 'kill-buffer-query-functions  #'persp-kill-buffer-query-function)
-    (remove-hook 'kill-buffer-hook             #'persp-kill-buffer-h)
-    (remove-hook 'before-make-frame-hook       #'persp-before-make-frame)
-    (remove-hook 'after-make-frame-functions   #'persp-init-new-frame)
-    (remove-hook 'delete-frame-functions       #'persp-delete-frame)
-    (remove-hook 'kill-emacs-query-functions   #'persp-kill-emacs-query-function)
-    (remove-hook 'kill-emacs-hook              #'persp-kill-emacs-h)
-    (remove-hook 'server-switch-hook           #'persp-server-switch)
-    (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
-
-    (persp-set-ido-hooks)
-    (persp-set-read-buffer-function)
-    (persp-update-frames-buffer-predicate t)
-    (persp-update-completion-system nil t)
-
-    (persp-auto-persps-deactivate-hooks)
-
-    (when (fboundp 'tabbar-mode)
-      (setq tabbar-buffer-list-function #'tabbar-buffer-list))
+    (persp-mode-remove-hooks)
 
     (setq window-persistent-parameters
           (delq (assq 'persp window-persistent-parameters)
