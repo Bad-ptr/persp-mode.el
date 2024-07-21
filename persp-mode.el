@@ -3182,11 +3182,8 @@ Return `NAME'."
      (funcall persp-names-sort-before-read-function
               persp-names-cache)))
 
-  (cl-psetq persp-list
-         (if persp-list
-             (cl-delete-if-not (lambda (pn) (member pn persp-list))
-                               (persp-names-current-frame-fast-ordered))
-           (persp-names-current-frame-fast-ordered)))
+  (unless persp-list
+    (setq persp-list (persp-names-current-frame-fast-ordered)))
 
   (when delnil
     (setq persp-list (cl-delete persp-nil-name persp-list :count 1)))
@@ -3197,90 +3194,91 @@ Return `NAME'."
           (cl-delete-if #'safe-persp-hidden persp-list :key #'persp-get-by-name)))
   (when (and default (not (member default persp-list)))
     (setq default nil))
-  (let (retlst)
-    (cl-macrolet
-        ((call-pif
-          ()
-          `(funcall
-            persp-interactive-completion-function
-            (concat
-             "Perspective name" (and multiple "s") (and action " ") action
-             (if default (concat " (default " default ")") "")
-             (when retlst
-               (concat "< " (mapconcat #'identity retlst " ") " > "))
-             ": ")
-            persp-list nil require-match nil nil default)))
-      (if multiple
-          (let ((done_str "[>done<]") (not-finished default-mode)
-                exit-minibuffer-function mb-local-key-map
-                (push-keys (alist-get 'push-item persp-read-multiple-keys))
-                (pop-keys (alist-get 'pop-item persp-read-multiple-keys))
-                push-keys-backup pop-keys-backup)
-            (while (member done_str persp-list)
-              (setq done_str (concat ">" done_str)))
-            (let ((persp-minibuffer-setup
-                   (lambda ()
-                     (setq mb-local-key-map (current-local-map))
-                     (when (keymapp mb-local-key-map)
-                       (unless exit-minibuffer-function
-                         (setq exit-minibuffer-function
-                               (or (lookup-key mb-local-key-map (kbd "RET"))
-                                   persp-read-multiple-exit-minibuffer-function)))
-                       (unless push-keys-backup
-                         (setq push-keys-backup
-                               (lookup-key mb-local-key-map push-keys)))
-                       (define-key mb-local-key-map push-keys
-                         (lambda () (interactive)
-                           (setq not-finished 'push)
-                           (funcall exit-minibuffer-function)))
-                       (unless pop-keys-backup
-                         (setq pop-keys-backup
-                               (lookup-key mb-local-key-map pop-keys)))
-                       (define-key mb-local-key-map pop-keys
-                         (lambda () (interactive)
-                           (setq not-finished 'pop)
-                           (funcall exit-minibuffer-function))))))
-                  cp)
-              (unwind-protect
-                  (progn
-                    (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
-                    (while not-finished
-                      (setq cp (call-pif))
-                      (cl-case not-finished
-                        (push
-                         (when (and cp (member cp persp-list))
-                           (if retlst
-                               (when (string= cp done_str)
-                                 (setq not-finished nil))
-                             (push done_str persp-list))
+  (when (or persp-list (not require-match))
+    (let (retlst)
+      (cl-macrolet
+          ((call-pif
+            ()
+            `(funcall
+              persp-interactive-completion-function
+              (concat
+               "Perspective name" (and multiple "s") (and action " ") action
+               (if default (concat " (default " default ")") "")
+               (when retlst
+                 (concat "< " (mapconcat #'identity retlst " ") " > "))
+               ": ")
+              persp-list nil require-match nil nil default)))
+        (if multiple
+            (let ((done_str "[>done<]") (not-finished default-mode)
+                  exit-minibuffer-function mb-local-key-map
+                  (push-keys (alist-get 'push-item persp-read-multiple-keys))
+                  (pop-keys (alist-get 'pop-item persp-read-multiple-keys))
+                  push-keys-backup pop-keys-backup)
+              (while (member done_str persp-list)
+                (setq done_str (concat ">" done_str)))
+              (let ((persp-minibuffer-setup
+                     (lambda ()
+                       (setq mb-local-key-map (current-local-map))
+                       (when (keymapp mb-local-key-map)
+                         (unless exit-minibuffer-function
+                           (setq exit-minibuffer-function
+                                 (or (lookup-key mb-local-key-map (kbd "RET"))
+                                     persp-read-multiple-exit-minibuffer-function)))
+                         (unless push-keys-backup
+                           (setq push-keys-backup
+                                 (lookup-key mb-local-key-map push-keys)))
+                         (define-key mb-local-key-map push-keys
+                           (lambda () (interactive)
+                             (setq not-finished 'push)
+                             (funcall exit-minibuffer-function)))
+                         (unless pop-keys-backup
+                           (setq pop-keys-backup
+                                 (lookup-key mb-local-key-map pop-keys)))
+                         (define-key mb-local-key-map pop-keys
+                           (lambda () (interactive)
+                             (setq not-finished 'pop)
+                             (funcall exit-minibuffer-function))))))
+                    cp)
+                (unwind-protect
+                    (progn
+                      (add-hook 'minibuffer-setup-hook persp-minibuffer-setup t)
+                      (while not-finished
+                        (setq cp (call-pif))
+                        (cl-case not-finished
+                          (push
+                           (when (and cp (member cp persp-list))
+                             (if retlst
+                                 (when (string= cp done_str)
+                                   (setq not-finished nil))
+                               (push done_str persp-list))
+                             (when not-finished
+                               (if (eq 'reverse multiple)
+                                   (setq retlst (append retlst (list cp)))
+                                 (push cp retlst))
+                               (setq persp-list (cl-delete cp persp-list :count 1)
+                                     default done_str)))
                            (when not-finished
-                             (if (eq 'reverse multiple)
-                                 (setq retlst (append retlst (list cp)))
-                               (push cp retlst))
-                             (setq persp-list (cl-delete cp persp-list :count 1)
-                                   default done_str)))
-                         (when not-finished
-                           (setq not-finished default-mode)))
-                        (pop
-                         (let ((last-item (pop retlst)))
-                           (unless retlst (setq persp-list (cl-delete done_str persp-list :count 1)
-                                                default nil))
-                           (when last-item
-                             (push last-item persp-list)))
-                         (setq not-finished default-mode))
-                        (t
-                         (when (and cp (not (string= cp done_str))
-                                    (member cp persp-list))
-                           (push cp retlst))
-                         (setq not-finished nil)))))
-                (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
-                (when (keymapp mb-local-key-map)
-                  (when (lookup-key mb-local-key-map push-keys)
-                    (define-key mb-local-key-map push-keys push-keys-backup))
-                  (when (lookup-key mb-local-key-map pop-keys)
-                    (define-key mb-local-key-map pop-keys pop-keys-backup)))))
-            retlst)
-        (call-pif)))))
+                             (setq not-finished default-mode)))
+                          (pop
+                           (let ((last-item (pop retlst)))
+                             (unless retlst (setq persp-list (cl-delete done_str persp-list :count 1)
+                                                  default nil))
+                             (when last-item
+                               (push last-item persp-list)))
+                           (setq not-finished default-mode))
+                          (t
+                           (when (and cp (not (string= cp done_str))
+                                      (member cp persp-list))
+                             (push cp retlst))
+                           (setq not-finished nil)))))
+                  (remove-hook 'minibuffer-setup-hook persp-minibuffer-setup)
+                  (when (keymapp mb-local-key-map)
+                    (when (lookup-key mb-local-key-map push-keys)
+                      (define-key mb-local-key-map push-keys push-keys-backup))
+                    (when (lookup-key mb-local-key-map pop-keys)
+                      (define-key mb-local-key-map pop-keys pop-keys-backup)))))
+              retlst)
+          (call-pif))))))
 (define-obsolete-function-alias 'persp-prompt 'persp-read-persp "persp-mode 2.9")
 
 (defsubst persp--set-frame-buffer-predicate-buffer-list-cache (buflist)
