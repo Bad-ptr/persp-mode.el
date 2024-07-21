@@ -3609,6 +3609,21 @@ Return `NAME'."
           (define-key mb-local-key-map toggle-filter-keys
             toggle-filter-keys-backup)))
       (setq persp-disable-buffer-restriction-once nil))))
+
+
+(defmacro persp-with-nil-persp-hooks (&rest body)
+  (let ((hook-list
+         (cl-delete-if-not
+          (apply-partially #'eq 'hook)
+          (cl-mapcar #'car (get 'persp-mode 'custom-group))
+          :key #'(lambda (s) (get s 'custom-type)))))
+    `(let (,@(cl-mapcar (lambda (h) (list h nil))
+                        hook-list))
+       (unwind-protect
+           (progn
+             ,@body)))))
+
+
 
 
 ;; Save/Load funcs:
