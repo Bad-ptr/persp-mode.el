@@ -4212,8 +4212,8 @@ of the perspective %S can't be saved."
            readed-list phash p-save-file set-persp-file names-regexp))))))
 
 (cl-defun persp-load-from-file-by-names (&optional (fname persp-auto-save-fname)
-                                                 (phash *persp-hash*)
-                                                 names)
+                                                   (phash *persp-hash*)
+                                                   names)
   (interactive
    (list (read-file-name "Load a subset of perspectives from a file: "
                          persp-save-dir)))
@@ -4222,9 +4222,10 @@ of the perspective %S can't be saved."
                                     (expand-file-name persp-save-dir))
                                 (file-name-nondirectory fname)))
            (available-names (persp-list-persp-names-in-file p-save-file)))
-      (setq names
-            (persp-read-persp
-             "to load" 'reverse nil t nil nil available-names nil 'push))))
+      (when available-names
+        (setq names
+              (persp-read-persp
+               "to load" 'reverse nil t nil nil available-names t 'push)))))
   (when names
     (let ((names-regexp (regexp-opt names)))
       (persp-load-state-from-file fname phash names-regexp t))))
