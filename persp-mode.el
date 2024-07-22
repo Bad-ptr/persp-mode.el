@@ -2927,7 +2927,8 @@ Return that old buffer."
           (mapcar (lambda (pn) (persp-get-by-name pn)) names))
     (persp-save-state-to-file persp-auto-save-fname temphash
                               persp-auto-save-persps-to-their-file
-                              'yes)))
+                              'yes 'yes))
+  (persp-kill names))
 
 (cl-defun persp-rename (new-name
                         &optional (persp (get-current-persp)) (phash *persp-hash*))
