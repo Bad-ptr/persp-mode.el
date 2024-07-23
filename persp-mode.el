@@ -4160,11 +4160,14 @@ of the perspective %S can't be saved."
                     (cl-delete-if-not
                      (apply-partially #'persp-string-match-p names-regexp)
                      savelist
-                     :key (lambda (pd) (or (cadr pd) persp-nil-name)))
+                     :key #'persp-name-from-savelist-0)
                   savelist))))
 
+(defun persp-name-from-savelist-0 (savelist)
+  (or (cadr savelist) persp-nil-name))
+
 (defun persp-names-from-savelist-0 (savelist)
-  (mapcar (lambda (pd) (or (cadr pd) persp-nil-name)) savelist))
+  (mapcar #'persp-name-from-savelist-0 savelist))
 
 (defun persps-savelist-version-string (savelist)
   (let* ((version-list (car savelist))
