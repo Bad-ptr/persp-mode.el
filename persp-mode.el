@@ -95,10 +95,10 @@
 (defvar tramp-postfix-hop-format)
 (defvar tramp-postfix-host-format)
 
-(declare-function wg-restore-wconfig "workgroups")
-(declare-function wg-awhen "workgroups")
-(declare-function wg-abind "workgroups")
-(declare-function wg-make-wconfig "workgroups")
+(declare-function wg-restore-wconfig "ext:workgroups")
+(declare-function wg-make-wconfig "ext:workgroups")
+(declare-function wg-awhen "ext:workgroups")
+(declare-function wg-abind "ext:workgroups")
 
 (defvar wg-default-buffer)
 
