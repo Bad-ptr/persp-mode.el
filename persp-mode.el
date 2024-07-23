@@ -2320,6 +2320,8 @@ killed, but just removed from a perspective(s)."
 (defun persp-update-names-cache (new-persp-names)
   "Update `persp-names-cache' with `NEW-PERSP-NAMES'."
   (unless *persp-pretend-switched-off*
+    (unless new-persp-names
+      (setq new-persp-names (list persp-nil-name)))
     (let ((old-persp-names persp-names-cache))
       (cl-psetq persp-names-cache new-persp-names)
       (run-hook-with-args 'persp-names-cache-changed-functions
@@ -2383,7 +2385,7 @@ Return the removed perspective."
       (persp-save-state persp)
       (if (and (eq phash *persp-hash*) (null persp))
           (message "[persp-mode] Error: Can't remove the 'nil' perspective")
-        (when (eq phash *persp-hash*)
+        (when (and (eq phash *persp-hash*) persp)
           (persp-remove-from-menu persp)
           (cl-destructuring-bind (frames . windows)
               (persp-frames-and-windows-with-persp persp)
@@ -3205,7 +3207,7 @@ Return `NAME'."
   (when persp-names-sort-before-read-function
     (persp-update-names-cache
      (funcall persp-names-sort-before-read-function
-              persp-names-cache)))
+              (persp-names-current-frame-fast-ordered))))
 
   (unless persp-list
     (setq persp-list (persp-names-current-frame-fast-ordered)))
