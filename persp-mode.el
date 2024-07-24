@@ -1322,7 +1322,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 
 (defun persp--buffer-in-persps-remove (buf persp)
   (persp--buffer-in-persps-set
-   buf (delq persp (persp--buffer-in-persps buf))))
+   buf (cl-delete persp (persp--buffer-in-persps buf) :count 1)))
 
 
 ;; Used in mode defenition:
