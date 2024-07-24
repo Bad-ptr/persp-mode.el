@@ -3177,10 +3177,10 @@ Return `NAME'."
 (defun persp-remove-from-menu (persp)
   (unless *persp-pretend-switched-off*
     (let ((name (safe-persp-name persp)))
-      (persp-update-names-cache (cl-delete name persp-names-cache :count 1))
-      (easy-menu-remove-item persp-minor-mode-menu nil name)
+      (persp-update-names-cache (cl-delete name (persp-names-current-frame-fast-ordered) :count 1))
       (when persp
-        (easy-menu-remove-item persp-minor-mode-menu '("kill") name)))))
+        (easy-menu-remove-item persp-minor-mode-menu '("kill") name))
+      (easy-menu-remove-item persp-minor-mode-menu nil name))))
 
 (defun persp-add-to-menu (persp)
   (unless *persp-pretend-switched-off*
