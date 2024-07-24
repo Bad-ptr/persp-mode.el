@@ -3824,17 +3824,24 @@ of the perspective %S can't be saved."
      ,(safe-persp-hidden persp)))
 
 (defun persps-to-savelist (&optional phash names-regexp)
+  (unless phash (setq phash *persp-hash*))
   (mapcar
    #'persp-to-savelist
    (cl-delete-if
     (apply-partially #'persp-parameter 'dont-save-to-file)
     (if (eq phash *persp-hash*)
-        (mapcar (lambda (pn)
-                  (when (or (not names-regexp)
-                            (persp-string-match-p names-regexp pn))
-                    (persp-get-by-name pn phash nil)))
-                (persp-names-current-frame-fast-ordered))
-      (persp-persps (or phash *persp-hash*) names-regexp t)))))
+        (if names-regexp
+            (let (p)
+              (cl-reduce (lambda (acc pn)
+                           (setq p (if (persp-string-match-p names-regexp pn)
+                                       (persp-get-by-name pn phash)
+                                     persp-not-persp))
+                           (if (persp-p p) (cons p acc) acc))
+                         (persp-names-current-frame-fast-ordered)
+                         :initial-value nil))
+          (mapcar #'persp-get-by-name
+                  (persp-names-current-frame-fast-ordered)))
+      (persp-persps phash names-regexp t)))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
@@ -3857,6 +3864,46 @@ of the perspective %S can't be saved."
   (write-file fname nil)
   t)
 
+(defun persp-savelist-to-file (savelist fname)
+  (when (and savelist (stringp fname))
+    (let ((p-save-dir (or (file-name-directory fname)
+                          (expand-file-name persp-save-dir)))
+          (p-save-file (file-name-nondirectory fname)))
+      (when (cond
+             ((< (string-width p-save-file) 1)
+              (message "[persp-mode] Error: You must provide nonempty filename to save perspectives.")
+              nil)
+             ((not (and (file-exists-p p-save-dir)
+                        (file-directory-p p-save-dir)))
+              (message "[persp-mode] Info: Trying to create the `persp-conf-dir'.")
+              (make-directory p-save-dir t)
+              (if (and (file-exists-p p-save-dir)
+                       (file-directory-p p-save-dir))
+                  t
+                (message "[persp-mode] Error: Can't save perspectives -- \
+`persp-save-dir' does not exists or not a directory %S." p-save-dir)
+                nil))
+             (t t))
+        (mapc
+         (lambda (pslist)
+           (let* ((params-cons (assq 'def-params pslist))
+                  (params (cadr params-cons)))
+             (setf (cadr params-cons)
+                   (cl-delete-if (apply-partially #'eq 'persp-file)
+                                 params
+                                 :key #'car))))
+         savelist)
+        (with-temp-buffer
+          (buffer-disable-undo)
+          (erase-buffer)
+          (goto-char (point-min))
+          (insert
+           ";; -*- mode: emacs-lisp; eval: (progn (pp-buffer) (indent-buffer)) -*-")
+          (newline)
+          (insert (let (print-length print-level)
+                    (pp-to-string savelist)))
+          (persp-save-with-backups (concat p-save-dir p-save-file)))))))
+
 (cl-defun persp-save-state-to-file
     (&optional
      (fname persp-auto-save-fname) (phash *persp-hash*)
@@ -3864,100 +3911,58 @@ of the perspective %S can't be saved."
      (keep-others-in-non-parametric-file 'no))
   (interactive (list (read-file-name "Save perspectives to a file: "
                                      persp-save-dir "")))
-  (when (and (stringp fname) phash)
-    (when (< (string-width (file-name-nondirectory fname)) 1)
-      (message "[persp-mode] Error: You must provide nonempty filename to save perspectives.")
-      (cl-return-from persp-save-state-to-file nil))
-    (let* ((p-save-dir (or (file-name-directory fname)
-                           (expand-file-name persp-save-dir)))
-           (p-save-file (concat p-save-dir (file-name-nondirectory fname))))
-      (unless (and (file-exists-p p-save-dir)
-                   (file-directory-p p-save-dir))
-        (message "[persp-mode] Info: Trying to create the `persp-conf-dir'.")
-        (make-directory p-save-dir t))
-      (if (not (and (file-exists-p p-save-dir)
-                    (file-directory-p p-save-dir)))
-          (progn
-            (message "[persp-mode] Error: Can't save perspectives -- \
-`persp-save-dir' does not exists or not a directory %S." p-save-dir)
-            nil)
-        (mapc #'persp-save-state (persp-persps phash))
-        (run-hook-with-args 'persp-before-save-state-to-file-functions
-                            fname phash respect-persp-file-parameter)
-        (if (and respect-persp-file-parameter
-                 (cl-member-if (apply-partially #'persp-parameter 'persp-file)
-                               (persp-persps phash nil)))
-            (let (persp-auto-save-persps-to-their-file
-                  persp-before-save-state-to-file-functions)
-              (mapc (lambda (gr)
-                      (cl-destructuring-bind (pfname . pl) gr
-                        (let ((names (mapcar #'safe-persp-name pl)))
-                          (if pfname
-                              (persp-save-to-file-by-names
-                               pfname phash names 'yes nil)
-                            (persp-save-to-file-by-names
-                             p-save-file phash names
-                             keep-others-in-non-parametric-file nil)))))
-                    (persp-group-by
-                     (apply-partially #'persp-parameter 'persp-file)
-                     (persp-persps phash nil t) t)))
-          (with-temp-buffer
-            (buffer-disable-undo)
-            (erase-buffer)
-            (goto-char (point-min))
-            (insert
-             ";; -*- mode: emacs-lisp; eval: (progn (pp-buffer) (indent-buffer)) -*-")
-            (newline)
-            (insert (let (print-length print-level)
-                      (pp-to-string (persps-to-savelist phash))))
-            (persp-save-with-backups p-save-file)))))))
+
+  (mapc #'persp-save-state (persp-persps phash))
+  (run-hook-with-args 'persp-before-save-state-to-file-functions
+                      fname phash respect-persp-file-parameter)
+
+  (if respect-persp-file-parameter
+      (let (persp-auto-save-persps-to-their-file
+            persp-before-save-state-to-file-functions) ; ?
+        (mapc (lambda (gr)
+                (cl-destructuring-bind (pfname . pl) gr
+                  (let ((names (mapcar #'safe-persp-name pl)))
+                    (persp-save-to-file-by-names
+                     (or pfname fname) phash names
+                     (if pfname 'yes keep-others-in-non-parametric-file)
+                     nil))))
+              (persp-group-by
+               (apply-partially #'persp-parameter 'persp-file)
+               (persp-persps phash nil t) t)))
+    (persp-savelist-to-file (persps-to-savelist phash) fname)))
 
 (cl-defun persp-save-to-file-by-names
     (&optional (fname persp-auto-save-fname) (phash *persp-hash*) names
                keep-others (called-interactively-p (called-interactively-p 'any)))
-  (interactive)
-  (unless names
-    (setq names
-          (persp-read-persp
-           "to save" 'reverse (safe-persp-name (get-current-persp))
-           t nil nil nil nil 'push)))
-  (when (or (not fname) called-interactively-p)
+  (interactive ;; (list (read-file-name "Save perspectives to a file: "
+   ;;                       persp-save-dir ""))
+   )
+
+  (when called-interactively-p
+    (unless names
+      (setq names (persp-read-persp
+                   "to save" 'reverse (safe-persp-name (get-current-persp))
+                   t nil nil nil nil 'push)))
     (setq fname (read-file-name
                  (format "Save a subset of perspectives%s to a file: " names)
-                 persp-save-dir)))
-  (when names
+                 persp-save-dir))
     (unless keep-others
       (setq keep-others
             (if (and (file-exists-p fname)
                      (yes-or-no-p "Keep other perspectives in the file?"))
-                'yes 'no)))
-    (let ((temphash (make-hash-table :test 'equal :size 10))
-          (persp-nil-wconf persp-nil-wconf)
-          (persp-nil-parameters (copy-tree persp-nil-parameters))
-          (persp-nil-hidden persp-nil-hidden)
-          bufferlist-diff)
-      (when (or (eq keep-others 'yes) (eq keep-others t))
-        (let ((bufferlist-pre
-               (mapcar (lambda (b) (cons b (persp--buffer-in-persps b)))
-                       (funcall persp-buffer-list-function))))
-          (persp-load-state-from-file
-           fname temphash (cons :not (regexp-opt names)))
-          (setq bufferlist-diff
-                (cl-delete-if (lambda (bcons)
-                                (when bcons
-                                  (cl-destructuring-bind (buf . buf-persps) bcons
-                                    (when buf
-                                      (persp--buffer-in-persps-set buf buf-persps)
-                                      t))))
-                              (funcall persp-buffer-list-function)
-                              :key (lambda (b) (assq b bufferlist-pre))))))
-      (mapc (lambda (p)
-              (persp-add p temphash)
-              (when (and p persp-auto-save-persps-to-their-file)
-                (set-persp-parameter 'persp-file fname p)))
-            (mapcar (lambda (pn) (persp-get-by-name pn phash)) names))
-      (persp-save-state-to-file fname temphash nil)
-      (mapc #'kill-buffer bufferlist-diff))))
+                'yes 'no))))
+
+  (when (and names fname)
+    (let* ((names-regexp (regexp-opt names))
+           (savelist (persps-to-savelist phash names-regexp)))
+      (when savelist
+        (when (or (eq keep-others 'yes) (eq keep-others t))
+          (mapc
+           (lambda (pslist) (push pslist savelist))
+           (persp-savelist-filter-by-names-regexp
+            (persp-savelist-from-savefile fname)
+            (cons :not names-regexp))))
+        (persp-savelist-to-file savelist fname)))))
 
 (defun persp-tramp-save-buffer (b)
   (let* ((buf-f-name (buffer-file-name b))
@@ -4171,12 +4176,8 @@ of the perspective %S can't be saved."
                      (message "[persp-mode] Error details: %S" pd)
                      (message "[persp-mode] Error: Can not load a perspective from %S file -- %S" persp-file err)
                      nil)))
-                (if names-regexp
-                    (cl-delete-if-not
-                     (apply-partially #'persp-string-match-p names-regexp)
-                     savelist
-                     :key #'persp-name-from-savelist-0)
-                  savelist))))
+                (persp-savelist-filter-by-names-regexp
+                 savelist names-regexp "0"))))
 
 (defun persp-name-from-savelist-0 (savelist)
   (or (cadr savelist) persp-nil-name))
@@ -4196,21 +4197,24 @@ of the perspective %S can't be saved."
          savelist
        (cdr savelist)))))
 
-(defun persp-dispatch-loadf-version (funsym savelist)
-  (cl-destructuring-bind (version s-list)
-      (persps-savelist-version-string savelist)
-    (let ((funame (intern (concat (symbol-name funsym) "-" version))))
-      (if (fboundp funame)
-          (list funame s-list)
-        (message
-         "[persp-mode] Warning: Can not find load function for this version: %S."
-         version)
-        (list nil s-list)))))
+(defun persp-dispatch-loadf-version (funsym savelist &optional version-str)
+  (unless version-str
+    (cl-destructuring-bind (ver-str s-list)
+        (persps-savelist-version-string savelist)
+      (cl-psetq version-str ver-str
+                savelist s-list)))
+  (let ((funame (intern (concat (symbol-name funsym) "-" version-str))))
+    (if (fboundp funame)
+        (list funame savelist version-str)
+      (message
+       "[persp-mode] Warning: Can not find load function for this version: %S."
+       version-str)
+      (list nil savelist version-str))))
 
 (defun persps-from-savelist
-    (savelist phash persp-file set-persp-file names-regexp)
-  (cl-destructuring-bind (fun s-list)
-      (persp-dispatch-loadf-version 'persps-from-savelist savelist)
+    (savelist phash persp-file set-persp-file names-regexp &optional version-str)
+  (cl-destructuring-bind (fun s-list _ver-str)
+      (persp-dispatch-loadf-version 'persps-from-savelist savelist version-str)
     (if fun
         (let ((persp-names
                (funcall fun s-list phash persp-file set-persp-file names-regexp)))
@@ -4223,61 +4227,75 @@ of the perspective %S can't be saved."
 \tloaded from %S" savelist persp-file)
       nil)))
 
-(defun persp-list-persp-names-in-file (fname)
-  (when (and fname (file-exists-p fname))
-    (let* ((pslist (with-temp-buffer
-                     (buffer-disable-undo)
-                     (insert-file-contents fname nil nil nil t)
-                     (goto-char (point-min))
-                     (read (current-buffer)))))
-      (cl-destructuring-bind (fun s-list)
-          (persp-dispatch-loadf-version 'persp-names-from-savelist pslist)
-        (if fun
-            (funcall fun s-list)
-          (message
-           "[persp-mode] Error: Can not list perspective names in file %S."
-           fname))))))
+(defun persp-savelist-filter-by-names-regexp (savelist names-regexp &optional version-str)
+  (cl-destructuring-bind (name-fun s-list _ver-str)
+      (persp-dispatch-loadf-version 'persp-name-from-savelist savelist version-str)
+    (if name-fun
+        (if names-regexp
+            (cl-delete-if-not
+             (apply-partially #'persp-string-match-p names-regexp)
+             s-list
+             :key name-fun)
+          s-list)
+      savelist)))
+
+(defun persp-savelist-from-savefile (fname)
+  (let ((p-save-file (concat (or (file-name-directory fname)
+                                 (expand-file-name persp-save-dir))
+                             (file-name-nondirectory fname))))
+    (if (and p-save-file (file-exists-p p-save-file))
+        (with-temp-buffer
+          (buffer-disable-undo)
+          (insert-file-contents p-save-file nil nil nil t)
+          (goto-char (point-min))
+          (read (current-buffer)))
+      (message "[persp-mode] Error: No such file -- %S." p-save-file)
+      nil)))
+
+
+(defun persp-list-persp-names-in-file (&optional fname savelist version-str)
+  (unless savelist
+    (setq savelist (persp-savelist-from-savefile fname)))
+  (when savelist
+    (cl-destructuring-bind (fun s-list _ver-str)
+        (persp-dispatch-loadf-version 'persp-names-from-savelist savelist version-str)
+      (if fun
+          (funcall fun s-list)
+        (message
+         "[persp-mode] Error: Can not list perspective names in file %S."
+         fname)
+        nil))))
 
 
 (cl-defun persp-load-state-from-file
     (&optional (fname persp-auto-save-fname) (phash *persp-hash*)
-               names-regexp set-persp-file)
+               names-regexp set-persp-file savelist)
   (interactive (list (read-file-name "Load perspectives from a file: "
                                      persp-save-dir)))
-  (when fname
-    (let ((p-save-file (concat (or (file-name-directory fname)
-                                   (expand-file-name persp-save-dir))
-                               (file-name-nondirectory fname))))
-      (if (not (file-exists-p p-save-file))
-          (progn (message "[persp-mode] Error: No such file -- %S." p-save-file)
-                 nil)
-        (let ((readed-list
-               (with-temp-buffer
-                 (buffer-disable-undo)
-                 (insert-file-contents p-save-file nil nil nil t)
-                 (goto-char (point-min))
-                 (read (current-buffer)))))
-          (persps-from-savelist
-           readed-list phash p-save-file set-persp-file names-regexp))))))
+  (let ((gc-cons-threshold (* 4 gc-cons-threshold)))
+   (unless savelist
+     (setq savelist (persp-savelist-from-savefile fname)))
+   (when savelist
+     (persps-from-savelist
+      savelist phash fname set-persp-file names-regexp))))
 
 (cl-defun persp-load-from-file-by-names (&optional (fname persp-auto-save-fname)
                                                    (phash *persp-hash*)
-                                                   names)
+                                                   names savelist)
   (interactive
    (list (read-file-name "Load a subset of perspectives from a file: "
                          persp-save-dir)))
-  (unless names
-    (let* ((p-save-file (concat (or (file-name-directory fname)
-                                    (expand-file-name persp-save-dir))
-                                (file-name-nondirectory fname)))
-           (available-names (persp-list-persp-names-in-file p-save-file)))
+  (unless savelist
+    (setq savelist (persp-savelist-from-savefile fname)))
+  (when (and (not names) savelist)
+    (let ((available-names (persp-list-persp-names-in-file fname savelist)))
       (when available-names
         (setq names
               (persp-read-persp
                "to load" 'reverse nil t nil nil available-names t 'push)))))
   (when names
     (let ((names-regexp (regexp-opt names)))
-      (persp-load-state-from-file fname phash names-regexp t))))
+      (persp-load-state-from-file fname phash names-regexp t savelist))))
 
 
 (provide 'persp-mode)
