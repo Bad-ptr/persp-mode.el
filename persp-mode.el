@@ -3785,7 +3785,7 @@ of the perspective %S can't be saved."
         (mapcar (lambda (pn)
                   (when (or (not names-regexp)
                             (persp-string-match-p names-regexp pn))
-                    (persp-get-by-name pn *persp-hash* nil)))
+                    (persp-get-by-name pn phash nil)))
                 (persp-names-current-frame-fast-ordered))
       (persp-persps (or phash *persp-hash*) names-regexp t)))))
 
