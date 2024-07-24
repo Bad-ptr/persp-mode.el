@@ -1303,18 +1303,33 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
             (delq (assq param-name persp-nil-parameters)
                   persp-nil-parameters)))))
 
-(defun persp--buffer-in-persps (buf)
-  (cdr (assq 'persp-buffer-in-persps
-             (gethash buf persp-buffer-props-hash))))
+(defun persp--buffer-prop-get-cons (buf key)
+  (let ((buf-props (gethash buf persp-buffer-props-hash)))
+    (when buf-props
+      (assq key buf-props))))
 
-(defun persp--buffer-in-persps-set (buf persps)
+(defun persp--buffer-prop-set (buf key val)
   (let* ((buf-props (gethash buf persp-buffer-props-hash))
-         (cons (assq 'persp-buffer-in-persps buf-props)))
+         (cons (assq key buf-props)))
     (if cons
-        (setf (cdr cons) persps)
-      (setq cons (cons 'persp-buffer-in-persps persps))
+        (setf (cdr cons) val)
+      (setq cons (cons key val))
       (push cons buf-props)
       (puthash buf buf-props persp-buffer-props-hash))))
+
+(defun persp--buffer-prop-delete (buf key)
+  (let* ((buf-props (gethash buf persp-buffer-props-hash))
+         (cons (assq key buf-props)))
+    (when (and buf-props cons)
+      (puthash buf
+               (cl-delete cons buf-props :count 1)
+               persp-buffer-props-hash))))
+
+(defun persp--buffer-in-persps (buf)
+  (cdr (persp--buffer-prop-get-cons buf 'persp-buffer-in-persps)))
+
+(defun persp--buffer-in-persps-set (buf persps)
+  (persp--buffer-prop-set buf 'persp-buffer-in-persps persps))
 
 (defun persp--buffer-in-persps-add (buf persp)
   (persp--buffer-in-persps-set
