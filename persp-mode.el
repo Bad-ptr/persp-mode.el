@@ -1387,13 +1387,17 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
     t))
 (defun persp-kill-emacs-h ()
   (when (and persp-mode (not *persp-pretend-switched-off*))
-    (persp-asave-on-exit nil)))
+    (unless (memq #'persp-mode-restore-and-remove-from-make-frame-hook
+                  after-make-frame-functions)
+      (persp-asave-on-exit nil))))
 
 (defun persp-kill-emacs-query-function ()
   (if (and persp-mode (not *persp-pretend-switched-off*))
-      (when (persp-asave-on-exit t)
-        (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h)
-        t)
+      (unless (memq #'persp-mode-restore-and-remove-from-make-frame-hook
+                    after-make-frame-functions)
+        (when (persp-asave-on-exit t)
+          (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h)
+          t))
     t))
 
 (defun persp-special-last-buffer-make-current ()
