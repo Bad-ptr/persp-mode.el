@@ -879,7 +879,8 @@ Each function in this list will be called with 3 arguments:
 (defcustom persp-after-load-state-functions
   (list (lambda (_file phash persp-names)
           (when (eq phash *persp-hash*)
-            (persp-update-frames-window-confs persp-names))))
+            (persp-update-frames-window-confs persp-names)
+            (persp-convert-window-confs persp-names 'from-readable))))
   "Functions that runs after perspectives state was loaded.
 These functions must take 3 arguments:
 1) a file from which the state was loaded;
@@ -935,19 +936,19 @@ of the persp will not be restored for the frame"
 
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
-      (lambda (&optional frame _rwin)
+      (lambda (&optional frame _rwin _writable)
         (when (or frame (setq frame (selected-frame)))
           (with-selected-frame frame (wg-make-wconfig))))
     (if (version< emacs-version "24.4")
-        (lambda (&optional frame rwin)
+        (lambda (&optional frame rwin _writable)
           (when (or rwin (setq rwin (frame-root-window
                                      (or frame (selected-frame)))))
             (when (fboundp 'window-state-get)
               (window-state-get rwin))))
-      (lambda (&optional frame rwin)
+      (lambda (&optional frame rwin writable)
         (when (or rwin (setq rwin (frame-root-window
                                    (or frame (selected-frame)))))
-          (window-state-get rwin t)))))
+          (window-state-get rwin writable)))))
   "Function for getting a window configuration of a frame, accept
 two optional arguments:
 first -- a frame(default is the selected one)
@@ -3694,6 +3695,52 @@ Return `NAME'."
            (progn
              ,@body)))))
 
+(defmacro persp-with-temp-frame (fvar &rest body)
+  (cl-macrolet ((with-nil-frame-hooks
+                 (&rest body)
+                 ``(let ((*persp-pretend-switched-off* t)
+                         window-configuration-change-hook
+                         window-state-change-functions
+                         window-state-change-hook
+                         before-make-frame-hook
+                         after-make-frame-functions
+                         delete-frame-functions
+                         ,@,(when (boundp 'server-switch-hook)
+                              ''(server-switch-hook server-after-make-frame-hook))
+                         ,@,(when ;; (and
+                                (boundp 'focus-in-hook)
+                              ;; (null (get 'focus-in-hook 'byte-obsolete-variable))
+                              ;; )
+                              ''(focus-in-hook focus-out-hook))
+                         after-focus-change-function)
+                     ,,@body)))
+    `(let (,fvar)
+       ,(with-nil-frame-hooks
+         `(progn
+            (setq ,fvar
+                  (make-frame (list ;; (cons 'window-system initial-window-system)
+                               (cons 'visibility 'invisible)
+                               (cons 'fullscreen 'maximized)
+                               ;; (cons 'z-group 'below)
+                               (cons 'no-other-frame t)
+                               (cons 'inhibit-double-buffering t)
+                               ;; (cons 'shaded t)
+                               (cons 'skip-taskbar t)
+                               (cons 'no-focus-on-map t)
+                               (cons 'no-accept-focus t)
+                               ;; (cons 'undecorated t)
+                               (cons 'name "*persp-temp-frame*"))))
+            (make-frame-invisible ,fvar t)
+            (sit-for 0.01)
+            (set-window-dedicated-p (or (persp-delete-other-windows ,fvar)
+                                        (frame-first-window ,fvar))
+                                    nil)))
+       (unwind-protect
+           (progn
+             ,@body)
+         (when (frame-live-p ,fvar)
+           ,(with-nil-frame-hooks
+             `(delete-frame ,fvar t)))))))
 
 
 
@@ -3812,11 +3859,28 @@ configuration, because of the error -- %S" err)
                (cl-delete-if-not #'persp-buffer-free-p
                                  (funcall persp-buffer-list-function)))))))
 
-(defun persp-window-conf-to-savelist (persp)
-  `(def-wconf ,(if (or persp-use-workgroups
-                       (not (version< emacs-version "24.4")))
-                   (safe-persp-window-conf persp)
-                 nil)))
+(defun persp-window-conf-to-savelist (persp &optional wccp-or-frame)
+  "When wccp-or-frame -- convert window config to writable form for
+writing to a file. For convertion it will set window configuration
+of selected frame so you must save/restore it if needed."
+  (let ((wc (safe-persp-window-conf persp))
+        (frame (when wccp-or-frame (if (framep wccp-or-frame)
+                                       wccp-or-frame (selected-frame)))))
+    (when frame
+      (condition-case-unless-debug err
+          (progn
+            (set-window-dedicated-p (persp-delete-other-windows frame)
+                                    nil)
+            (funcall persp-window-state-put-function wc frame)
+            (setq wc (funcall persp-window-state-get-function frame nil t)))
+        (error
+         (message "[persp-mode] Error: Can't convert window configuration to \
+readable/writable form: %S" err)
+         (setq wc (safe-persp-window-conf persp)))))
+    `(def-wconf ,(if (or persp-use-workgroups
+                         (not (version< emacs-version "24.4")))
+                     wc
+                   nil))))
 
 (defun persp-elisp-object-readable-p (obj)
   (let (print-length print-level)
@@ -3833,10 +3897,11 @@ of the perspective %S can't be saved."
                         t))
                  (safe-persp-parameters persp))))
 
-(defun persp-to-savelist (persp)
+(defun persp-to-savelist (persp &optional wccp-or-frame)
+  "Also see `persp-window-conf-to-savelist' docstring."
   `(def-persp ,(and persp (persp-name persp))
      ,(persp-buffers-to-savelist persp)
-     ,(persp-window-conf-to-savelist persp)
+     ,(persp-window-conf-to-savelist persp wccp-or-frame)
      ,(persp-parameters-to-savelist persp)
      ,(safe-persp-weak persp)
      ,(safe-persp-auto persp)
@@ -3844,24 +3909,32 @@ of the perspective %S can't be saved."
 
 (defun persps-to-savelist (&optional phash names-regexp)
   (unless phash (setq phash *persp-hash*))
-  (mapcar
-   #'persp-to-savelist
-   (cl-delete-if
-    (apply-partially #'persp-parameter 'dont-save-to-file)
-    (if (eq phash *persp-hash*)
-        (if names-regexp
-            (let (p)
-              (nreverse
-               (cl-reduce (lambda (acc pn)
-                            (setq p (if (persp-string-match-p names-regexp pn)
-                                        (persp-get-by-name pn phash)
-                                      persp-not-persp))
-                            (if (persp-p p) (cons p acc) acc))
-                          (persp-names-current-frame-fast-ordered)
-                          :initial-value nil)))
-          (mapcar #'persp-get-by-name
-                  (persp-names-current-frame-fast-ordered)))
-      (persp-persps phash names-regexp t)))))
+  (let ((persplist (cl-delete-if
+                    (apply-partially #'persp-parameter 'dont-save-to-file)
+                    (if (eq phash *persp-hash*)
+                        (if names-regexp
+                            (let (p)
+                              (nreverse
+                               (cl-reduce (lambda (acc pn)
+                                            (setq p (if (persp-string-match-p names-regexp pn)
+                                                        (persp-get-by-name pn phash)
+                                                      persp-not-persp))
+                                            (if (persp-p p) (cons p acc) acc))
+                                          (persp-names-current-frame-fast-ordered)
+                                          :initial-value nil)))
+                          (mapcar #'persp-get-by-name
+                                  (persp-names-current-frame-fast-ordered)))
+                      (persp-persps phash names-regexp t)))))
+    (when persplist
+      (persp-with-temp-frame
+       tmpf
+       (let (window-configuration-change-hook
+             window-state-change-hook
+             window-state-change-functions)
+         (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist)
+         ;; (with-selected-frame tmpf
+         ;;   (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist))
+         )))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
@@ -4038,6 +4111,38 @@ of the perspective %S can't be saved."
              :key (lambda (f) (safe-persp-name (get-frame-persp f))))
           (persp-frame-list-without-daemon))))
 
+(defun persp-convert-window-confs (&optional persp-names from/to)
+  (when (and persp-names
+             (not persp-use-workgroups) (not (version< emacs-version "24.4")))
+    (let ((sftr (selected-frame)))
+      (cl-case from/to
+        (to-readable nil)
+        (from-readable
+         (persp-with-temp-frame
+          tmpf
+          (let (window-configuration-change-hook
+                window-state-change-hook
+                window-state-change-functions)
+            ;; (with-selected-frame tmpf
+            (mapc (lambda (p)
+                    (let ((wc (safe-persp-window-conf p)))
+                      (when wc
+                        (set-window-dedicated-p (or (persp-delete-other-windows tmpf)
+                                                    (frame-first-window tmpf))
+                                                nil)
+                        (funcall persp-window-state-put-function wc tmpf)
+                        (if p
+                            (setf (persp-window-conf p)
+                                  (funcall persp-window-state-get-function tmpf))
+                          (setq persp-nil-wconf
+                                (funcall persp-window-state-get-function tmpf))))))
+                  (persp-persps *persp-hash* (regexp-opt persp-names)))
+            ;; )
+            )))
+        (t nil))
+      (when sftr
+        (select-frame sftr)))))
+
 (defmacro persp-car-as-fun-cdr-as-args (lst)
   (let ((kar (gensym "lst-car")))
     `(let* ((,kar (car-safe ,lst))
@@ -4188,16 +4293,17 @@ of the perspective %S can't be saved."
     (savelist phash persp-file set-persp-file names-regexp)
   (when (and names-regexp (not (consp names-regexp)))
     (setq names-regexp (cons t names-regexp)))
-  (delq nil
-        (mapcar (lambda (pd)
-                  (condition-case-unless-debug err
-                      (persp-from-savelist-0 pd phash (and set-persp-file persp-file))
-                    (error
-                     (message "[persp-mode] Error details: %S" pd)
-                     (message "[persp-mode] Error: Can not load a perspective from %S file -- %S" persp-file err)
-                     nil)))
-                (persp-savelist-filter-by-names-regexp
-                 savelist names-regexp "0"))))
+  (when savelist
+    (delq nil
+          (mapcar (lambda (pd)
+                    (condition-case-unless-debug err
+                        (persp-from-savelist-0 pd phash (and set-persp-file persp-file))
+                      (error
+                       (message "[persp-mode] Error details: %S" pd)
+                       (message "[persp-mode] Error: Can not load a perspective from %S file -- %S" persp-file err)
+                       nil)))
+                  (persp-savelist-filter-by-names-regexp
+                   savelist names-regexp "0")))))
 
 (defun persp-name-from-savelist-0 (savelist)
   (or (cadr savelist) persp-nil-name))
