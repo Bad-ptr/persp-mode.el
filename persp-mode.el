@@ -319,16 +319,18 @@ in the `persp-file' perspective parameter."
           (const :tag "Save all perspectives" :value t)
           (const :tag "Don't save just kill" :value nil)))
 
-(defcustom persp-auto-save-opt 2
+(defcustom persp-auto-save-opt 3
   "This variable controls the autosave functionality of the persp-mode:
 0 -- do not auto save;
 1 -- save on the emacs shutdown and only if the persp-mode active;
-2 -- save on the persp-mode deactivation or the emacs shutdown."
+2 -- save on the persp-mode deactivation or the emacs shutdown;
+3 -- 2 + save on last client frame deleted."
   :group 'persp-mode
   :type '(choice
           (const :tag "Do not save"  :value 0)
           (const :tag "Save on exit" :value 1)
-          (const :tag "Save on exit and persp-mode deactivation" :value 2)))
+          (const :tag "Save on exit and persp-mode deactivation" :value 2)
+          (const :tag "Save on exit, persp-mode deactivation, last frame deletion" :value 3)))
 
 (defcustom persp-auto-save-num-of-backups 3
   "How many autosave file backups to keep."
@@ -3107,7 +3109,13 @@ Return `NAME'."
 (defun persp-init-new-frame (frame)
   (unless *persp-pretend-switched-off*
     (condition-case-unless-debug err
-        (persp-init-frame frame t (frame-parameter frame 'client))
+        (progn
+          (persp-init-frame frame t (frame-parameter frame 'client))
+          (when (and (> persp-auto-save-opt 2)
+                     (let ((fl (persp-frame-list-without-daemon)))
+                       (and (= 1 (length fl)) (eq frame (car fl)))))
+            (add-hook 'kill-emacs-query-functions #'persp-kill-emacs-query-function)
+            (add-hook 'kill-emacs-hook #'persp-kill-emacs-h)))
       (error
        (message "[persp-mode] Error: Can not initialize frame -- %S"
                 err)))))
@@ -3166,7 +3174,14 @@ Return `NAME'."
 (defun persp-delete-frame (frame)
   (unless *persp-pretend-switched-off*
     (condition-case-unless-debug err
-        (persp--deactivate frame persp-not-persp)
+        (progn
+          (persp--deactivate frame persp-not-persp)
+          (when (and (> persp-auto-save-opt 2)
+                     (let ((fl (persp-frame-list-without-daemon)))
+                       (and (= 1 (length fl)) (eq frame (car fl)))))
+            (when (persp-asave-on-exit t 2)
+              (remove-hook 'kill-emacs-query-functions #'persp-kill-emacs-query-function)
+              (remove-hook 'kill-emacs-hook #'persp-kill-emacs-h))))
       (error
        (message "[persp-mode] Error: Can not deactivate frame -- %S"
                 err)))))
