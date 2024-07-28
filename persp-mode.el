@@ -1908,7 +1908,7 @@ Here is a keymap of this minor mode:
 
         (setq *persp-hash* (make-hash-table :test #'equal :size 10))
         (setq persp-buffer-props-hash (make-hash-table :test #'eq :size 10))
-        (persp-update-names-cache nil)
+        (setq persp-names-cache nil)
 
         (push '(persp . writable) window-persistent-parameters)
 
@@ -1945,7 +1945,7 @@ Here is a keymap of this minor mode:
     ;; TODO: do it properly -- remove buffers, kill perspectives
     (setq *persp-hash* nil)
     (setq persp-buffer-props-hash nil)
-    (persp-update-names-cache nil)))
+    (persp-update-names-cache nil t)))
 
 
 ;; Hooks:
@@ -2332,10 +2332,10 @@ killed, but just removed from a perspective(s)."
 
 ;; Perspective funcs:
 
-(defun persp-update-names-cache (new-persp-names)
+(defun persp-update-names-cache (new-persp-names &optional force)
   "Update `persp-names-cache' with `NEW-PERSP-NAMES'."
   (unless *persp-pretend-switched-off*
-    (unless new-persp-names
+    (unless (or force new-persp-names)
       (setq new-persp-names (list persp-nil-name)))
     (let ((old-persp-names persp-names-cache))
       (cl-psetq persp-names-cache new-persp-names)
