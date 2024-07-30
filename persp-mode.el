@@ -3836,13 +3836,14 @@ of the perspective %S can't be saved."
     (if (eq phash *persp-hash*)
         (if names-regexp
             (let (p)
-              (cl-reduce (lambda (acc pn)
-                           (setq p (if (persp-string-match-p names-regexp pn)
-                                       (persp-get-by-name pn phash)
-                                     persp-not-persp))
-                           (if (persp-p p) (cons p acc) acc))
-                         (persp-names-current-frame-fast-ordered)
-                         :initial-value nil))
+              (nreverse
+               (cl-reduce (lambda (acc pn)
+                            (setq p (if (persp-string-match-p names-regexp pn)
+                                        (persp-get-by-name pn phash)
+                                      persp-not-persp))
+                            (if (persp-p p) (cons p acc) acc))
+                          (persp-names-current-frame-fast-ordered)
+                          :initial-value nil)))
           (mapcar #'persp-get-by-name
                   (persp-names-current-frame-fast-ordered)))
       (persp-persps phash names-regexp t)))))
