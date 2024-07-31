@@ -352,13 +352,14 @@ otherwise with a last activated perspective."
 (defcustom persp-reset-windows-on-nil-window-conf t
   "t -- When a perspective without a window configuration is activated
 then delete all windows and show the *scratch* buffer;
-function -- run that function;
+function -- run that function with optional frame persp new-frame-p arguments;
 nil -- do nothing."
   :group 'persp-mode
   :type '(choice
           (const    :tag "Delete all windows" :value t)
           (const    :tag "Do nothing"         :value nil)
-          (function :tag "Run function"       :value (lambda () nil))))
+          (function :tag "Run function"
+                    :value (lambda (&optional frame persp new-frame-p) nil))))
 
 
 (define-widget 'persp-buffer-list-restriction-choices 'lazy
@@ -3698,18 +3699,20 @@ Return `NAME'."
 
 ;; Save/Load funcs:
 
-(defun persp-delete-other-windows ()
-  (let ((win (selected-window)))
+(defun persp-delete-other-windows (&optional frame win)
+  (let ((win (or win (and frame (frame-first-window frame))
+                 (selected-window))))
     (when (or (window-parameter win 'window-side)
               (window-minibuffer-p win))
       (setq win (cl-loop
-                 for win in (window-list nil 1)
+                 for win in (window-list frame 1)
                  unless (window-parameter win 'window-side)
                  return win)))
     (when win
       (let ((ignore-window-parameters t))
         (condition-case-unless-debug err
-            (delete-other-windows win)
+            (progn (delete-other-windows win)
+                   win)
           (error
            (message "[persp-mode] Warning: Can not delete-other-windows -- %S" err)))))))
 
@@ -3719,54 +3722,51 @@ Return `NAME'."
   (when new-frame-p (sit-for 0.01))
   (unless (run-hook-with-args-until-success 'persp-restore-window-conf-filter-functions
                                             frame persp new-frame-p)
-    (with-selected-frame frame
-      (let ((pwc (safe-persp-window-conf persp))
-            (split-width-threshold 2)
-            (split-height-threshold 2)
-            (window-safe-min-height 1)
-            (window-safe-min-width 1)
-            (window-min-height 1)
-            (window-min-width 1)
-            (window-resize-pixelwise t)
-            (gr-mode (and (boundp 'golden-ratio-mode) golden-ratio-mode)))
-        (when gr-mode
-          (golden-ratio-mode -1))
-        (unwind-protect
-            (cond
-             ((functionp persp-restore-window-conf-method)
-              (funcall persp-restore-window-conf-method frame persp new-frame-p))
-             ((null persp-restore-window-conf-method) nil)
-             (t
-              (if pwc
-                  (progn
-                    (persp-delete-other-windows)
-                    (set-window-dedicated-p nil nil)
-                    (condition-case-unless-debug err
-                        (funcall persp-window-state-put-function pwc frame)
-                      (error
-                       (message
-                        "[persp-mode] Warning: Can not restore the window \
+    (let ((pwc (safe-persp-window-conf persp))
+          (split-width-threshold 2)
+          (split-height-threshold 2)
+          (window-safe-min-height 1)
+          (window-safe-min-width 1)
+          (window-min-height 1)
+          (window-min-width 1)
+          (window-resize-pixelwise t)
+          (gr-mode (and (boundp 'golden-ratio-mode) golden-ratio-mode)))
+      (when gr-mode (golden-ratio-mode -1))
+      (unwind-protect
+          (cond
+           ((functionp persp-restore-window-conf-method)
+            (funcall persp-restore-window-conf-method frame persp new-frame-p))
+           ((null persp-restore-window-conf-method) nil)
+           (t
+            (if pwc
+                (progn
+                  (set-window-dedicated-p (persp-delete-other-windows frame)
+                                          nil)
+                  (condition-case-unless-debug err
+                      (funcall persp-window-state-put-function pwc frame)
+                    (error
+                     (message
+                      "[persp-mode] Warning: Can not restore the window \
 configuration, because of the error -- %S" err)
-                       (let* ((cw (selected-window))
-                              (cwb (window-buffer cw)))
-                         (unless (persp-contain-buffer-p cwb persp)
-                           (persp-set-another-buffer-for-window
-                            cwb cw persp)))))
-                    (when (and new-frame-p persp-is-ibc-as-f-supported)
-                      (setq initial-buffer-choice
-                            (lambda () persp-special-last-buffer))))
-                (when persp-reset-windows-on-nil-window-conf
-                  (if (functionp persp-reset-windows-on-nil-window-conf)
-                      (funcall persp-reset-windows-on-nil-window-conf)
-                    (persp-delete-other-windows)
-                    (set-window-dedicated-p nil nil)
-                    (let* ((pbs (safe-persp-buffers persp))
-                           (w (selected-window))
-                           (wb (window-buffer w)))
-                      (when (and pbs (not (memq wb pbs)))
-                        (persp-set-another-buffer-for-window wb w persp))))))))
-          (when gr-mode
-            (golden-ratio-mode 1)))))))
+                     (let* ((cw (frame-selected-window frame))
+                            (cwb (window-buffer cw)))
+                       (unless (persp-contain-buffer-p cwb persp)
+                         (persp-set-another-buffer-for-window
+                          cwb cw persp)))))
+                  (when (and new-frame-p persp-is-ibc-as-f-supported)
+                    (setq initial-buffer-choice
+                          (lambda () persp-special-last-buffer))))
+              (when persp-reset-windows-on-nil-window-conf
+                (if (functionp persp-reset-windows-on-nil-window-conf)
+                    (funcall persp-reset-windows-on-nil-window-conf frame persp new-frame-p)
+                  (set-window-dedicated-p (persp-delete-other-windows frame)
+                                          nil)
+                  (let* ((pbs (safe-persp-buffers persp))
+                         (w (frame-selected-window frame))
+                         (wb (window-buffer w)))
+                    (when (and pbs (not (memq wb pbs)))
+                      (persp-set-another-buffer-for-window wb w persp))))))))
+        (when gr-mode (golden-ratio-mode 1))))))
 
 
 ;; Save funcs
