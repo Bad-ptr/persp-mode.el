@@ -3102,7 +3102,8 @@ Return `NAME'."
              (unless (persp-contain-buffer-p cbuf persp)
                (persp-set-another-buffer-for-window cbuf frame-or-window persp)))
            (with-selected-window frame-or-window
-             (run-hook-with-args 'persp-activated-functions 'window))))))))
+             (run-hook-with-args 'persp-activated-functions 'window)))))))
+  (set-buffer (window-buffer (selected-window))))
 
 (defun persp-init-new-frame (frame)
   (unless *persp-pretend-switched-off*
