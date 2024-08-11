@@ -849,20 +849,20 @@ as current) and a frame or a window for which the switching will take place."
 
 (defcustom persp-activated-functions nil
   "Functions that runs after a perspective has been activated.
-These functions must take one argument -- a symbol,
-if it eq \\='frame -- then the perspective is activated for `selected-frame',
-if it eq \\='window -- then the perspective is activated for `selected-window'.
-The activated perspective is available with `get-current-persp'."
+These functions must take three arguments -- 1) a symbol:
+if it eq \\='frame -- then the perspective is activated for a frame,
+if it eq \\='window -- then the perspective is activated for a window;
+2) a frame-or-window; 3) activated perspective."
   :group 'persp-mode
   :type 'hook)
 
 (defcustom persp-before-deactivate-functions nil
   "Functions that runs before the current perspective has been deactivated
 for selected frame or window.
-These functions must take one argument -- a symbol,
-if it\\='s \\='frame -- perspective will be deactivated for the `selected-frame',
-if it\\='s \\='window -- perspective will be deactivated for the `selected-window'.
-The perspective is available with `get-current-persp'."
+These functions must take three arguments -- 1) a symbol:
+if it\\='s \\='frame -- perspective will be deactivated for a frame,
+if it\\='s \\='window -- perspective will be deactivated for a window';
+2) a frame-or-window, which may be a dead frame; 3) perspective being deactivated."
   :group 'persp-mode
   :type 'hook)
 
@@ -3061,8 +3061,8 @@ Return `NAME'."
       (frame
        (setq persp (get-frame-persp frame-or-window))
        (unless (eq persp new-persp)
-         (with-selected-frame frame-or-window
-           (run-hook-with-args 'persp-before-deactivate-functions 'frame))
+         (run-hook-with-args 'persp-before-deactivate-functions
+                             'frame frame-or-window persp)
          (persp-frame-save-state
           frame-or-window
           (if persp-set-last-persp-for-new-frames
@@ -3071,8 +3071,8 @@ Return `NAME'."
       (window
        (setq persp (get-window-persp frame-or-window))
        (unless (eq persp new-persp)
-         (with-selected-window frame-or-window
-           (run-hook-with-args 'persp-before-deactivate-functions 'window)))))
+         (run-hook-with-args 'persp-before-deactivate-functions
+                             'window frame-or-window persp))))
     (let ((persp-inhibit-switch-for
            (cons frame-or-window persp-inhibit-switch-for)))
       (persp--do-auto-action-if-needed persp))))
@@ -3098,15 +3098,13 @@ Return `NAME'."
            (set-frame-persp persp frame-or-window)
            (when persp-init-frame-behaviour
              (persp-restore-window-conf frame-or-window persp new-frame-p))
-           (with-selected-frame frame-or-window
-             (run-hook-with-args 'persp-activated-functions 'frame)))
+           (run-hook-with-args 'persp-activated-functions 'frame frame-or-window persp))
           (window
            (set-window-persp persp frame-or-window)
            (let ((cbuf (window-buffer frame-or-window)))
              (unless (persp-contain-buffer-p cbuf persp)
                (persp-set-another-buffer-for-window cbuf frame-or-window persp)))
-           (with-selected-window frame-or-window
-             (run-hook-with-args 'persp-activated-functions 'window))))))))
+           (run-hook-with-args 'persp-activated-functions 'window frame-or-window persp)))))))
 
 (defun persp-init-new-frame (frame)
   (unless *persp-pretend-switched-off*
