@@ -1986,9 +1986,7 @@ which is not in the current(%s) perspective. It will be removed from \
                     `(run-at-time
                       1 nil
                       (lambda (bb ww)
-                        (with-selected-window ww
-                          (persp-set-another-buffer-for-window
-                           bb ww)))
+                        (persp-set-another-buffer-for-window bb ww))
                       ,b ,w)))
             (cl-destructuring-bind (char &rest rest)
                 (let ((variants
@@ -2198,10 +2196,9 @@ killed, but just removed from a perspective(s)."
 
 ;; TODO: rename
 (defun get-current-persp (&optional frame window)
-  (with-selected-frame (or frame (selected-frame))
-    (if (window-persp-set-p window)
-        (get-window-persp window)
-      (get-frame-persp frame))))
+  (if (window-persp-set-p window)
+      (get-window-persp window)
+    (get-frame-persp frame)))
 
 ;; TODO: rename
 (defun set-current-persp (persp)
@@ -3823,14 +3820,13 @@ configuration, because of the error -- %S" err)
              (not (frame-parameter frame 'persp-ignore-wconf))
              (not (frame-parameter frame 'persp-ignore-wconf-once)))
     (let ((persp (get-frame-persp frame)))
-      (with-selected-frame frame
-        (when set-persp-special-last-buffer
-          (persp-special-last-buffer-make-current))
-        (if persp
-            (setf (persp-window-conf persp)
-                  (funcall persp-window-state-get-function frame))
-          (setq persp-nil-wconf
-                (funcall persp-window-state-get-function frame)))))))
+      (when set-persp-special-last-buffer
+        (persp-special-last-buffer-make-current))
+      (if persp
+          (setf (persp-window-conf persp)
+                (funcall persp-window-state-get-function frame))
+        (setq persp-nil-wconf
+              (funcall persp-window-state-get-function frame))))))
 
 (cl-defun persp-save-state
     (&optional (persp (get-frame-persp)) exfr set-persp-special-last-buffer)
@@ -3929,10 +3925,7 @@ of the perspective %S can't be saved."
        (let (window-configuration-change-hook
              window-state-change-hook
              window-state-change-functions)
-         (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist)
-         ;; (with-selected-frame tmpf
-         ;;   (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist))
-         )))))
+         (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist))))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
@@ -4121,7 +4114,6 @@ of the perspective %S can't be saved."
           (let (window-configuration-change-hook
                 window-state-change-hook
                 window-state-change-functions)
-            ;; (with-selected-frame tmpf
             (mapc (lambda (p)
                     (let ((wc (safe-persp-window-conf p)))
                       (when wc
@@ -4134,9 +4126,7 @@ of the perspective %S can't be saved."
                                   (funcall persp-window-state-get-function tmpf))
                           (setq persp-nil-wconf
                                 (funcall persp-window-state-get-function tmpf))))))
-                  (persp-persps *persp-hash* (regexp-opt persp-names)))
-            ;; )
-            )))
+                  (persp-persps *persp-hash* (regexp-opt persp-names))))))
         (t nil))
       (when sftr
         (select-frame sftr)))))
