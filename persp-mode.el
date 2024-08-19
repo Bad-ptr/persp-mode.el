@@ -920,9 +920,16 @@ function -- run that function."
     (function :tag "Run function"
               :value (lambda (frame persp new-frame-p) nil))))
 
+;; TODO: rename to save-restore-window-conf-filter-functions
+;; remove persp new-frame-p arguments or make them optional
 (defcustom persp-restore-window-conf-filter-functions
   (list (lambda (f _p _new-f-p)
-          (or (null f)
+          (or (not (frame-live-p f))
+              (and (featurep 'posframe)
+				   (or (frame-parameter f 'posframe-buffer)
+					   (frame-parameter f 'posframe-parent-buffer)
+					   (string= "posframe" (frame-parameter f 'title))))
+              (persp-is-frame-daemons-frame f)
               (frame-parameter f 'persp-ignore-wconf)
               (let ((old-piw (frame-parameter f 'persp-ignore-wconf-once)))
                 (when old-piw
@@ -930,7 +937,7 @@ function -- run that function."
                   old-piw)))))
   "The list of functions which takes a frame, persp and new-frame-p as arguments.
 If one of these functions return a non nil value then the window configuration
-of the persp will not be restored for the frame"
+of the persp will not be saved/restored for the frame"
   :group 'persp-mode
   :type '(repeat function))
 
@@ -2141,7 +2148,7 @@ killed, but just removed from a perspective(s)."
          nname))))
 
 (defsubst persp-is-frame-daemons-frame (f)
-  (and (daemonp) (eq f terminal-frame)))
+  (and (fboundp 'daemonp) (daemonp) (eq f terminal-frame)))
 
 (defun persp-frame-list-without-daemon ()
   "Return a list of frames without the daemon's frame."
@@ -3817,11 +3824,9 @@ configuration, because of the error -- %S" err)
 
 (cl-defun persp-frame-save-state
     (&optional (frame (selected-frame)) set-persp-special-last-buffer)
-  (when (and (frame-live-p frame)
-             (not (persp-is-frame-daemons-frame frame))
-             (not (frame-parameter frame 'persp-ignore-wconf))
-             (not (frame-parameter frame 'persp-ignore-wconf-once)))
-    (let ((persp (get-frame-persp frame)))
+  (let ((persp (get-frame-persp frame)))
+    (unless (run-hook-with-args-until-success
+             'persp-restore-window-conf-filter-functions frame persp nil)
       (when set-persp-special-last-buffer
         (persp-special-last-buffer-make-current))
       (if persp
