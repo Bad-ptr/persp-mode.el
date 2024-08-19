@@ -3714,7 +3714,7 @@ Return `NAME'."
          `(progn
             (setq ,fvar
                   (make-frame (list ;; (cons 'window-system initial-window-system)
-                               (cons 'visibility 'invisible)
+                               (cons 'visibility nil)
                                (cons 'fullscreen 'maximized)
                                ;; (cons 'z-group 'below)
                                (cons 'no-other-frame t)
@@ -3724,6 +3724,7 @@ Return `NAME'."
                                (cons 'no-focus-on-map t)
                                (cons 'no-accept-focus t)
                                ;; (cons 'undecorated t)
+                               ;; (cons 'cursor-type nil)
                                (cons 'name "*persp-temp-frame*"))))
             (make-frame-invisible ,fvar t)
             (sit-for 0.01)
