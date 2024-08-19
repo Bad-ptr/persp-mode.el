@@ -3748,9 +3748,10 @@ Return `NAME'."
     (when (or (window-parameter win 'window-side)
               (window-minibuffer-p win))
       (setq win (cl-loop
-                 for win in (window-list frame 1)
-                 unless (window-parameter win 'window-side)
-                 return win)))
+                 for nwin in (window-list frame 1 (next-window win 1 nil))
+                 unless (or (window-parameter nwin 'window-side)
+                            (window-minibuffer-p nwin))
+                 return nwin)))
     (when win
       (let ((ignore-window-parameters t))
         (condition-case-unless-debug err
