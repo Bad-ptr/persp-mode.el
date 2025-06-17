@@ -745,6 +745,19 @@ the current perspective."
           (function :tag "\nRun this function with persp as an argument"
                     :value (lambda (p) p))))
 
+(defcustom persp-use-kill-buffer-advice t
+  "Whether to use kill-buffer advice to check killed buffers still in persps"
+  :group 'persp-mode
+  :type 'boolean
+  :set (lambda (sym val)
+         (custom-set-default sym val)
+         (when persp-mode
+           (if val
+               (when (fboundp 'persp-activate-kill-buffer-advice)
+                 (persp-activate-kill-buffer-advice))
+             (when (fboundp 'persp-deactivate-kill-buffer-advice)
+               (persp-deactivate-kill-buffer-advice))))))
+
 (defcustom persp-common-buffer-filter-functions
   (list (lambda (b) (or (string-prefix-p " " (buffer-name b))
                    (eq (buffer-local-value 'major-mode b) 'helm-major-mode))))
@@ -1903,6 +1916,13 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (when (fboundp 'tabbar-mode)
     (setq tabbar-buffer-list-function #'tabbar-buffer-list)))
 
+(defun persp-activate-kill-buffer-advice ()
+  (advice-add #'kill-buffer :around #'persp-kill-buffer-around-adv))
+
+(defun persp-deactivate-kill-buffer-advice ()
+  (advice-remove #'kill-buffer #'persp-kill-buffer-around-adv))
+
+
 ;;;###autoload
 (define-minor-mode persp-mode
   "Toggle the persp-mode.
@@ -1932,6 +1952,9 @@ Here is a keymap of this minor mode:
 
         (persp-mode-setup-hooks)
 
+        (when persp-use-kill-buffer-advice
+          (persp-activate-kill-buffer-advice))
+
         (condition-case-unless-debug err
             (mapc #'persp-init-frame (persp-frame-list-without-daemon))
           (error
@@ -1952,6 +1975,9 @@ Here is a keymap of this minor mode:
       (persp-asave-on-exit t 1))
 
     (persp-mode-remove-hooks)
+
+    (when persp-use-kill-buffer-advice
+      (persp-deactivate-kill-buffer-advice))
 
     (setq window-persistent-parameters
           (delq (assq 'persp window-persistent-parameters)
@@ -2060,6 +2086,32 @@ killed, but just removed from a perspective(s)."
              (unless persp-set-frame-buffer-predicate
                persp-when-remove-buffer-switch-to-other-buffer)))
         (persp--remove-buffer-2 nil buffer)))))
+
+(defun persp--remove-dead-buffers (persp &optional bufname)
+  (when persp
+    (setf (persp-buffers persp)
+          (cl-delete-if-not
+           (lambda (b)
+             (or (buffer-live-p b)
+                 (and (message "[persp-mode] Debug: dead buffer %sremoved from %S."
+                               (or (and bufname (concat "\"" bufname "\" "))
+                                   "")
+                               (persp-name persp))
+                      nil)))
+           (persp-buffers persp)))))
+
+(defun persp-kill-buffer-around-adv (kb-f &optional buffer-or-name)
+  (if (and persp-mode (not *persp-pretend-switched-off*))
+      (let* ((buffer (if buffer-or-name
+                         (get-buffer buffer-or-name)
+                       (current-buffer)))
+             (bname (buffer-name buffer))
+             (bpersps (persp--buffer-in-persps buffer))
+             (kb-ret (funcall kb-f buffer)))
+        (when kb-ret
+          (mapc (lambda (p) (persp--remove-dead-buffers p bname)) bpersps))
+        kb-ret)
+    (funcall kb-f buffer-or-name)))
 
 (defun persp--restore-buffer-on-find-file ()
   (when (buffer-live-p persp-special-last-buffer)
