@@ -556,8 +556,8 @@ to interactivly read user input with completion.")
     (const :tag "Do not restore window-configuration" :value nil)
     (const :tag "Set persp-ignore-wconf flag for frame"
            :value persp-ignore-wconf)
-    (const :tag "Set persp-ignore-wconf-once flag for frame"
-           :value persp-ignore-wconf-once)
+    (number :tag "Set persp-ignore-wconf for frame to this number"
+           :value 2)
     (const :tag "Create a new random auto-perspective for the new frame"
            :value auto-temp)
     (const
@@ -943,11 +943,13 @@ function -- run that function."
 					   (frame-parameter f 'posframe-parent-buffer)
 					   (string= "posframe" (frame-parameter f 'title))))
               (persp-is-frame-daemons-frame f)
-              (frame-parameter f 'persp-ignore-wconf)
-              (let ((old-piw (frame-parameter f 'persp-ignore-wconf-once)))
-                (when old-piw
-                  (set-frame-parameter f 'persp-ignore-wconf-once nil)
-                  old-piw)))))
+              (let ((f-piw (frame-parameter f 'persp-ignore-wconf)))
+                (if (numberp f-piw)
+                    (prog1 (< 0 f-piw)
+                      (when (> 1 (cl-decf f-piw))
+                        (setq f-piw nil))
+                      (set-frame-parameter f 'persp-ignore-wconf f-piw))
+                  f-piw)))))
   "The list of functions which takes a frame, persp and new-frame-p as arguments.
 If one of these functions return a non nil value then the window configuration
 of the persp will not be saved/restored for the frame"
@@ -3223,8 +3225,8 @@ Return `NAME'."
           (persp-set-frame-buffer-predicate frame))
         (persp-set-frame-server-switch-hook frame)
         (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
-                  (eq persp-init-frame-behaviour 'persp-ignore-wconf-once))
-          (set-frame-parameter frame persp-init-frame-behaviour t))
+                  (numberp persp-init-frame-behaviour))
+          (set-frame-parameter frame 'persp-ignore-wconf persp-init-frame-behaviour))
         (persp-activate persp frame new-frame-p)))))
 
 (defun persp-delete-frame (frame)
@@ -3251,8 +3253,7 @@ Return `NAME'."
      (lambda (f)
        (and f
             (if for-save
-                (and (not (frame-parameter f 'persp-ignore-wconf))
-                     (not (frame-parameter f 'persp-ignore-wconf-once)))
+                (not (frame-parameter f 'persp-ignore-wconf))
               t)
             (eq persp (get-frame-persp f))))
      flist)))
