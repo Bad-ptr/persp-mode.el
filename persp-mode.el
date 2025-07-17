@@ -956,6 +956,17 @@ of the persp will not be saved/restored for the frame"
   :group 'persp-mode
   :type '(repeat function))
 
+(defcustom persp-get-window-for-state-get-put-function
+  #'frame-root-window
+  "Function to get window for saving/restoring window configuration of a frame."
+  :group 'persp-mode
+  :type '(choise
+          (const :tag "Use frame root window" :value #'frame-root-window)
+          (const :tag "Use frame main window" :value #'window-main-window)
+          (function :tag "Custom function"
+                    :value (lambda (&optional frame)
+                             (frame-first-window frame)))))
+
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
       (lambda (&optional frame _rwin _writable)
@@ -963,13 +974,17 @@ of the persp will not be saved/restored for the frame"
           (with-selected-frame frame (wg-make-wconfig))))
     (if (version< emacs-version "24.4")
         (lambda (&optional frame rwin _writable)
-          (when (or rwin (setq rwin (frame-root-window
-                                     (or frame (selected-frame)))))
+          (when (or rwin (setq rwin
+                               (funcall
+                                persp-get-window-for-state-get-put-function
+                                (or frame (selected-frame)))))
             (when (fboundp 'window-state-get)
               (window-state-get rwin))))
       (lambda (&optional frame rwin writable)
-        (when (or rwin (setq rwin (frame-root-window
-                                   (or frame (selected-frame)))))
+        (when (or rwin (setq rwin
+                             (funcall
+                              persp-get-window-for-state-get-put-function
+                              (or frame (selected-frame)))))
           (window-state-get rwin writable)))))
   "Function for getting a window configuration of a frame, accept
 two optional arguments:
@@ -995,7 +1010,8 @@ Return the buffer if it was found, nil otherwise."
                                    nil))))))
               (wg-restore-wconfig pwc)))))
     (lambda (pwc &optional frame rwin)
-      (when (or rwin (setq rwin (frame-root-window
+      (when (or rwin (setq rwin (funcall
+                                 persp-get-window-for-state-get-put-function
                                  (or frame (selected-frame)))))
         (when (fboundp 'window-state-put)
           (window-state-put pwc rwin t)))))
