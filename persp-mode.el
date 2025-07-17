@@ -1006,6 +1006,17 @@ and another -- root window(default is the root window of the selected frame)."
   :group 'persp-mode
   :type 'function)
 
+(defcustom persp-get-window-to-put-window-conf-filter-functions
+  (list
+   (lambda (win)
+     (or (not (window-live-p win))
+         (window-minibuffer-p win)
+         (window-parameter win 'window-side)
+         (window-parameter win 'persp-window-not-appropriate-to-restore-win-conf))))
+  "Return nil if window can be used to restore window configuration."
+  :group 'persp-mode
+  :type '(repeat function))
+
 (defcustom persp-buffer-list-function (symbol-function 'buffer-list)
   "The function that is used mostly internally by persp-mode functions
 to get a list of all buffers."
