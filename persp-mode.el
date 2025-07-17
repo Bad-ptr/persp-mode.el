@@ -939,9 +939,9 @@ function -- run that function."
   (list (lambda (f _p _new-f-p)
           (or (not (frame-live-p f))
               (and (featurep 'posframe)
-				   (or (frame-parameter f 'posframe-buffer)
-					   (frame-parameter f 'posframe-parent-buffer)
-					   (string= "posframe" (frame-parameter f 'title))))
+                   (or (frame-parameter f 'posframe-buffer)
+                       (frame-parameter f 'posframe-parent-buffer)
+                       (string= "posframe" (frame-parameter f 'title))))
               (persp-is-frame-daemons-frame f)
               (let ((f-piw (frame-parameter f 'persp-ignore-wconf)))
                 (if (numberp f-piw)
@@ -3754,7 +3754,7 @@ Return `NAME'."
          (cl-delete-if-not
           (apply-partially #'eq 'hook)
           (cl-mapcar #'car (get 'persp-mode 'custom-group))
-          :key #'(lambda (s) (get s 'custom-type)))))
+          :key (lambda (s) (get s 'custom-type)))))
     `(let (,@(cl-mapcar (lambda (h) (list h nil))
                         hook-list))
        (unwind-protect
