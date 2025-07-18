@@ -957,7 +957,7 @@ of the persp will not be saved/restored for the frame"
   :type '(repeat function))
 
 (defcustom persp-get-window-for-state-get-put-function
-  #'frame-root-window
+  #'window-main-window
   "Function to get window for saving/restoring window configuration of a frame."
   :group 'persp-mode
   :type '(choise
@@ -967,29 +967,70 @@ of the persp will not be saved/restored for the frame"
                     :value (lambda (&optional frame)
                              (frame-first-window frame)))))
 
+(defcustom persp-before-window-state-get-functions
+  (list (lambda (frame win writable)
+          (when (eq #'frame-root-window
+                      persp-get-window-for-state-get-put-function)
+            (persp-hide-side-windows frame))
+          (list frame win writable)))
+  "Run functions before `persp-window-state-get-function'.
+Return list of arguments.
+Return nil to abort."
+  :group 'persp-mode
+  :type '(repeat function))
+
+(defcustom persp-after-window-state-get-functions
+  (list (lambda (wc/ret frame _win _writable)
+          (when (eq #'frame-root-window
+                      persp-get-window-for-state-get-put-function)
+            (persp-restore-side-windows frame))
+          (or wc/ret t)))
+  "Run functions after `persp-window-state-get-function'.
+Return nil to abort."
+  :group 'persp-mode
+  :type '(repeat function))
+
+(defcustom persp-before-window-state-put-functions
+  (list (lambda (wc frame win)
+          (when (eq #'frame-root-window
+                      persp-get-window-for-state-get-put-function)
+            (persp-hide-side-windows frame))
+          (list wc frame win)))
+  "Run `persp-before-window-state-put-functions'.
+Return list of arguments.
+Return nil to abort."
+  :group 'persp-mode
+  :type '(repeat function))
+
+(defcustom persp-after-window-state-put-functions
+  (list (lambda (ret _wc frame _win)
+          (when (eq #'frame-root-window
+                      persp-get-window-for-state-get-put-function)
+            (persp-restore-side-windows frame))
+          (or ret t)))
+  "Run `persp-after-window-state-put-functions'.
+Return nil to abort."
+  :group 'persp-mode
+  :type '(repeat function))
+
 (defcustom persp-window-state-get-function
   (if persp-use-workgroups
-      (lambda (&optional frame _rwin _writable)
-        (when (or frame (setq frame (selected-frame)))
+      (lambda (frame &rest _ignore)
+        (when frame
           (with-selected-frame frame (wg-make-wconfig))))
     (if (version< emacs-version "24.4")
-        (lambda (&optional frame rwin _writable)
-          (when (or rwin (setq rwin
-                               (funcall
-                                persp-get-window-for-state-get-put-function
-                                (or frame (selected-frame)))))
+        (lambda (frame rwin &rest _ignore)
+          (when rwin
             (when (fboundp 'window-state-get)
               (window-state-get rwin))))
-      (lambda (&optional frame rwin writable)
-        (when (or rwin (setq rwin
-                             (funcall
-                              persp-get-window-for-state-get-put-function
-                              (or frame (selected-frame)))))
+      (lambda (frame rwin &optional writable)
+        (when rwin
           (window-state-get rwin writable)))))
   "Function for getting a window configuration of a frame, accept
-two optional arguments:
-first -- a frame(default is the selected one)
-second -- a root window(default is the root window of the selected frame)."
+three arguments:
+first -- a frame
+second -- a window(like the root window of a frame)
+third -- is state must be writable"
   :group 'persp-mode
   :type 'function)
 
@@ -1014,11 +1055,12 @@ Return the buffer if it was found, nil otherwise."
                                  persp-get-window-for-state-get-put-function
                                  (or frame (selected-frame)))))
         (when (fboundp 'window-state-put)
-          (window-state-put pwc rwin t)))))
+          (let ((window-restore-killed-buffer-windows t))
+            (window-state-put pwc rwin t))))))
   "Function for restoring a window configuration. Accept a window configuration
 obtained by the `persp-window-state-get-function' and two optional arguments:
-one -- a frame(default is the selected frame)
-and another -- root window(default is the root window of the selected frame)."
+one -- a frame
+and another -- window(like root or main window of a frame)."
   :group 'persp-mode
   :type 'function)
 
@@ -3886,16 +3928,40 @@ Return `NAME'."
                 (window-resize-pixelwise t))
             (or
              (condition-case-unless-debug _err
-                 (split-window (frame-root-window frame) nil 'right)
+                 (split-window (window-main-window frame) nil 'right)
                (error nil))
              (condition-case-unless-debug _err
-                 (split-window (frame-root-window frame) nil 'below)
+                 (split-window (window-main-window frame) nil 'below)
                (error nil))))))
   (unless win
     (setq win (frame-first-window frame)))
   (when win
     (persp-configure-window-to-restore-window-conf win))
   win)
+
+(defun persp-hide-side-windows (&optional frame)
+  (setq frame (or frame (selected-frame)))
+  (let ((window--sides-inhibit-check t)
+        state)
+    (when (window-with-parameter 'window-side nil frame)
+      (set-frame-parameter frame 'persp-side-windows-state
+                           (setq state
+                                 (window-state-get (frame-root-window frame))))
+      (let ((ignore-window-parameters t))
+        (delete-other-windows (window-main-window frame)))
+      state)))
+
+(defun persp-restore-side-windows (&optional frame)
+  (setq frame (or frame (selected-frame)))
+  (let ((window--sides-inhibit-check t)
+        (state (frame-parameter frame 'persp-side-windows-state)))
+    (when state
+      (let ((window-combination-resize t)
+            (main-state (window-state-get (frame-root-window frame))))
+        (window-state-put state (frame-root-window frame) t)
+        (window-state-put main-state (window-main-window frame) t))
+      (window--sides-reverse-frame frame)
+      state)))
 
 (defun persp-delete-other-windows (&optional frame win)
   (setq win (or (and (window-live-p win) win)
@@ -3910,6 +3976,56 @@ Return `NAME'."
         (error
          (message "[persp-mode] Warning: Can not delete-other-windows -- %S" err)
          nil)))))
+
+(defun persp-window-state-get (&optional frame win writable)
+  (setq frame (or frame (selected-frame))
+        win (or win (funcall
+                     persp-get-window-for-state-get-put-function
+                     frame)))
+  (let ((args (list frame win writable))
+        (hook-i persp-before-window-state-get-functions)
+        ret)
+    (while (and hook-i (setq args (apply (car hook-i) args)))
+      (setq hook-i (cdr hook-i)))
+    (when args
+      (setq ret (apply persp-window-state-get-function args))
+      (setq hook-i persp-after-window-state-get-functions)
+      (let ((tmp-ret ret))
+        (while (and hook-i
+                    (setq tmp-ret (apply (car hook-i) tmp-ret args)))
+          (setq hook-i (cdr hook-i)))
+        (when tmp-ret
+          ret)))))
+
+(defun persp-window-state-put (wc &optional frame win)
+  (setq frame (or frame (selected-frame))
+        win (or win (funcall
+                     persp-get-window-for-state-get-put-function
+                     frame)))
+  (let ((args (list wc frame win))
+        (hook-i persp-before-window-state-put-functions)
+        ret)
+    (while (and hook-i (setq args (apply (car hook-i) args)))
+      (setq hook-i (cdr hook-i)))
+    (when args
+      ;; (setq wc    (car args)
+      ;;       frame (cadr args)
+      ;;       win   (caddr args))
+      ;; (unless (window-live-p win)
+      ;;   (setq win (funcall
+      ;;              persp-get-window-for-state-get-put-function
+      ;;              frame))
+      ;;   (setq args (list wc frame win)))
+      (setq ret (let ((ignore-window-parameters t)
+                      (window--sides-inhibit-check t))
+                  (apply persp-window-state-put-function args)))
+      (setq hook-i persp-after-window-state-put-functions)
+      (let ((tmp-ret ret))
+        (while (and hook-i
+                    (setq tmp-ret (apply (car hook-i) tmp-ret args)))
+          (setq hook-i (cdr hook-i)))
+        (when tmp-ret
+          ret)))))
 
 (cl-defun persp-restore-window-conf (&optional (frame (selected-frame))
                                                (persp (get-frame-persp frame))
@@ -3941,8 +4057,7 @@ Return `NAME'."
                                 frame
                                 (persp-get-create-window-to-stay-alive-before-config-put frame))))
                     (condition-case-unless-debug err
-                        (let ((window-restore-killed-buffer-windows t))
-                          (funcall persp-window-state-put-function pwc frame))
+                        (persp-window-state-put pwc frame)
                       (error
                        (message
                         "[persp-mode] Warning: Can not restore the window \
@@ -3980,9 +4095,9 @@ configuration, because of the error -- %S" err)
         (persp-special-last-buffer-make-current))
       (if persp
           (setf (persp-window-conf persp)
-                (funcall persp-window-state-get-function frame))
+                (persp-window-state-get frame))
         (setq persp-nil-wconf
-              (funcall persp-window-state-get-function frame))))))
+              (persp-window-state-get frame))))))
 
 (cl-defun persp-save-state
     (&optional (persp (get-frame-persp)) exfr set-persp-special-last-buffer)
@@ -4023,8 +4138,8 @@ of selected frame so you must save/restore it if needed."
              (persp-delete-other-windows
               frame
               (persp-get-create-window-to-stay-alive-before-config-put frame)))
-            (funcall persp-window-state-put-function wc frame)
-            (setq wc (funcall persp-window-state-get-function frame nil t)))
+            (persp-window-state-put wc frame)
+            (setq wc (persp-window-state-get frame nil t)))
         (error
          (message "[persp-mode] Error: Can't convert window configuration to \
 readable/writable form: %S" err)
@@ -4275,12 +4390,12 @@ of the perspective %S can't be saved."
                         (persp-delete-other-windows
                          tmpf
                          (persp-get-create-window-to-stay-alive-before-config-put tmpf)))
-                       (funcall persp-window-state-put-function wc tmpf)
+                       (persp-window-state-put wc tmpf)
                        (if p
                            (setf (persp-window-conf p)
-                                 (funcall persp-window-state-get-function tmpf))
+                                 (persp-window-state-get tmpf))
                          (setq persp-nil-wconf
-                               (funcall persp-window-state-get-function tmpf))))))
+                               (persp-window-state-get tmpf))))))
                  (persp-persps *persp-hash* (regexp-opt persp-names))))))
         (t nil))
       (when sftr
