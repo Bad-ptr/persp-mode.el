@@ -4377,27 +4377,25 @@ of the perspective %S can't be saved."
   (when (and persp-names
              (not persp-use-workgroups) (not (version< emacs-version "24.4")))
     (let ((sftr (selected-frame)))
-      (cl-case from/to
-        (to-readable nil)
-        (from-readable
-         (persp-with-temp-frame
-          tmpf
-          (persp-with-nil-emacs-window-hooks
-           (mapc (lambda (p)
-                   (let ((wc (safe-persp-window-conf p)))
-                     (when wc
-                       (persp-configure-window-to-restore-window-conf
-                        (persp-delete-other-windows
-                         tmpf
-                         (persp-get-create-window-to-stay-alive-before-config-put tmpf)))
-                       (persp-window-state-put wc tmpf)
-                       (if p
-                           (setf (persp-window-conf p)
-                                 (persp-window-state-get tmpf))
-                         (setq persp-nil-wconf
-                               (persp-window-state-get tmpf))))))
-                 (persp-persps *persp-hash* (regexp-opt persp-names))))))
-        (t nil))
+      (persp-with-temp-frame
+       tmpf
+       (persp-with-nil-emacs-window-hooks
+        (mapc (lambda (p)
+                (let ((wc (safe-persp-window-conf p)))
+                  (when wc
+                    (persp-configure-window-to-restore-window-conf
+                     (persp-delete-other-windows
+                      tmpf
+                      (persp-get-create-window-to-stay-alive-before-config-put tmpf)))
+                    (persp-window-state-put wc tmpf)
+                    (if p
+                        (setf (persp-window-conf p)
+                              (persp-window-state-get tmpf nil
+                                                      (eq from/to 'to-readable)))
+                      (setq persp-nil-wconf
+                            (persp-window-state-get tmpf nil
+                                                    (eq from/to 'to-readable)))))))
+              (persp-persps *persp-hash* (regexp-opt persp-names)))))
       (when sftr
         (select-frame sftr)))))
 
