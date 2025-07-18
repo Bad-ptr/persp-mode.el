@@ -3777,25 +3777,37 @@ Return `NAME'."
            (progn
              ,@body)))))
 
+(defmacro persp-with-nil-emacs-window-hooks (&rest body)
+  `(let (window-configuration-change-hook
+         window-state-change-hook
+         window-state-change-functions
+         window-buffer-change-functions
+         window-size-change-functions)
+     ,@body))
+
+(defmacro persp-with-nil-emacs-frame-hooks (&rest body)
+  `(let (before-make-frame-hook
+         after-make-frame-functions
+         delete-frame-functions
+         focus-in-hook
+         server-after-make-frame-hook
+         (after-focus-change-function #'ignore))
+     ,@body))
+
 (defmacro persp-with-temp-frame (fvar &rest body)
   (cl-macrolet ((with-nil-frame-hooks
                  (&rest body)
                  ``(let ((*persp-pretend-switched-off* t)
-                         window-configuration-change-hook
-                         window-state-change-functions
-                         window-state-change-hook
-                         before-make-frame-hook
-                         after-make-frame-functions
-                         delete-frame-functions
                          ,@,(when (boundp 'server-switch-hook)
                               ''(server-switch-hook server-after-make-frame-hook))
                          ,@,(when ;; (and
                                 (boundp 'focus-in-hook)
                               ;; (null (get 'focus-in-hook 'byte-obsolete-variable))
                               ;; )
-                              ''(focus-in-hook focus-out-hook))
-                         after-focus-change-function)
-                     ,,@body)))
+                              ''(focus-in-hook focus-out-hook)))
+                     (persp-with-nil-emacs-frame-hooks
+                      (persp-with-nil-emacs-window-hooks
+                       ,,@body)))))
     `(let (,fvar)
        ,(with-nil-frame-hooks
          `(progn
@@ -4068,10 +4080,8 @@ of the perspective %S can't be saved."
     (when persplist
       (persp-with-temp-frame
        tmpf
-       (let (window-configuration-change-hook
-             window-state-change-hook
-             window-state-change-functions)
-         (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist))))))
+       (persp-with-nil-emacs-window-hooks
+        (mapcar (lambda (p) (persp-to-savelist p tmpf)) persplist))))))
 
 (defsubst persp-save-with-backups (fname)
   (when (and (string= fname
@@ -4257,23 +4267,21 @@ of the perspective %S can't be saved."
         (from-readable
          (persp-with-temp-frame
           tmpf
-          (let (window-configuration-change-hook
-                window-state-change-hook
-                window-state-change-functions)
-            (mapc (lambda (p)
-                    (let ((wc (safe-persp-window-conf p)))
-                      (when wc
-                        (persp-configure-window-to-restore-window-conf
-                         (persp-delete-other-windows
-                          tmpf
-                          (persp-get-create-window-to-stay-alive-before-config-put tmpf)))
-                        (funcall persp-window-state-put-function wc tmpf)
-                        (if p
-                            (setf (persp-window-conf p)
-                                  (funcall persp-window-state-get-function tmpf))
-                          (setq persp-nil-wconf
-                                (funcall persp-window-state-get-function tmpf))))))
-                  (persp-persps *persp-hash* (regexp-opt persp-names))))))
+          (persp-with-nil-emacs-window-hooks
+           (mapc (lambda (p)
+                   (let ((wc (safe-persp-window-conf p)))
+                     (when wc
+                       (persp-configure-window-to-restore-window-conf
+                        (persp-delete-other-windows
+                         tmpf
+                         (persp-get-create-window-to-stay-alive-before-config-put tmpf)))
+                       (funcall persp-window-state-put-function wc tmpf)
+                       (if p
+                           (setf (persp-window-conf p)
+                                 (funcall persp-window-state-get-function tmpf))
+                         (setq persp-nil-wconf
+                               (funcall persp-window-state-get-function tmpf))))))
+                 (persp-persps *persp-hash* (regexp-opt persp-names))))))
         (t nil))
       (when sftr
         (select-frame sftr)))))
