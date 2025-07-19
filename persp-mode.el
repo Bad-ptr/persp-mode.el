@@ -1019,11 +1019,11 @@ Return nil to abort."
         (when frame
           (with-selected-frame frame (wg-make-wconfig))))
     (if (version< emacs-version "24.4")
-        (lambda (frame rwin &rest _ignore)
+        (lambda (_frame rwin &rest _ignore)
           (when rwin
             (when (fboundp 'window-state-get)
               (window-state-get rwin))))
-      (lambda (frame rwin &optional writable)
+      (lambda (_frame rwin &optional writable)
         (when rwin
           (window-state-get rwin writable)))))
   "Function for getting a window configuration of a frame, accept
@@ -2270,7 +2270,7 @@ killed, but just removed from a perspective(s)."
         ((not (persp-with-name-exists-p nname phash))
          nname))))
 
-(defsubst persp-is-frame-daemons-frame (f)
+(defun persp-is-frame-daemons-frame (f)
   (and (fboundp 'daemonp) (daemonp) (eq f terminal-frame)))
 
 (defun persp-frame-list-without-daemon ()
@@ -3831,7 +3831,6 @@ Return `NAME'."
   `(let (before-make-frame-hook
          after-make-frame-functions
          delete-frame-functions
-         focus-in-hook
          server-after-make-frame-hook
          (after-focus-change-function #'ignore))
      ,@body))
