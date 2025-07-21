@@ -3868,10 +3868,9 @@ Return `NAME'."
                                (cons 'name "*persp-temp-frame*"))))
             (make-frame-invisible ,fvar t)
             (sit-for 0.01)
-            (persp-configure-window-to-restore-window-conf
-             (persp-delete-other-windows
-              ,fvar
-              (persp-get-create-window-to-stay-alive-before-config-put ,fvar)))))
+            (persp-delete-other-windows
+             ,fvar
+             (persp-get-create-window-to-stay-alive-before-config-put ,fvar))))
        (unwind-protect
            (progn
              ,@body)
@@ -4051,10 +4050,9 @@ Return `NAME'."
             (let (win)
               (if pwc
                   (progn
-                    (setq win (persp-configure-window-to-restore-window-conf
-                               (persp-delete-other-windows
-                                frame
-                                (persp-get-create-window-to-stay-alive-before-config-put frame))))
+                    (setq win (persp-delete-other-windows
+                               frame
+                               (persp-get-create-window-to-stay-alive-before-config-put frame)))
                     (condition-case-unless-debug err
                         (persp-window-state-put pwc frame)
                       (error
@@ -4072,14 +4070,14 @@ configuration, because of the error -- %S" err)
                 (when persp-reset-windows-on-nil-window-conf
                   (if (functionp persp-reset-windows-on-nil-window-conf)
                       (funcall persp-reset-windows-on-nil-window-conf frame persp new-frame-p)
-                    (setq win (persp-configure-window-to-restore-window-conf
-                               (persp-delete-other-windows
-                                frame
-                                (persp-get-create-window-to-stay-alive-before-config-put frame))))
-                    (let* ((pbs (safe-persp-buffers persp))
-                           (wb (window-buffer win)))
-                      (when (and pbs (not (memq wb pbs)))
-                        (persp-set-another-buffer-for-window wb win persp)))))))))
+                    (setq win (persp-delete-other-windows
+                               frame
+                               (persp-get-create-window-to-stay-alive-before-config-put frame)))
+                    (when (window-live-p win)
+                      (let* ((pbs (safe-persp-buffers persp))
+                             (wb (window-buffer win)))
+                        (when (and pbs (not (memq wb pbs)))
+                          (persp-set-another-buffer-for-window wb win persp))))))))))
         (when gr-mode (golden-ratio-mode 1))))))
 
 
@@ -4133,10 +4131,9 @@ of selected frame so you must save/restore it if needed."
     (when frame
       (condition-case-unless-debug err
           (progn
-            (persp-configure-window-to-restore-window-conf
-             (persp-delete-other-windows
-              frame
-              (persp-get-create-window-to-stay-alive-before-config-put frame)))
+            (persp-delete-other-windows
+             frame
+             (persp-get-create-window-to-stay-alive-before-config-put frame))
             (persp-window-state-put wc frame)
             (setq wc (persp-window-state-get frame nil t)))
         (error
@@ -4382,10 +4379,9 @@ of the perspective %S can't be saved."
         (mapc (lambda (p)
                 (let ((wc (safe-persp-window-conf p)))
                   (when wc
-                    (persp-configure-window-to-restore-window-conf
-                     (persp-delete-other-windows
-                      tmpf
-                      (persp-get-create-window-to-stay-alive-before-config-put tmpf)))
+                    (persp-delete-other-windows
+                     tmpf
+                     (persp-get-create-window-to-stay-alive-before-config-put tmpf))
                     (persp-window-state-put wc tmpf)
                     (if p
                         (setf (persp-window-conf p)
