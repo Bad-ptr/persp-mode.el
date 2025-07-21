@@ -1214,6 +1214,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
       (buffer-list)
     (safe-persp-buffers (get-current-persp frame window))))
 
+;; TODO: use keyword arguments add window argument
 (cl-defun persp-buffer-list-restricted
     (&optional
      (frame (selected-frame)) (option *persp-restrict-buffers-to*)
