@@ -2574,7 +2574,7 @@ killed, but just removed from a perspective(s)."
   (interactive)
   (let* ((persp-list (persp-names-current-frame-fast-ordered))
          (persp-list-length (length persp-list))
-         (only-perspective? (equal persp-list-length 1))
+         (only-perspective? (= persp-list-length 1))
          (pos (cl-position (safe-persp-name (get-current-persp)) persp-list)))
     (cond
      ((null pos) nil)
@@ -2588,7 +2588,7 @@ killed, but just removed from a perspective(s)."
   (interactive)
   (let* ((persp-list (persp-names-current-frame-fast-ordered))
          (persp-list-length (length persp-list))
-         (only-perspective? (equal persp-list-length 1))
+         (only-perspective? (= persp-list-length 1))
          (pos (cl-position (safe-persp-name (get-current-persp)) persp-list)))
     (cond
      ((null pos) nil)
@@ -2643,11 +2643,11 @@ Return the removed perspective."
   "Create a new perspective with the given `NAME'. Add it to `PHASH'.
 Return the created perspective."
   (interactive "sA name for the new perspective: ")
-  (if (and name (not (equal "" name)))
+  (if (and name (not (string= "" name)))
       (cl-destructuring-bind (e . p)
           (persp-by-name-and-exists name phash)
         (if e p
-          (setq p (if (equal persp-nil-name name)
+          (setq p (if (string= persp-nil-name name)
                       nil (make-persp :name name)))
           (persp-add p phash)
           (run-hook-with-args 'persp-created-functions p phash)
@@ -3299,7 +3299,7 @@ Return `NAME'."
          (persp-frame-save-state
           frame-or-window
           (if persp-set-last-persp-for-new-frames
-              (equal (safe-persp-name persp) persp-last-persp-name)
+              (string= (safe-persp-name persp) persp-last-persp-name)
             (null persp)))))
       (window
        (setq persp (get-window-persp frame-or-window))
