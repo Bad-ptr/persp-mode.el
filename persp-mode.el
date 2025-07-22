@@ -249,16 +249,11 @@ the selected window to a wrong buffer.")
   :type 'string
   :set (lambda (sym val)
          (when val
-           (when persp-mode
-             (cl-destructuring-bind (_frames . windows)
-                 (persp-frames-and-windows-with-persp
-                  (persp-get-by-name persp-nil-name *persp-hash* nil))
-               (dolist (win windows)
-                 (when (equal persp-nil-name (get-window-persp* win))
-                   (set-window-persp* win val))))
-             (run-hook-with-args
-              'persp-renamed-functions nil persp-nil-name val))
-           (custom-set-default sym val))))
+           (if (fboundp 'persp--rename)
+               (if (persp--rename val (persp-get-by-name persp-nil-name *persp-hash* nil))
+                   (custom-set-default sym val)
+                 (message "[persp-mode] Warning: failed to set persp-nil-name."))
+             (custom-set-default sym val)))))
 
 (defvar persp-last-persp-name persp-nil-name
   "The last activated perspective. New frames will be created with
@@ -3179,35 +3174,49 @@ Return that old buffer."
                               'yes 'yes))
   (persp-kill names))
 
+(cl-defun persp--rename (new-name
+                         &optional (persp (get-current-persp)) (phash *persp-hash*))
+  "Low level renaming job."
+  (let ((opersp (persp-get-by-name new-name phash))
+        (old-name (safe-persp-name persp)))
+    (if (and (not (persp-p opersp)) new-name
+             (not (string= old-name new-name)))
+        (progn
+          (when (eq phash *persp-hash*)
+            (persp-remove-from-menu persp)
+            (cl-destructuring-bind (_frames . windows)
+                (persp-frames-and-windows-with-persp persp)
+              (dolist (win windows)
+                (when (string= old-name (get-window-persp* win))
+                  (set-window-persp* win new-name)))))
+          (remhash old-name phash)
+          (if persp
+              (setf (persp-name persp) new-name)
+            (setq persp-nil-name new-name))
+          (puthash new-name persp phash)
+          (when (eq phash *persp-hash*)
+            (persp-add-to-menu persp)
+            (run-hook-with-args
+             'persp-renamed-functions persp old-name new-name)
+            (when (string= old-name persp-last-persp-name)
+              (setq persp-last-persp-name new-name)))
+          old-name)
+      (message
+       "[persp-mode] Error: There is already a perspective with that name: %S."
+       new-name)
+      nil)))
 (cl-defun persp-rename (new-name
                         &optional (persp (get-current-persp)) (phash *persp-hash*))
   "Change the name field of the `PERSP'.
 Return old name on success, otherwise nil."
   (interactive "i")
   (if persp
-      (let ((opersp (persp-get-by-name new-name phash))
-            (old-name (safe-persp-name persp)))
+      (progn
         (unless new-name
           (setq new-name
                 (read-string
                  (concat "New name for the " old-name " perspective: ") old-name)))
-        (if (and (not (persp-p opersp)) new-name
-                 (not (equal old-name new-name)))
-            (progn
-              (when (eq phash *persp-hash*)
-                (persp-remove-from-menu persp))
-              (remhash old-name phash)
-              (setf (persp-name persp) new-name)
-              (puthash new-name persp phash)
-              (when (eq phash *persp-hash*)
-                (persp-add-to-menu persp)
-                (run-hook-with-args
-                 'persp-renamed-functions persp old-name new-name))
-              old-name)
-          (message
-           "[persp-mode] Error: There is already a perspective with that name: %S."
-           new-name)
-          nil))
+        (persp--rename new-name persp phash))
     (message
      "[persp-mode] Error: You can't rename the `nil' perspective, use \
 M-x: customize-variable RET persp-nil-name RET")
