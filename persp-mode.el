@@ -812,6 +812,15 @@ If a function returns \\='skip -- don\\='t restore a buffer."
   :group 'persp-mode
   :type '(repeat function))
 
+(defcustom persp-load-buffer-handle-missing-file-functions
+  (list (lambda (bsl) (get-buffer-create (cadr bsl))))
+  "Takes buffer definition with missing file as input.
+If returns buffer -- use that buffer.
+If returns nil -- follow to next function.
+If returns \\='skip -- don\\='t restore a buffer."
+  :group 'persp-mode
+  :type '(repeat function))
+
 (defcustom persp-mode-hook nil
   "The hook that's run after the `persp-mode' has been activated."
   :group 'persp-mode
@@ -4543,7 +4552,6 @@ of the perspective %S can't be saved."
            (apply fun args)
          (message "[persp-mode] Error: %S is not a function." fun)))))
 
-(defvar def-buffer nil)
 (defun persp-buffer-from-savelist (savelist)
   (when (eq (car savelist) 'def-buffer)
     (let* (persp-add-buffer-on-find-file
@@ -4560,7 +4568,9 @@ of the perspective %S can't be saved."
                        (message
                         "[persp-mode] Warning: The file %S no longer exists."
                         fname)
-                       (setq buf nil)))
+                       (setq buf (run-hook-with-args-until-success
+                                  'persp-load-buffer-handle-missing-file-functions
+                                  savelist))))
                  (if (and fname (file-exists-p fname))
                      (with-current-buffer (setq buf (find-file-noselect fname))
                        (unless (string= bname (buffer-name buf))
@@ -4569,7 +4579,9 @@ of the perspective %S can't be saved."
                      (message
                       "[persp-mode] Warning: The file %S no longer exists."
                       fname))
-                   (setq buf (get-buffer-create bname))))
+                   (setq buf (run-hook-with-args-until-success
+                              'persp-load-buffer-handle-missing-file-functions
+                              savelist))))
                (when (buffer-live-p buf)
                  (cl-macrolet
                      ((restorevars
