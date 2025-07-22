@@ -2438,32 +2438,119 @@ killed, but just removed from a perspective(s)."
     (cons frames windows)))
 
 
-(cl-defun persp-do-buffer-list-by-regexp (&key func regexp blist noask
-                                               (rest-args nil rest-args-p))
+(cl-defun persp-do-buffer-list-by-regexp (&key blist regexp func (rest-args nil rest-args-p)
+                                               noask)
   (interactive)
-  (unless func
-    (let ((fs (completing-read "What function to apply: " obarray 'functionp t)))
-      (when (and fs (not (string= fs "")))
-        (setq func (read fs)))))
-  (when func
-    (unless regexp
-      (setq regexp (read-regexp "Regexp: ")))
-    (when regexp
-      (unless blist
-        (setq blist (eval (read--expression "Buffer list expression: " "nil"))))
-      (when blist
-        (unless rest-args-p
-          (setq rest-args (read--expression "Rest arguments: " "nil")))
-        (setq blist
-              (cl-remove-if-not
-               (apply-partially #'persp-string-match-p regexp)
-               (mapcar #'get-buffer blist)
-               :key #'buffer-name))
-        (when (and blist
-                   (or noask (y-or-n-p (format "Do %s on these buffers:\n%s?\n"
-                                               func
-                                               (mapconcat #'buffer-name blist ", ")))))
-          (mapcar (lambda (b) (apply func b rest-args)) blist))))))
+
+  (unless blist
+    (setq blist (eval (read--expression "Buffer list expression: "
+                                        "(safe-persp-buffers (get-current-persp))"))))
+
+  (unless regexp
+    (let ((tmp
+           (condition-case-unless-debug _err
+               (with-temp-buffer
+                 (let* (preview-win
+                        (preview-buf (current-buffer))
+                        (buffer-names (mapcar #'buffer-name blist))
+                        matched-names
+                        (string-match-propertize-f
+                         (lambda (rex str)
+                           (when (condition-case err
+                                     (string-match rex str)
+                                   (error
+                                    (message "Error matching regex: %S" err)
+                                    (throw 'old-matched-names matched-names)
+                                    nil))
+                             (let ((new-str (copy-sequence str)))
+                               ;; (add-text-properties 0 (string-width new-str)
+                               ;;                      '(face header-line-highlight)
+                               ;;                      new-str)
+                               (add-text-properties (match-beginning 0) (match-end 0)
+                                                    '(face highlight)
+                                                    new-str)
+                               new-str))))
+                        (old-regex "") matched-names-str
+                        (separator ", ")
+                        (minibuf-post-command-h
+                         (lambda ()
+                           (when (and (minibuffer-window-active-p (selected-window))
+                                      (window-live-p preview-win))
+                             (let ((regex (minibuffer-contents))
+                                   (num-of-matched 0))
+                               (unless (string= old-regex regex)
+                                 (setq old-regex regex
+                                       matched-names (catch 'old-matched-names
+                                                       (cl-delete-if-not
+                                                        #'identity
+                                                        (mapcar
+                                                         (apply-partially string-match-propertize-f regex)
+                                                         buffer-names)))
+                                       num-of-matched (length matched-names)
+                                       matched-names-str (mapconcat #'identity matched-names separator))
+                                 (with-current-buffer preview-buf
+                                   (setq-local header-line-format (format "Number of matched buffers: %s"
+                                                                          num-of-matched)
+
+                                               mode-line-format header-line-format
+                                               fill-column (window-width preview-win))
+                                   (erase-buffer)
+                                   (insert matched-names-str)
+                                   (goto-char (point-min))
+                                   (fill-paragraph))))
+                             (fit-window-to-buffer preview-win 10 nil nil nil t))))
+                        (minibuf-setup-h
+                         (lambda ()
+                           (with-current-buffer preview-buf
+                             (setq-local header-line-format "Number of matched buffers: 0"
+                                         mode-line-format header-line-format
+                                         line-spacing 0.2))
+                           (setq preview-win (split-window-below -10 (window-main-window)))
+                           (set-window-buffer preview-win preview-buf)
+                           (set-window-dedicated-p preview-win t)
+                           ;; (set-window-margins preview-win 0 0)
+                           ;; (set-window-fringes preview-win 0 0)
+                           (window-preserve-size preview-win nil t)
+                           (add-hook 'post-command-hook minibuf-post-command-h))))
+                   (add-text-properties 0 (string-width separator)
+                                        '(face fringe) separator)
+                   (unwind-protect
+                       (minibuffer-with-setup-hook minibuf-setup-h
+                         (cons (read-regexp "Regexp: ") matched-names))
+                     (remove-hook 'post-command-hook minibuf-post-command-h)
+                     (when (window-live-p preview-win)
+                       (let ((ignore-window-parameters t)
+                             (window--sides-inhibit-check t))
+                         (delete-window preview-win))))))
+             (error
+              (read-regexp "Regexp: ")))))
+      (if (stringp tmp)
+          (setq regexp tmp)
+        (if (consp tmp)
+            (setq blist (mapcar #'get-buffer (cdr tmp)))
+          (setq regexp nil
+                blist nil)))))
+
+  (when (stringp regexp)
+    (setq blist (cl-remove-if-not
+                 (apply-partially #'persp-string-match-p regexp)
+                 (mapcar #'get-buffer blist)
+                 :key #'buffer-name)))
+
+  (when blist
+    (unless func
+      (let ((fs (completing-read "What function to apply: " obarray 'functionp t)))
+        (when (and fs (not (string= fs "")))
+          (setq func (read fs)))))
+
+    (unless rest-args-p
+      (setq rest-args (read--expression "Rest arguments: " "nil")))
+
+    (when (and func
+               (or noask (y-or-n-p (format "Do %s on these buffers(%s):\n%s?\n"
+                                           func (length blist)
+                                           (mapconcat #'buffer-name blist ", ")))))
+      (mapcar (lambda (b) (apply func b rest-args)) blist))))
 
 
 ;; Perspective funcs:
