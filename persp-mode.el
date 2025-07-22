@@ -4209,6 +4209,56 @@ configuration, because of the error -- %S" err)
                (cl-delete-if-not #'persp-buffer-free-p
                                  (funcall persp-buffer-list-function)))))))
 
+(defun persp-elisp-object-readable-p (obj)
+  (let (print-length print-level)
+    (or (stringp obj)
+        (not (string-match-p "#<.*?>" (prin1-to-string obj))))))
+
+(defun persp-window-conf-to-readable-homemade (wc)
+  (cl-labels
+      ((wc-to-writable
+        (it)
+        (cond
+         ((and it (listp it))
+          (cl-destructuring-bind (head . tail) it
+            (cond
+             ;; ((listp head)
+             ;;  (cons (wc-to-writable head)
+             ;;        (wc-to-writable tail)))
+             ((eq 'parameters head)
+              (let ((rw-params
+                     (delq nil
+                           (mapcar
+                            #'(lambda (pc)
+                                (when
+                                    (and
+                                     (eq 'writable
+                                         (alist-get (car pc) window-persistent-parameters))
+                                     (persp-elisp-object-readable-p (cdr pc)))
+                                  pc))
+                            tail))))
+                (if rw-params
+                    `(parameters
+                      ,@rw-params)
+                  :delete)))
+             (t
+              (let ((new-head (wc-to-writable head))
+                    (new-tail (wc-to-writable tail)))
+                (when (eq :delete new-tail)
+                  (setq new-tail nil))
+                (if (eq :delete new-head)
+                    new-tail
+                  (cons new-head
+                        new-tail)))))))
+         ((bufferp it)
+          (if (buffer-live-p it)
+              (buffer-name it)
+            "*Messages*"))
+         ((markerp it)
+          (marker-position it))
+         (t it))))
+    (wc-to-writable wc)))
+
 (defun persp-window-conf-to-savelist (persp &optional wccp-or-frame)
   "When wccp-or-frame -- convert window config to writable form for
 writing to a file. For convertion it will set window configuration
@@ -4216,27 +4266,26 @@ of selected frame so you must save/restore it if needed."
   (let ((wc (safe-persp-window-conf persp))
         (frame (when wccp-or-frame (if (framep wccp-or-frame)
                                        wccp-or-frame (selected-frame)))))
-    (when frame
-      (condition-case-unless-debug err
-          (progn
-            (persp-delete-other-windows
-             frame
-             (persp-get-create-window-to-stay-alive-before-config-put frame))
-            (persp-window-state-put wc frame)
-            (setq wc (persp-window-state-get frame nil t)))
-        (error
-         (message "[persp-mode] Error: Can't convert window configuration to \
+    (unless (persp-elisp-object-readable-p wc)
+      (when frame
+        (condition-case-unless-debug err
+            (progn
+              (persp-delete-other-windows
+               frame
+               (persp-get-create-window-to-stay-alive-before-config-put frame))
+              (persp-window-state-put wc frame)
+              (setq wc (persp-window-state-get frame nil t)))
+          (error
+           (message "[persp-mode] Error: Can't convert window configuration to \
 readable/writable form: %S" err)
-         (setq wc (safe-persp-window-conf persp)))))
+           (unless persp-use-workgroups
+             (message "[persp-mode] trying to convert with homemade method")
+             (setq wc (persp-window-conf-to-readable-homemade
+                       (safe-persp-window-conf persp))))))))
     `(def-wconf ,(if (or persp-use-workgroups
                          (not (version< emacs-version "24.4")))
                      wc
                    nil))))
-
-(defun persp-elisp-object-readable-p (obj)
-  (let (print-length print-level)
-    (or (stringp obj)
-        (not (string-match-p "#<.*?>" (prin1-to-string obj))))))
 
 (defun persp-parameters-to-savelist (persp)
   `(def-params ,(cl-remove-if
