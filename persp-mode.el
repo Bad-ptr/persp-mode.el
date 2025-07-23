@@ -4572,6 +4572,7 @@ of the perspective %S can't be saved."
          (message "[persp-mode] Error: %S is not a function." fun)))))
 
 (defun persp-buffer-from-savelist (savelist)
+  (defvar def-buffer)
   (when (eq (car savelist) 'def-buffer)
     (let* (persp-add-buffer-on-find-file
            (buf nil)
@@ -4653,18 +4654,18 @@ of the perspective %S can't be saved."
         find-ret)
       savelist))))
 
-(defvar def-wconf nil)
 (defun persp-window-conf-from-savelist-0 (savelist)
+  (defvar def-wconf)
   (let ((def-wconf #'identity))
     (persp-car-as-fun-cdr-as-args savelist)))
 
-(defvar def-params nil)
 (defun persp-parameters-from-savelist-0 (savelist)
+  (defvar def-params)
   (let ((def-params #'identity))
     (persp-car-as-fun-cdr-as-args savelist)))
 
-(defvar def-persp nil)
 (defun persp-from-savelist-0 (savelist phash persp-file)
+  (defvar def-persp)
   (let ((def-persp
           (lambda (name dbufs dwc &optional dparams weak auto hidden)
             (let* ((pname (or name persp-nil-name))
