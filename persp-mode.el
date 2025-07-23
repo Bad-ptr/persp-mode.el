@@ -71,6 +71,7 @@
 ;;; Code:
 
 
+
 ;; Prerequirements:
 
 (require 'cl-lib)
@@ -226,6 +227,7 @@ the selected window to a wrong buffer.")
     (ignore remove) ;;Silence byte-compiler.
     (let ((x (assq key alist)))
       (if x (cdr x) default))))
+
 
 
 ;; Customization variables:
@@ -1438,6 +1440,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 (defun persp--buffer-in-persps-remove (buf persp)
   (persp--buffer-in-persps-set
    buf (cl-delete persp (persp--buffer-in-persps buf) :count 1)))
+
 
 
 ;; Used in mode defenition:
@@ -1503,6 +1506,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 (defun persp-special-last-buffer-make-current ()
   (unless *persp-pretend-switched-off*
     (setq persp-special-last-buffer (current-buffer))))
+
 
 
 ;; Auto persp functions:
@@ -1848,6 +1852,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 ;;;###autoload
 (define-obsolete-function-alias 'def-auto-persp 'persp-def-auto-persp
   "persp-mode 2.9.6")
+
 
 
 ;; Custom save/load functions:
@@ -1943,6 +1948,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 (define-obsolete-function-alias
   'def-persp-buffer-save/load 'persp-def-buffer-save/load
   "persp-mode 2.9.6")
+
 
 
 ;; Mode itself:
@@ -2063,6 +2069,7 @@ Here is a keymap of this minor mode:
     (setq *persp-hash* nil)
     (setq persp-buffer-props-hash nil)
     (persp-update-names-cache nil t)))
+
 
 
 ;; Hooks:
@@ -2253,6 +2260,7 @@ killed, but just removed from a perspective(s)."
       (error
        (message "[persp-mode] Error: error in server-switch-hook -- %S"
                 err)))))
+
 
 
 ;; Misc funcs:
@@ -2555,6 +2563,7 @@ killed, but just removed from a perspective(s)."
                                            func (length blist)
                                            (mapconcat #'buffer-name blist ", ")))))
       (mapcar (lambda (b) (apply func b rest-args)) blist))))
+
 
 
 ;; Perspective funcs:
@@ -3432,6 +3441,7 @@ Return `NAME'."
               t)
             (eq persp (get-frame-persp f))))
      flist)))
+
 
 
 ;; Helper funcs:
@@ -4836,6 +4846,7 @@ of the perspective %S can't be saved."
 (provide 'persp-mode)
 
 
+
 ;; Local Variables:
 ;; indent-tabs-mode: nil
 ;; End:
