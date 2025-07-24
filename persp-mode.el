@@ -4294,7 +4294,8 @@ of selected frame so you must save/restore it if needed."
   (let ((wc (safe-persp-window-conf persp))
         (frame (when wccp-or-frame (if (framep wccp-or-frame)
                                        wccp-or-frame (selected-frame)))))
-    (unless (persp-elisp-object-readable-p wc)
+    (unless (or persp-use-workgroups
+                (persp-elisp-object-readable-p wc))
       (when frame
         (condition-case-unless-debug err
             (progn
@@ -4306,10 +4307,9 @@ of selected frame so you must save/restore it if needed."
           (error
            (message "[persp-mode] Error: Can't convert window configuration to \
 readable/writable form: %S" err)
-           (unless persp-use-workgroups
-             (message "[persp-mode] trying to convert with homemade method")
-             (setq wc (persp-window-conf-to-readable-homemade
-                       (safe-persp-window-conf persp))))))))
+           (message "[persp-mode] trying to convert with homemade method")
+           (setq wc (persp-window-conf-to-readable-homemade
+                     (safe-persp-window-conf persp)))))))
     `(def-wconf ,(if (or persp-use-workgroups
                          (not (version< emacs-version "24.4")))
                      wc
