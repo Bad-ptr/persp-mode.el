@@ -2272,9 +2272,11 @@ killed, but just removed from a perspective(s)."
 (cl-defun persp-with-name-exists-p (name &optional (phash *persp-hash*))
   (persp-p (persp-get-by-name name phash)))
 
-(cl-defun persp-by-name-and-exists (name &optional (phash *persp-hash*))
+(cl-defun persp-get-by-name-and-exists (name &optional (phash *persp-hash*))
   (let ((persp (persp-get-by-name name phash)))
     (cons (persp-p persp) persp)))
+(define-obsolete-function-alias
+  'persp-by-name-and-exists 'persp-get-by-name-and-exists "persp-mode 3.9.0")
 
 (cl-defun persp-gen-random-name (&optional name (phash *persp-hash*))
   (unless name (setq name (number-to-string (random))))
@@ -2331,7 +2333,7 @@ killed, but just removed from a perspective(s)."
   (let ((pn (get-window-persp* window)))
     (when pn
       (cl-destructuring-bind (e . p)
-          (persp-by-name-and-exists pn)
+          (persp-get-by-name-and-exists pn)
         (and e p)))))
 ;; TODO: rename
 (defun clear-window-persp (&optional window)
@@ -2654,7 +2656,7 @@ Return the created perspective."
   (interactive "sA name for the new perspective: ")
   (if (and name (not (string= "" name)))
       (cl-destructuring-bind (e . p)
-          (persp-by-name-and-exists name phash)
+          (persp-get-by-name-and-exists name phash)
         (if e p
           (setq p (if (string= persp-nil-name name)
                       nil (make-persp :name name)))
