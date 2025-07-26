@@ -1258,6 +1258,18 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 (defun persp-nil-p (obj)
   (or (null obj) (eq obj persp-nil-persp)))
 
+(cl-defun persp-normalize-persp-arg (obj &optional (phash *persp-hash*)
+                                         (default persp-not-persp))
+  (cond
+   ((perspective-p obj) obj)
+   ((null obj) persp-nil-persp)
+   ((stringp obj) (persp-get-by-name obj phash default))
+   (t default)))
+
+(cl-defmacro persp-normalize-persp-arg* (&optional (p-var 'persp) (ph-var '*persp-hash*)
+                                                   (dflt-var 'persp-not-persp))
+  `(setq ,p-var (persp-normalize-persp-arg ,p-var ,ph-var ,dflt-var)))
+
 (defun persp-buffer-list (&optional frame window)
   (if *persp-pretend-switched-off*
       (buffer-list)
@@ -1703,6 +1715,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
         (noauto (alist-get :noauto state))
         (weak (alist-get :weak state))
         (parameters (alist-get :parameters state)))
+    (persp-normalize-persp-arg*)
     (unless (persp-nil-p persp)
       (when (not noauto)
         (setf (persp-auto persp) t))
@@ -2207,6 +2220,7 @@ killed, but just removed from a perspective(s)."
           (remhash buffer persp-buffer-props-hash))))))
 
 (defun persp--remove-dead-buffers (persp &optional bufname)
+  (persp-normalize-persp-arg*)
   (unless (persp-nil-p persp)
     (setf (persp-buffers persp)
           (cl-delete-if-not
@@ -2742,6 +2756,7 @@ Return the created perspective."
                (switchorno persp-switch-to-added-buffer)
                (called-interactively-p (called-interactively-p 'any)))
   (interactive "i")
+  (persp-normalize-persp-arg*)
   (when (and called-interactively-p current-prefix-arg)
     (setq switchorno (not switchorno)))
   (unless buffs-or-names
@@ -2772,6 +2787,7 @@ Return the created perspective."
 
 (cl-defun persp-add-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
   (interactive)
+  (persp-normalize-persp-arg*)
   (unless (persp-nil-p persp)
     (persp-do-buffer-list-by-regexp
      :regexp regexp :func 'persp-add-buffer :rest-args (list persp nil)
@@ -2866,6 +2882,7 @@ Return the created perspective."
   "Remove BUFFS-OR-NAMES(which may be a single buffer or a list of buffers)
 from the PERSP. On success return removed buffers otherwise nil."
   (interactive "i")
+  (persp-normalize-persp-arg*)
 
   ;; TODO: remove these parameters
   (ignore called-from-kill-buffer-hook rem-from-nil-opt switch)
@@ -2925,6 +2942,7 @@ from the PERSP. On success return removed buffers otherwise nil."
 (cl-defun persp-remove-buffers-by-regexp
     (&optional regexp (persp (get-current-persp)))
   (interactive)
+  (persp-normalize-persp-arg*)
   (unless (persp-nil-p persp)
     (persp-do-buffer-list-by-regexp
      :regexp regexp :func 'persp-remove-buffer
@@ -2943,6 +2961,7 @@ cause it already contain all buffers.")
      &optional (persp-to (get-current-persp)) (phash *persp-hash*))
   "Import buffers from perspectives with the given names to another one."
   (interactive "i")
+  (persp-normalize-persp-arg* persp-to phash)
   (unless (listp names) (setq names (list names)))
   (unless names
     (setq names (persp-read-persp "to import buffers from" t nil t nil t)))
@@ -2955,6 +2974,7 @@ cause it already contain all buffers.")
      &optional (persp-to (get-current-persp)) (phash *persp-hash*)
      no-update-frames)
   (interactive "i")
+  (persp-normalize-persp-arg* persp-to phash)
   (unless name
     (setq name (persp-read-persp
                 "to import window configuration from" nil nil t nil t)))
@@ -3257,6 +3277,7 @@ Return that old buffer."
   "Change the name field of the `PERSP'.
 Return old name on success, otherwise nil."
   (interactive "i")
+  (persp-normalize-persp-arg* persp phash)
   (if (not (persp-nil-p persp))
       (let ((old-name (safe-persp-name persp)))
         (unless new-name
