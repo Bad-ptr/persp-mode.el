@@ -3133,12 +3133,6 @@ Return that old buffer."
           (persp-set-another-buffer-for-window old-buf w))))
     old-buf))
 
-(cl-defsubst persp-filter-out-bad-buffers (&optional (persp (get-current-persp)))
-  ;; filter out killed buffers
-  (unless (persp-nil-p persp)
-    (setf (persp-buffers persp)
-          (cl-delete-if-not #'persp-get-buffer-or-null (persp-buffers persp)))))
-
 (defun persp-hide (names)
   (interactive "i")
   (unless (listp names) (setq names (list names)))
