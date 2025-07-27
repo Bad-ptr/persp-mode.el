@@ -1097,16 +1097,19 @@ and another -- window(like root or main window of a frame)."
   :group 'persp-mode
   :type 'function)
 
-(defcustom persp-get-window-to-put-window-conf-filter-functions
+(defcustom persp-window-to-stay-alive-filter-functions
   (list
    (lambda (win)
      (or (not (window-live-p win))
          (window-minibuffer-p win)
          (window-parameter win 'window-side)
          (window-parameter win 'persp-window-not-appropriate-to-restore-win-conf))))
-  "Return nil if window can be used to restore window configuration."
+  "Return nil if window can be only window before restoring window config."
   :group 'persp-mode
   :type '(repeat function))
+(make-obsolete 'persp-get-window-to-put-window-conf-filter-functions
+               'persp-window-to-stay-alive-filter-functions
+               "persp-mode 4.0.0")
 
 (defcustom persp-buffer-list-function (symbol-function 'buffer-list)
   "The function that is used mostly internally by persp-mode functions
@@ -4082,12 +4085,12 @@ Return `NAME'."
                        (frame-first-window frame)))))
   (when (and win
              (not (run-hook-with-args-until-failure
-                   'persp-get-window-to-put-window-conf-filter-functions
+                   'persp-window-to-stay-alive-filter-functions
                    win)))
     (setq win (cl-loop
                for nwin in (window-list frame 1 (next-window win 1 nil))
                unless (run-hook-with-args-until-failure
-                       'persp-get-window-to-put-window-conf-filter-functions
+                       'persp-window-to-stay-alive-filter-functions
                        nwin)
                return nwin)))
   (unless win
