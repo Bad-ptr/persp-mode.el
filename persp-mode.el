@@ -1227,7 +1227,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (name "")
   (buffers nil)
   (window-conf nil)
-  ;; reserved parameters: dont-save-to-file, persp-file.
+  ;; reserved parameters: dont-save-to-file, persp-file, not-auto-add-buffers.
   (parameters nil)
   (weak nil)
   (auto nil)
@@ -2262,8 +2262,10 @@ killed, but just removed from a perspective(s)."
 (defun persp-add-or-not-on-find-file ()
   (unless *persp-pretend-switched-off*
     (let ((no-select
-           (not (funcall persp-backtrace-frame-function 0 'find-file))))
+           (not (funcall persp-backtrace-frame-function 0 'find-file)))
+          (persp (get-current-persp)))
       (and
+       (not (persp-parameter 'not-auto-add-buffers persp))
        (cl-case persp-add-buffer-on-find-file
          ((nil) nil)
          (if-not-autopersp
@@ -2283,14 +2285,16 @@ killed, but just removed from a perspective(s)."
           t)
          (t t))
        (persp-add-buffer
-        (current-buffer) (get-current-persp) (not no-select) nil)))))
+        (current-buffer) persp (not no-select) nil)))))
 
 (defun persp-after-change-major-mode-h ()
   (unless *persp-pretend-switched-off*
-    (let ((buf (current-buffer)))
+    (let ((buf (current-buffer))
+          (persp (get-current-persp)))
       (persp-find-and-set-persps-for-buffer buf)
       (when
           (and
+           (not (persp-parameter 'not-auto-add-buffers persp))
            (cond
             ((functionp persp-add-buffer-on-after-change-major-mode)
              (funcall persp-add-buffer-on-after-change-major-mode buf))
@@ -2301,7 +2305,7 @@ killed, but just removed from a perspective(s)."
            (not
             (persp-buffer-filtered-out-p
              buf persp-add-buffer-on-after-change-major-mode-filter-functions)))
-        (persp-add-buffer buf (get-current-persp) nil nil)))))
+        (persp-add-buffer buf persp nil nil)))))
 
 (defun persp-server-switch ()
   (unless *persp-pretend-switched-off*
