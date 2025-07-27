@@ -1232,7 +1232,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (name "")
   (buffers nil)
   (window-conf nil)
-  ;; reserved parameters: dont-save-to-file, persp-file.
+  ;; reserved parameters: dont-save-to-file, persp-file, not-auto-add-buffers.
   (parameters nil)
   (weak nil)
   (auto nil)
@@ -2276,6 +2276,7 @@ killed, but just removed from a perspective(s)."
           (persp (get-current-persp)))
       (and
        persp
+       (not (persp-parameter 'not-auto-add-buffers persp))
        (cl-case persp-add-buffer-on-find-file
          ((nil) nil)
          (if-not-autopersp
@@ -2305,6 +2306,7 @@ killed, but just removed from a perspective(s)."
       (when
           (and
            (not (persp-nil-p persp))
+           (not (persp-parameter 'not-auto-add-buffers persp))
            (cond
             ((functionp persp-add-buffer-on-after-change-major-mode)
              (funcall persp-add-buffer-on-after-change-major-mode buf))
