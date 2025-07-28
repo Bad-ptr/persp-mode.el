@@ -952,8 +952,9 @@ function -- run that function."
 ;; TODO: rename to save-restore-window-conf-filter-functions
 ;; remove persp new-frame-p arguments or make them optional
 (defcustom persp-restore-window-conf-filter-functions
-  (list (lambda (f _p _new-f-p)
+  (list (lambda (f p _new-f-p)
           (or
+           (null p)
            (> 50 (frame-width f))
            (> 15 (frame-height f))
            (let ((f-piw (frame-parameter f 'persp-ignore-wconf)))
@@ -2373,7 +2374,7 @@ killed, but just removed from a perspective(s)."
          (let ((lighter
                 (let* ((persp-cons (persp-persp-param-assq f))
                        (persp (cdr persp-cons)))
-                  (if persp-cons
+                  (if persp
                       (format
                        (propertize
                         " #%.5s"
@@ -2529,7 +2530,7 @@ killed, but just removed from a perspective(s)."
       (setq ret (cl-delete-if-not
                  (apply-partially #'memq buf)
                  (delq persp
-                       (delq persp-nil-persp (delq nil (persp-persps phash))))
+                       (delq persp-nil-persp (persp-persps phash)))
                  :key #'persp-buffers))
       (when del-weak
         (setq ret (cl-delete-if #'persp-weak ret))))
@@ -2789,14 +2790,12 @@ Return the created perspective."
   (setq buffer-or-name (if buffer-or-name
                            (persp-get-buffer-or-null buffer-or-name)
                          (current-buffer)))
-  (mapc (lambda (p)
-          (when p
-            (persp-add-buffer buffer-or-name p nil nil)))
+  (mapc (lambda (p) (persp-add-buffer buffer-or-name p nil nil))
         (persp--buffer-in-persps buffer-or-name))
   (persp--buffer-in-persps-set
    buffer-or-name
    (cl-delete-if-not (apply-partially #'memq buffer-or-name)
-                     (delq persp-nil-persp (delq nil (persp-persps)))
+                     (delq persp-nil-persp (persp-persps))
                      :key #'persp-buffers)))
 
 (cl-defun persp-contain-buffer-p
@@ -3208,8 +3207,8 @@ Return that old buffer."
         (hidden-persps
          (mapcar (lambda (pn)
                    (let ((persp (persp-get-by-name pn)))
-                     (when (persp-p persp)
-                       (setf (persp-hidden (or persp persp-nil-persp)) t)
+                     (when (perspective-p persp)
+                       (setf (persp-hidden persp) t)
                        persp)))
                  names)))
     (when (persp-hidden persp-to-switch)
@@ -3238,8 +3237,8 @@ Return that old buffer."
   (when names
     (mapc (lambda (pn)
             (let ((persp (persp-get-by-name pn)))
-              (when (persp-p persp)
-                (setf (persp-hidden (or persp persp-nil-persp)) nil))))
+              (when (perspective-p persp)
+                (setf (persp-hidden persp) nil))))
           names)))
 
 (cl-defun persp-kill (names &optional dont-kill-buffers
