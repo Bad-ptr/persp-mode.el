@@ -44,7 +44,7 @@ see the `persp-autokill-buffer-on-remove` variable.
     (with-eval-after-load "persp-mode-autoloads"
       (setq wg-morph-on nil) ;; switch off animation
       (setq persp-autokill-buffer-on-remove 'kill-weak)
-      (add-hook 'window-setup-hook #'(lambda () (persp-mode 1))))
+      (add-hook 'window-setup-hook (lambda () (persp-mode 1))))
 
 ```
 
@@ -55,7 +55,7 @@ see the `persp-autokill-buffer-on-remove` variable.
     (with-eval-after-load "persp-mode"
       (setq wg-morph-on nil)
       (setq persp-autokill-buffer-on-remove 'kill-weak)
-      (add-hook 'window-setup-hook #'(lambda () (persp-mode 1))))
+      (add-hook 'window-setup-hook (lambda () (persp-mode 1))))
     (require 'persp-mode)
 
 ```
@@ -100,6 +100,8 @@ another buffer.
 `k` -- remove buffer from perspective.
 With prefix argument reverses the effect of the `persp-autokill-buffer-on-remove`.  
 `K` -- kill buffer.  
+`x` -- add buffers with names matching a regexp.  
+`X` -- remove buffers with names matching a regexp.  
 `w` -- save perspectives to file.  
 `W` -- save perspectives subset to file.  
 `l` -- load perspectives from file.  
@@ -187,7 +189,7 @@ Also you can use the `persp-def-buffer-save/load`:
       (persp-def-buffer-save/load
        :mode 'magit-status-mode :tag-symbol 'def-magit-status-buffer
        :save-vars '(major-mode default-directory)
-       :after-load-function #'(lambda (b &rest _)
+       :after-load-function (lambda (b &rest _)
                                 (with-current-buffer b (magit-refresh)))))
 
 ```
@@ -231,9 +233,11 @@ After that you can add functions to `after-switch-to-buffer-functions` and
 ```lisp
 
     (add-hook 'after-switch-to-buffer-functions
-        #'(lambda (bn) (when (and persp-mode
-                                  (not persp-temporarily-display-buffer))
-                         (persp-add-buffer bn))))
+          (lambda (bn) (when (and persp-mode
+                             (not persp-temporarily-display-buffer))
+                    (let ((persp (get-current-persp)))
+                      (unless (persp-parameter 'not-auto-add-buffers persp)
+                        (persp-add-buffer bn persp))))))
 
 ```
 
@@ -255,7 +259,7 @@ desired behavior by effecting `after-change-major-mode-hook`:
     ;; *magit* which you probably don't want. You can filter them out.
     (add-hook 'persp-common-buffer-filter-functions
     ;; there is also `persp-add-buffer-on-after-change-major-mode-filter-functions'
-        #'(lambda (b) (string-prefix-p "*" (buffer-name b))))
+        (lambda (b) (string-prefix-p "*" (buffer-name b))))
 
 ```
 
@@ -391,7 +395,7 @@ There is also `with-persp-read-buffer` macro.
 
 ```lisp
 
-    (global-set-key (kbd "C-x b") #'(lambda (arg)
+    (global-set-key (kbd "C-x b") (lambda (arg)
                                       (interactive "P")
                                       (with-persp-buffer-list () (bs-show arg))))
 
@@ -401,7 +405,7 @@ There is also `with-persp-read-buffer` macro.
 
 ```lisp
 
-    (global-set-key (kbd "C-x b") #'(lambda (arg)
+    (global-set-key (kbd "C-x b") (lambda (arg)
                                       (interactive "P")
                                       (with-persp-buffer-list () (ibuffer arg))))
 
@@ -493,7 +497,7 @@ Or add
 
     (add-to-list 'command-switch-alist
                    (cons "persp-q"
-                         #'(lambda (p)
+                         (lambda (p)
                              (setq persp-auto-resume-time -1
                                    persp-auto-save-opt 0))))
 
