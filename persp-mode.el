@@ -788,15 +788,8 @@ the current perspective after the `after-change-major-mode-hook' is fired."
                  b persp-filter-save-buffers-functions)
             'skip))
         #'persp-tramp-save-buffer
-        (lambda (b)
-          (when (eq 'dired-mode (buffer-local-value 'major-mode b))
-            `(def-buffer ,(buffer-name b)
-               ,(buffer-local-value 'default-directory b)
-               ,(buffer-local-value 'major-mode b))))
-        (lambda (b)
-          `(def-buffer ,(buffer-name b)
-             ,(buffer-file-name b)
-             ,(buffer-local-value 'major-mode b))))
+        #'persp-dired-save-buffer
+        #'persp-standard-save-buffer)
   "Convert a buffer to a structure that could be saved to a file.
 If a function returns nil -- follow to the next function in the list.
 If a function returns \\='skip -- don\\='t save a buffer."
@@ -4312,6 +4305,12 @@ configuration, because of the error -- %S" err)
     (when frame (persp-frame-save-state frame set-persp-special-last-buffer))))
 
 
+(defun persp-make-buffer-narrowing-parameter-cons (buf)
+  (when (and (buffer-live-p buf) (with-current-buffer buf
+                                   (buffer-narrowed-p)))
+    (cons 'narrow (with-current-buffer buf
+                    (cons (point-min) (point-max))))))
+
 (defun persp-buffers-to-savelist (persp)
   (cl-delete-if
    #'symbolp
@@ -4568,6 +4567,25 @@ of the perspective %S can't be saved."
             (cons :not names-regexp))))
         (persp-savelist-to-file savelist fname)))))
 
+(defun persp-dired-save-buffer (b)
+  (when (eq 'dired-mode (buffer-local-value 'major-mode b))
+    `(def-buffer ,(buffer-name b)
+       ,(buffer-local-value 'default-directory b)
+       ,(buffer-local-value 'major-mode b)
+       ,(let ((narrowing-param
+               (persp-make-buffer-narrowing-parameter-cons b)))
+          (when narrowing-param
+            (list narrowing-param))))))
+
+(defun persp-standard-save-buffer (b)
+  `(def-buffer ,(buffer-name b)
+     ,(buffer-file-name b)
+     ,(buffer-local-value 'major-mode b)
+     ,(let ((narrowing-param
+             (persp-make-buffer-narrowing-parameter-cons b)))
+        (when narrowing-param
+          (list narrowing-param)))))
+
 (defun persp-tramp-save-buffer (b)
   (let* ((buf-f-name (buffer-file-name b))
          (persp-tramp-file-name
@@ -4609,7 +4627,11 @@ of the perspective %S can't be saved."
     (when persp-tramp-file-name
       `(def-buffer ,(buffer-name b)
          ,persp-tramp-file-name
-         ,(buffer-local-value 'major-mode b)))))
+         ,(buffer-local-value 'major-mode b)
+         ,(let ((narrowing-param
+                 (persp-make-buffer-narrowing-parameter-cons b)))
+            (when narrowing-param
+              (list narrowing-param)))))))
 
 ;; Load funcs
 
@@ -4766,7 +4788,10 @@ of the perspective %S can't be saved."
                        (when (and (not (eq major-mode mode))
                                   (not (eq major-mode 'not-loaded-yet)))
                          (funcall mode)
-                         (restorevars)))))))
+                         (restorevars))))
+                     (let ((nrw-param (alist-get 'narrow parameters)))
+                       (when nrw-param
+                         (narrow-to-region (car nrw-param) (cdr nrw-param)))))))
                buf)))
       (condition-case-unless-debug err
           (persp-car-as-fun-cdr-as-args savelist)
