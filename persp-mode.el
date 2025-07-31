@@ -820,6 +820,38 @@ If returns \\='skip -- don\\='t restore a buffer."
   :group 'persp-mode
   :type '(repeat function))
 
+(define-widget 'persp-load-name-conflict-behaviour-choices 'lazy
+  "What to do in case of name conflict during state loading."
+  :offset 4
+  :tag "\nUsed when loading state from file."
+  :type
+  '(choice
+    (const :tag "Ask user" :value ask)
+    (const :tag "Merge" :value merge)
+    (const :tag "Rename loaded" :value rename-new)
+    (const :tag "Rename existent" :value rename-old)
+    (const :tag "Replace" :value overwrite)
+    (const :tag "Generate new name" :value autorename)
+    (const :tag "Skip loading" :value skip)
+    (const :tag "Do default(Merge)" :value nil)
+    (function :tag "Run function"
+              :value (lambda (name &optional _file phash/buf-params)
+                       (if (hash-table-p phash/buf-params)
+                           "new-name-for-persp"
+                         "new-name-for-buffer")))))
+
+(defcustom persp-load-name-conflict-behaviour nil
+  "What to do if perspective with same name already exists
+when loading state from file."
+  :group 'persp-mode
+  :type 'persp-load-name-conflict-behaviour-choices)
+
+(defcustom persp-load-buffer-name-conflict-behaviour nil
+  "What to do if buffer with same name already exists
+when loading state from file."
+  :group 'persp-mode
+  :type 'persp-load-name-conflict-behaviour-choices)
+
 (defcustom persp-mode-hook nil
   "The hook that's run after the `persp-mode' has been activated."
   :group 'persp-mode
@@ -2711,14 +2743,14 @@ Return the removed perspective."
         (remhash name phash)))
     persp))
 
-(cl-defun persp-add-new (name &optional (phash *persp-hash*))
+(cl-defun persp-add-new (name &optional (phash *persp-hash*) (ret-existent t))
   "Create a new perspective with the given `NAME'. Add it to `PHASH'.
 Return the created perspective."
   (interactive "sA name for the new perspective: ")
   (if (and name (not (string= "" name)))
       (cl-destructuring-bind (e . p)
           (persp-get-by-name-and-exists name phash)
-        (if e p
+        (if e (or (and ret-existent p) persp-not-persp)
           (setq p (if (string= persp-nil-name name)
                       persp-nil-persp
                     (make-persp :name name)))
@@ -4628,6 +4660,61 @@ of the perspective %S can't be saved."
            (def-buffer
              (lambda (bname fname mode &optional parameters)
                (setq buf (persp-get-buffer-or-null bname))
+               (when buf
+                 (let ((user-can-input-p (persp-frame-list-without-daemon))
+                       (conflict-behaviour persp-load-buffer-name-conflict-behaviour))
+                   (message "[persp-mode] buffer name(%S) conflict while loading"
+                            bname)
+                   (when (eq 'ask conflict-behaviour)
+                     (setq conflict-behaviour
+                           (if user-can-input-p
+                               (cl-destructuring-bind (char &rest rest)
+                                   (read-multiple-choice
+                                    "How to solve name conflict: "
+                                    '((?e "use existing buffer")
+                                      (?n "new name for new buffer")
+                                      (?N "New name for old buffer")
+                                      (?r "replace")
+                                      (?s "skip loading buffer")
+                                      (?g "generate new name")))
+                                 (cl-case char
+                                   ((?s ?\C-g ?\C-\[) 'skip)
+                                   (?e 'merge)
+                                   (?n 'rename-new)
+                                   (?N 'rename-old)
+                                   (?r 'overwrite)
+                                   (?g 'autorename)
+                                   (t 'autorename)))
+                             'autorename)))
+                   (setq bname
+                         (if (functionp conflict-behaviour)
+                             (funcall conflict-behaviour bname fname (list mode parameters))
+                           (cl-case conflict-behaviour
+                             ((rename-new rename-old autorename)
+                              (let ((new-name bname))
+                                (while (persp-get-buffer-or-null new-name)
+                                  (setq new-name
+                                        (cond
+                                         ((or (eq 'autorename conflict-behaviour)
+                                              (not user-can-input-p))
+                                          (generate-new-buffer-name new-name))
+                                         (t
+                                          (read-string "New name: " new-name)))))
+                                (cl-case conflict-behaviour
+                                  (rename-old
+                                   (with-current-buffer buf
+                                     (rename-buffer new-name))
+                                   bname)
+                                  (t new-name))))
+                             (overwrite
+                              (kill-buffer buf)
+                              bname)
+                             (merge bname)
+                             (skip nil)
+                             (t bname))))))
+               (setq buf (if bname
+                             (persp-get-buffer-or-null bname)
+                           nil))
                (if buf
                    (if (or (null fname)
                            (string= fname (buffer-file-name buf)))
@@ -4663,6 +4750,11 @@ of the perspective %S can't be saved."
                                (set (make-local-variable vname) vvalue))))
                          (alist-get 'local-vars parameters))))
                    (with-current-buffer buf
+                     (condition-case err
+                         (rename-buffer bname)
+                       (error
+                        (message "[persp-mode] Warning: Can not rename loaded buffer to name(%S): %S"
+                                 bname err)))
                      (restorevars)
                      (cond
                       ((and (boundp 'persp-load-buffer-mode-restore-function)
@@ -4718,40 +4810,98 @@ of the perspective %S can't be saved."
   (let ((def-persp
           (lambda (name dbufs dwc &optional dparams weak auto hidden)
             (let* ((pname (or name persp-nil-name))
-                   (persp (persp-add-new pname phash)))
-              (mapc (lambda (b)
-                      (persp-add-buffer b persp nil nil))
-                    (condition-case-unless-debug err
-                        (persp-buffers-from-savelist-0 dbufs)
-                      (error
-                       (message "[persp-mode] Error details: %S" dbufs)
-                       (message "[persp-mode] Error: failed to load buffers for %S perspective from %S file -- %S" pname persp-file err)
-                       nil)))
-              (let ((loaded-wconf
-                     (condition-case-unless-debug err
-                         (persp-window-conf-from-savelist-0 dwc)
-                       (error
-                        (message "[persp-mode] Error details: %S" dwc)
-                        (message "[persp-mode] Error: failed to load window configuration for %S perspective from %S file -- %S" pname persp-file err)
-                        nil))))
-                (when loaded-wconf
-                  (setf (persp-window-conf (or persp persp-nil-persp)) loaded-wconf)))
-              (modify-persp-parameters
-               (condition-case-unless-debug err
-                   (persp-parameters-from-savelist-0 dparams)
-                 (error
-                  (message "[persp-mode] Error details: %S" dparams)
-                  (message "[persp-mode] Error: Failed to load %S perspective parameters from %S file -- %S" pname persp-file err)
-                  nil))
-               persp)
-              (unless (persp-nil-p persp)
-                (setf (persp-weak persp) weak
-                      (persp-auto persp) auto))
+                   (persp (persp-get-by-name pname phash)))
+              (when (perspective-p persp)
+                (let ((user-can-input-p (persp-frame-list-without-daemon))
+                      (conflict-behaviour (or persp-load-name-conflict-behaviour
+                                              'merge)))
+                  (message "[persp-mode] Perspective name(%S) conflict while loading from %S"
+                           pname persp-file)
+                  (when (eq 'ask conflict-behaviour)
+                    (setq conflict-behaviour
+                          (if user-can-input-p
+                              (cl-destructuring-bind (char &rest rest)
+                                  (read-multiple-choice
+                                   "How to solve name conflict: "
+                                   '((?m "merge")
+                                     (?r "rename new persp")
+                                     (?R "Rename old persp")
+                                     (?o "overwrite")
+                                     (?s "skip loading persp")
+                                     (?g "generate new name")))
+                                (cl-case char
+                                  ((?s ?\C-g ?\C-\[) 'skip)
+                                  (?m 'merge)
+                                  (?r 'rename-new)
+                                  (?R 'rename-old)
+                                  (?o 'overwrite)
+                                  (?g 'autorename)
+                                  (t 'autorename)))
+                            'autorename)))
+                  (setq pname
+                        (if (functionp conflict-behaviour)
+                            (funcall conflict-behaviour pname persp-file phash)
+                          (cl-case conflict-behaviour
+                            ((rename-new rename-old autorename)
+                             (let ((new-name pname))
+                               (while (persp-with-name-exists-p new-name)
+                                 (setq new-name
+                                       (cond
+                                        ((or (eq 'autorename conflict-behaviour)
+                                             (not user-can-input-p))
+                                         (persp-gen-random-name new-name phash))
+                                        (t
+                                         (read-string "New name: " new-name)))))
+                               (cl-case conflict-behaviour
+                                 (rename-old
+                                  (persp-rename new-name persp phash)
+                                  pname)
+                                 (t new-name))))
+                            (overwrite
+                             (if (and user-can-input-p (eq phash *persp-hash*))
+                                 (persp-kill pname)
+                               (persp-remove-by-name pname phash))
+                             pname)
+                            (merge pname)
+                            (skip nil)
+                            (t pname))))))
+              (setq persp (if pname
+                              (persp-add-new pname phash)
+                            persp-not-persp))
+              (when (perspective-p persp)
+                (mapc (lambda (b)
+                        (persp-add-buffer b persp nil nil))
+                      (condition-case-unless-debug err
+                          (persp-buffers-from-savelist-0 dbufs)
+                        (error
+                         (message "[persp-mode] Error details: %S" dbufs)
+                         (message "[persp-mode] Error: failed to load buffers for %S perspective from %S file -- %S" pname persp-file err)
+                         nil)))
+                (let ((loaded-wconf
+                       (condition-case-unless-debug err
+                           (persp-window-conf-from-savelist-0 dwc)
+                         (error
+                          (message "[persp-mode] Error details: %S" dwc)
+                          (message "[persp-mode] Error: failed to load window configuration for %S perspective from %S file -- %S" pname persp-file err)
+                          nil))))
+                  (when loaded-wconf
+                    (setf (persp-window-conf (or persp persp-nil-persp)) loaded-wconf)))
+                (modify-persp-parameters
+                 (condition-case-unless-debug err
+                     (persp-parameters-from-savelist-0 dparams)
+                   (error
+                    (message "[persp-mode] Error details: %S" dparams)
+                    (message "[persp-mode] Error: Failed to load %S perspective parameters from %S file -- %S" pname persp-file err)
+                    nil))
+                 persp)
+                (unless (persp-nil-p persp)
+                  (setf (persp-weak persp) weak
+                        (persp-auto persp) auto))
 
-              (setf (persp-hidden (or persp persp-nil-persp)) hidden)
+                (setf (persp-hidden (or persp persp-nil-persp)) hidden)
 
-              (when persp-file
-                (set-persp-parameter 'persp-file persp-file persp))
+                (when persp-file
+                  (set-persp-parameter 'persp-file persp-file persp)))
               pname))))
     (persp-car-as-fun-cdr-as-args savelist)))
 
