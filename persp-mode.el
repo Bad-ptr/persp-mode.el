@@ -2485,7 +2485,7 @@ killed, but just removed from a perspective(s)."
                                                     new-str)
                                new-str))))
                         (old-regex "") matched-names-str
-                        (separator ", ")
+                        (separator (copy-sequence ", "))
                         (minibuf-post-command-h
                          (lambda ()
                            (when (and (minibuffer-window-active-p (selected-window))
