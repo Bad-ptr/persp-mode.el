@@ -757,6 +757,19 @@ the current perspective."
              (when (fboundp 'persp-deactivate-kill-buffer-advice)
                (persp-deactivate-kill-buffer-advice))))))
 
+(defcustom persp-use-make-indirect-buffer-advice nil
+  "Whether to use `make-indirect-buffer' advice to add buffer to persp"
+  :group 'persp-mode
+  :type 'boolean
+  :set (lambda (sym val)
+         (custom-set-default sym val)
+         (when persp-mode
+           (if val
+               (when (fboundp 'persp-activate-make-indirect-buffer-advice)
+                 (persp-activate-make-indirect-buffer-advice))
+             (when (fboundp 'persp-deactivate-make-indirect-buffer-advice)
+               (persp-deactivate-make-indirect-buffer-advice))))))
+
 (defcustom persp-common-buffer-filter-functions
   (list (lambda (b) (or (string-prefix-p " " (buffer-name b))
                    (eq (buffer-local-value 'major-mode b) 'helm-major-mode))))
@@ -943,9 +956,11 @@ after all normal buffers loaded.")
                     (if (buffer-live-p ib)
                         (unless (eq base-buf (buffer-base-buffer ib))
                           (setq bname (generate-new-buffer-name bname)
-                                ib (make-indirect-buffer base-buf bname t)
+                                ib (let ((*persp-pretend-switched-off* t))
+                                     (make-indirect-buffer base-buf bname t))
                                 alrdy-exst t))
-                      (setq ib (make-indirect-buffer base-buf bname t)))
+                      (setq ib (let ((*persp-pretend-switched-off* t))
+                                 (make-indirect-buffer base-buf bname t))))
                     (setq persps (persp--buffer-in-persps ibp))
                     (when (buffer-live-p ib)
                       (dolist (p persps)
@@ -2119,6 +2134,12 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 (defun persp-deactivate-kill-buffer-advice ()
   (advice-remove #'kill-buffer #'persp-kill-buffer-around-adv))
 
+(defun persp-activate-make-indirect-buffer-advice ()
+  (advice-add #'make-indirect-buffer :around #'persp-make-indirect-buffer-around-adv))
+
+(defun persp-deactivate-make-indirect-buffer-advice ()
+  (advice-remove #'make-indirect-buffer #'persp-make-indirect-buffer-around-adv))
+
 
 ;;;###autoload
 (define-minor-mode persp-mode
@@ -2152,6 +2173,8 @@ Here is a keymap of this minor mode:
 
         (when persp-use-kill-buffer-advice
           (persp-activate-kill-buffer-advice))
+        (when persp-use-make-indirect-buffer-advice
+          (persp-activate-make-indirect-buffer-advice))
 
         (condition-case-unless-debug err
             (mapc #'persp-init-frame (persp-frame-list-without-daemon))
@@ -2176,6 +2199,8 @@ Here is a keymap of this minor mode:
 
     (when persp-use-kill-buffer-advice
       (persp-deactivate-kill-buffer-advice))
+    (when persp-use-make-indirect-buffer-advice
+      (persp-deactivate-make-indirect-buffer-advice))
 
     (setq window-persistent-parameters
           (delq (assq 'persp window-persistent-parameters)
@@ -2319,6 +2344,18 @@ killed, but just removed from a perspective(s)."
           (remhash buffer persp-buffer-props-hash))
         kb-ret)
     (funcall kb-f buffer-or-name)))
+
+(defun persp-make-indirect-buffer-around-adv
+    (mib-f b-buf name &optional clone inhibit-buffer-hooks)
+  (if (and persp-mode (not *persp-pretend-switched-off*))
+      (let ((persp (get-current-persp))
+            (buf (funcall mib-f b-buf name clone inhibit-buffer-hooks)))
+        (when (and (buffer-live-p buf)
+                   (not (or (persp-nil-p persp)
+                            (persp-parameter 'not-auto-add-buffers persp))))
+          (persp-add-buffer buf persp nil))
+        buf)
+    (funcall mib-f b-buf name clone inhibit-buffer-hooks)))
 
 (defun persp--restore-buffer-on-find-file ()
   (when (buffer-live-p persp-special-last-buffer)

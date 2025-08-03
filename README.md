@@ -263,6 +263,32 @@ desired behavior by effecting `after-change-major-mode-hook`:
 
 ```
 
+## Set persp-use-make-indirect-buffer-advice to auto-add indirect buffers
+
+You can add a fuunction to the `clone-indirect-buffer-hook` like:
+
+```lisp
+
+    (add-hook 'clone-indirect-buffer-hook
+          (lambda ()
+            (when (and persp-mode (not *persp-pretend-switched-off*))
+              (let ((persp (get-current-persp)))
+                (unless (or (persp-nil-p persp)
+                            (persp-parameter 'not-auto-add-buffers persp))
+                  (persp-add-buffer (current-buffer) persp nil))))))
+
+```
+
+However it will not always work.
+In that case you can try to set the `persp-use-make-indirect-buffer-advice` to `t`:
+
+```lisp
+
+	(setopt persp-use-make-indirect-buffer-advice t)
+
+```
+
+
 ## Auto perspectives  
 
 You can now define an auto perspective using the `persp-def-auto-persp` function.  
