@@ -2219,8 +2219,7 @@ Here is a keymap of this minor mode:
 (defun persp--kill-buffer-query-function-foreign-check (persp buf)
   (let ((opt persp-kill-foreign-buffer-behaviour))
     (cond
-     ((functionp opt) (funcall opt))
-     (t
+     ((cl-find opt '(nil kill dont-ask-weak ask))
       (if (cl-case opt
             ((kill nil) t)
             (dont-ask-weak (persp-buffer-free-p buf t))
@@ -2268,7 +2267,8 @@ which is not in the current(%s) perspective. It will be removed from \
                 (?K (clwin curwin) 'kill)
                 (?c (clwin curwin) nil)
                 (?s (swb buf curwin) nil)
-                (t t))))))))))
+                (t t)))))))
+     ((functionp opt) (funcall opt)))))
 
 (defun persp-kill-buffer-query-function ()
   "This must be the last hook in the `kill-buffer-query-functions'.
@@ -2395,18 +2395,19 @@ killed, but just removed from a perspective(s)."
 (defun persp-after-change-major-mode-h ()
   (unless *persp-pretend-switched-off*
     (let ((buf (current-buffer))
-          (persp (get-current-persp)))
+          (persp (get-current-persp))
+          (opt persp-add-buffer-on-after-change-major-mode))
       (persp-find-and-set-persps-for-buffer buf)
       (when
           (and
            (not (persp-parameter 'not-auto-add-buffers persp))
            (cond
-            ((functionp persp-add-buffer-on-after-change-major-mode)
-             (funcall persp-add-buffer-on-after-change-major-mode buf))
-            (t (cl-case persp-add-buffer-on-after-change-major-mode
-                 ((nil) nil)
-                 (free (persp-buffer-free-p buf))
-                 (t persp-add-buffer-on-after-change-major-mode))))
+            ((cl-find opt '(nil t free))
+             (cl-case opt
+               ((nil) nil)
+               (free (persp-buffer-free-p buf))
+               (t opt)))
+            ((functionp opt) (funcall opt buf)))
            (not
             (persp-buffer-filtered-out-p
              buf persp-add-buffer-on-after-change-major-mode-filter-functions)))
@@ -3442,24 +3443,22 @@ Return `NAME'."
       (persp-save-state persp nil t))))
 
 (defun persp--do-auto-action-if-needed (persp)
-  (when (and (not (persp-nil-p persp)) (persp-auto persp)
-             persp-autokill-persp-when-removed-last-buffer
-             (null (persp-buffers persp)))
-    (cond
-     ((functionp persp-autokill-persp-when-removed-last-buffer)
-      (funcall persp-autokill-persp-when-removed-last-buffer persp))
-     ((or
-       (eq 'hide persp-autokill-persp-when-removed-last-buffer)
-       (and (eq 'hide-auto persp-autokill-persp-when-removed-last-buffer)
-            (persp-auto persp)))
-      (persp-hide (persp-name persp)))
-     ((or
-       (eq t persp-autokill-persp-when-removed-last-buffer)
-       (eq 'kill persp-autokill-persp-when-removed-last-buffer)
-       (and
-        (eq 'kill-auto persp-autokill-persp-when-removed-last-buffer)
-        (persp-auto persp)))
-      (persp-kill (persp-name persp) nil nil)))))
+  (let ((opt persp-autokill-persp-when-removed-last-buffer))
+    (when (and (not (persp-nil-p persp)) (persp-auto persp)
+               opt (null (persp-buffers persp)))
+      (cond
+       ((or (eq 'hide opt)
+            (and (eq 'hide-auto opt)
+                 (persp-auto persp)))
+        (persp-hide (persp-name persp)))
+       ((or (eq t opt)
+            (eq 'kill opt)
+            (and
+             (eq 'kill-auto opt)
+             (persp-auto persp)))
+        (persp-kill (persp-name persp) nil nil))
+       ((functionp opt)
+        (funcall opt persp))))))
 
 (defsubst persp--deactivate (frame-or-window &optional new-persp)
   (let (persp)
@@ -3858,39 +3857,38 @@ Return `NAME'."
   (if opt
       (eval
        `(lambda (frame)
-          ,(if (functionp opt)
-               `(funcall (with-no-warnings ',opt) frame)
-             `(let* ((frame-client (frame-parameter frame 'client))
-                     (frame-client-bl (when (processp frame-client)
-                                        (process-get frame-client 'buffers))))
-                ,(cl-case opt
-                   (only-file-windows
-                    `(if frame-client
-                         (when frame-client-bl
-                           (mapc (lambda (w)
-                                   (unless (memq (window-buffer w)
-                                                 frame-client-bl)
-                                     (delete-window w)))
-                                 (window-list frame 'no-minibuf)))
-                       (let (frame-server-bl)
-                         (mapc (lambda (proc)
-                                 (setq frame-server-bl
-                                       (append frame-server-bl
-                                               (process-get proc 'buffers))))
-                               (server-clients-with 'frame nil))
-                         (when frame-server-bl
-                           (mapc (lambda (w)
-                                   (unless (memq (window-buffer w)
-                                                 frame-server-bl)
-                                     (delete-window w)))
-                                 (window-list frame 'no-minibuf))))))
-                   (only-file-windows-for-client-frame
-                    `(when frame-client-bl
+          (let* ((frame-client (frame-parameter frame 'client))
+                 (frame-client-bl (when (processp frame-client)
+                                    (process-get frame-client 'buffers))))
+            ,(cl-case opt
+               (only-file-windows
+                `(if frame-client
+                     (when frame-client-bl
                        (mapc (lambda (w)
-                               (unless (memq (window-buffer w) frame-client-bl)
+                               (unless (memq (window-buffer w)
+                                             frame-client-bl)
                                  (delete-window w)))
-                             (window-list frame 'no-minibuf))))
-                   (t nil))))))
+                             (window-list frame 'no-minibuf)))
+                   (let (frame-server-bl)
+                     (mapc (lambda (proc)
+                             (setq frame-server-bl
+                                   (append frame-server-bl
+                                           (process-get proc 'buffers))))
+                           (server-clients-with 'frame nil))
+                     (when frame-server-bl
+                       (mapc (lambda (w)
+                               (unless (memq (window-buffer w)
+                                             frame-server-bl)
+                                 (delete-window w)))
+                             (window-list frame 'no-minibuf))))))
+               (only-file-windows-for-client-frame
+                `(when frame-client-bl
+                   (mapc (lambda (w)
+                           (unless (memq (window-buffer w) frame-client-bl)
+                             (delete-window w)))
+                         (window-list frame 'no-minibuf))))
+               (t (when (functionp opt)
+                    `(funcall (with-no-warnings ',opt) frame)))))))
     nil))
 
 (defun persp-set-frame-server-switch-hook (frame)
