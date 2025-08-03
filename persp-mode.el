@@ -745,7 +745,7 @@ the current perspective."
                     :value (lambda (p) p))))
 
 (defcustom persp-use-kill-buffer-advice t
-  "Whether to use kill-buffer advice to check killed buffers still in persps"
+  "Whether to use `kill-buffer' advice to check killed buffers still in persps"
   :group 'persp-mode
   :type 'boolean
   :set (lambda (sym val)
@@ -1336,10 +1336,14 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
                                                    (dflt-var 'persp-not-persp))
   `(setq ,p-var (persp-normalize-persp-arg ,p-var ,ph-var ,dflt-var)))
 
+;; TODO: Remove, not used?
 (defun persp-buffer-list (&optional frame window)
   (if *persp-pretend-switched-off*
       (buffer-list)
-    (persp-buffers (get-current-persp frame window))))
+    (let ((persp (get-current-persp frame window)))
+      (if (persp-nil-p persp)
+          (buffer-list)
+        (persp-buffers persp)))))
 
 ;; TODO: use keyword arguments add window argument
 (cl-defun persp-buffer-list-restricted
@@ -2583,7 +2587,7 @@ killed, but just removed from a perspective(s)."
 
   (unless blist
     (setq blist (eval (read--expression "Buffer list expression: "
-                                        "(persp-buffers (get-current-persp))"))))
+                                        "(persp-buffer-list-restricted)"))))
 
   (unless regexp
     (let ((tmp
@@ -4053,9 +4057,8 @@ Return `NAME'."
           :key (lambda (s) (get s 'custom-type)))))
     `(let (,@(cl-mapcar (lambda (h) (list h nil))
                         hook-list))
-       (unwind-protect
-           (progn
-             ,@body)))))
+       (progn
+         ,@body))))
 
 (defmacro persp-with-nil-emacs-window-hooks (&rest body)
   `(let (window-configuration-change-hook
@@ -4734,7 +4737,7 @@ of the perspective %S can't be saved."
           (lambda (bname fname mode parameters)
             (let ((buf (persp-get-buffer-or-null bname))
                   user-can-input-p conflict-behaviour)
-              (if (buffer-live-p buf)
+              (if (and (buffer-live-p buf) persp-load-buffer-name-conflict-behaviour)
                   (progn
                     (message "[persp-mode] Info: buffer name(%S) conflict while loading"
                              bname)
@@ -4909,10 +4912,9 @@ of the perspective %S can't be saved."
           (lambda (name dbufs dwc &optional dparams weak auto hidden)
             (let* ((pname (or name persp-nil-name))
                    (persp (persp-get-by-name pname phash)))
-              (when (perspective-p persp)
+              (when (and (perspective-p persp) persp-load-name-conflict-behaviour)
                 (let ((user-can-input-p (persp-frame-list-without-daemon))
-                      (conflict-behaviour (or persp-load-name-conflict-behaviour
-                                              'merge)))
+                      (conflict-behaviour persp-load-name-conflict-behaviour))
                   (message "[persp-mode] Info: Perspective name(%S) conflict while loading from %S"
                            pname persp-file)
                   (when (eq 'ask conflict-behaviour)
