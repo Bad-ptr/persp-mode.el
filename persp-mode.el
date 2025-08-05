@@ -943,39 +943,20 @@ after all normal buffers loaded.")
 (defcustom persp-after-load-state-functions
   (list (lambda (_file phash persp-names)
           (when persp-indirect-buffers-to-restore
-            (let (base-buf persps ib alrdy-exst)
-              (dolist (ibp persp-indirect-buffers-to-restore)
-                (with-current-buffer ibp
-                  (rename-buffer (generate-new-buffer-name (buffer-name ibp)) t))
-                (cl-destructuring-bind
-                    (bname fname mode parameters base-name)
-                    (buffer-local-value 'persp-indirect-buffer-restore-info ibp)
-                  (setq base-buf (persp-get-buffer-or-null base-name))
-                  (when (buffer-live-p base-buf)
-                    (setq ib (persp-get-buffer-or-null bname))
-                    (if (buffer-live-p ib)
-                        (unless (eq base-buf (buffer-base-buffer ib))
-                          (setq bname (generate-new-buffer-name bname)
-                                ib (let ((*persp-pretend-switched-off* t))
-                                     (make-indirect-buffer base-buf bname t))
-                                alrdy-exst t))
-                      (setq ib (let ((*persp-pretend-switched-off* t))
-                                 (make-indirect-buffer base-buf bname t))))
-                    (setq persps (persp--buffer-in-persps ibp))
-                    (when (buffer-live-p ib)
-                      (dolist (p persps)
-                        (persp--buffer-in-persps-remove ibp p)
-                        (persp--buffer-in-persps-remove ib p)
-                        (persp--buffer-in-persps-add ib p)
-                        (setf (persp-buffers p)
-                              (cons ib (delq ib (delq ibp (persp-buffers p))))))
-                      (unless alrdy-exst
-                        (persp-buffer-from-savelist
-                         `(def-buffer ,(buffer-name ib) ,fname
-                            ,mode ,(cons (cons 'indirect base-buf) parameters)))))))))
-            (let ((*persp-pretend-switched-off* t))
-              (dolist (ibp persp-indirect-buffers-to-restore)
-                (kill-buffer ibp)))
+            (dolist (ibp persp-indirect-buffers-to-restore)
+              (cl-destructuring-bind
+                  (bname fname mode parameters base-name)
+                  (buffer-local-value 'persp-indirect-buffer-restore-info ibp)
+                (let ((base-buf (persp-get-buffer-or-null base-name)))
+                  (if (buffer-live-p base-buf)
+                      (let ((ib (persp-buffer-from-savelist
+                                 `(def-buffer ,(buffer-name ibp) ,fname ,mode
+                                    ,(cons (cons 'indirect base-buf) parameters)))))
+                        (unless (buffer-live-p ib)
+                          (message "[persp-mode] Error: Failed to restore indirect buffer %S,
+with base buffer %S." bname base-name)))
+                    (message "[persp-mode] Error: Can not restore indirect buffer %S.
+Base buffer %S not found." bname base-name)))))
             (setq persp-indirect-buffers-to-restore nil))
           (when (eq phash *persp-hash*)
             (persp-update-frames-window-confs persp-names)
@@ -4768,80 +4749,101 @@ of the perspective %S can't be saved."
   (when (eq 'def-buffer (car savelist))
     (let*
         (persp-add-buffer-on-find-file
+         (already-loaded-p
+          (lambda (bname fname _mode parameters)
+            (let ((buf (persp-get-buffer-or-null bname))
+                  (base (alist-get 'indirect parameters)))
+              (and
+               (cond
+                ((not (buffer-live-p buf)) nil)
+                ((stringp base)
+                 (or (and (buffer-local-boundp 'persp-indirect-buffer-restore-info buf)
+                          (buffer-local-value 'persp-indirect-buffer-restore-info buf))
+                     (let ((bbase (buffer-base-buffer buf)))
+                       (and bbase (string= base (buffer-name bbase))))))
+                ((bufferp base)
+                 (eq base (buffer-base-buffer buf)))
+                (t
+                 (and fname (buffer-file-name buf)
+                      (string= fname (buffer-file-name buf)))))
+               buf))))
          (solve-name-conflict
           (lambda (bname fname mode parameters)
             (let ((buf (persp-get-buffer-or-null bname))
                   user-can-input-p conflict-behaviour)
-              (if (and (buffer-live-p buf) persp-load-buffer-name-conflict-behaviour)
-                  (progn
-                    (message "[persp-mode] Info: buffer name(%S) conflict while loading"
+              (cond
+               ((and (buffer-live-p buf) persp-load-buffer-name-conflict-behaviour)
+                (message "[persp-mode] Info: buffer name(%S) conflict while loading"
+                         bname)
+                (setq user-can-input-p (persp-frame-list-without-daemon)
+                      conflict-behaviour persp-load-buffer-name-conflict-behaviour)
+                (when (eq 'ask conflict-behaviour)
+                  (setq conflict-behaviour
+                        (if user-can-input-p
+                            (cl-destructuring-bind (char &rest rest)
+                                (read-multiple-choice
+                                 "How to solve name conflict: "
+                                 '((?e "use existing buffer")
+                                   (?n "new name for new buffer")
+                                   (?N "New name for old buffer")
+                                   (?r "replace")
+                                   (?s "skip loading buffer")
+                                   (?g "generate new name")))
+                              (cl-case char
+                                ((?s ?\C-g ?\C-\[) 'skip)
+                                (?e 'merge)
+                                (?n 'rename-new)
+                                (?N 'rename-old)
+                                (?r 'overwrite)
+                                (?g 'autorename)
+                                (t 'autorename)))
+                          'autorename)))
+                (cl-case conflict-behaviour
+                  ((rename-new rename-old autorename)
+                   (let ((new-name bname))
+                     (while (persp-get-buffer-or-null new-name)
+                       (setq new-name
+                             (cond
+                              ((or (eq 'autorename conflict-behaviour)
+                                   (not user-can-input-p))
+                               (generate-new-buffer-name new-name))
+                              (t
+                               (read-string "New name: " new-name)))))
+                     (cl-case conflict-behaviour
+                       (rename-old
+                        (with-current-buffer buf
+                          (condition-case err
+                              (rename-buffer new-name)
+                            (error
+                             (message "[persp-mode] Warning: Can not rename buffer(%S) to name(%S): %S"
+                                      bname new-name err))))
+                        bname)
+                       (t new-name))))
+                  (overwrite (kill-buffer buf)
                              bname)
-                    (setq user-can-input-p (persp-frame-list-without-daemon)
-                          conflict-behaviour persp-load-buffer-name-conflict-behaviour)
-                    (when (eq 'ask conflict-behaviour)
-                      (setq conflict-behaviour
-                            (if user-can-input-p
-                                (cl-destructuring-bind (char &rest rest)
-                                    (read-multiple-choice
-                                     "How to solve name conflict: "
-                                     '((?e "use existing buffer")
-                                       (?n "new name for new buffer")
-                                       (?N "New name for old buffer")
-                                       (?r "replace")
-                                       (?s "skip loading buffer")
-                                       (?g "generate new name")))
-                                  (cl-case char
-                                    ((?s ?\C-g ?\C-\[) 'skip)
-                                    (?e 'merge)
-                                    (?n 'rename-new)
-                                    (?N 'rename-old)
-                                    (?r 'overwrite)
-                                    (?g 'autorename)
-                                    (t 'autorename)))
-                              'autorename)))
-                    (cl-case conflict-behaviour
-                      ((rename-new rename-old autorename)
-                       (let ((new-name bname))
-                         (while (persp-get-buffer-or-null new-name)
-                           (setq new-name
-                                 (cond
-                                  ((or (eq 'autorename conflict-behaviour)
-                                       (not user-can-input-p))
-                                   (generate-new-buffer-name new-name))
-                                  (t
-                                   (read-string "New name: " new-name)))))
-                         (cl-case conflict-behaviour
-                           (rename-old
-                            (with-current-buffer buf
-                              (condition-case err
-                                  (rename-buffer new-name)
-                                (error
-                                 (message "[persp-mode] Warning: Can not rename loaded buffer to name(%S): %S"
-                                          new-name err))))
-                            bname)
-                           (t new-name))))
-                      (overwrite (kill-buffer buf)
-                                 bname)
-                      (merge bname)
-                      (skip nil)
-                      (t (if (functionp conflict-behaviour)
-                             (funcall conflict-behaviour bname fname (list mode parameters))
-                           bname))))
-                bname))))
+                  (merge bname)
+                  (skip nil)
+                  (t (if (functionp conflict-behaviour)
+                         (funcall conflict-behaviour
+                                  bname fname (list mode parameters))
+                       bname))))
+               (t bname)))))
          (restore-file
           (lambda (bname fname)
             (let ((buf (persp-get-buffer-or-null bname)))
-              (if (or (null fname) (and (buffer-live-p buf)
-                                        (string= fname (buffer-file-name buf))))
-                  buf
-                (if (file-exists-p fname)
-                    (find-file-noselect fname)
-                  (message
-                   "[persp-mode] Warning: The file %S no longer exists."
-                   fname)
-                  (run-hook-with-args-until-success
-                   'persp-load-buffer-handle-missing-file-functions
-                   savelist))))))
+              (cond
+               ((or (null fname) (and (buffer-live-p buf)
+                                      (string= fname (buffer-file-name buf))))
+                buf)
+               ((file-exists-p fname)
+                (find-file-noselect fname))
+               (t
+                (message
+                 "[persp-mode] Warning: The file %S no longer exists."
+                 fname)
+                (run-hook-with-args-until-success
+                 'persp-load-buffer-handle-missing-file-functions
+                 savelist))))))
          (restore-props
           (lambda (buf bname _fname mode parameters)
             (when (buffer-live-p buf)
@@ -4880,30 +4882,46 @@ of the perspective %S can't be saved."
             buf))
          (def-buffer
            (lambda (bname fname mode &optional parameters)
-             (let ((base (alist-get 'indirect parameters)))
-               (unless (bufferp base)
+             (let ((buf (funcall already-loaded-p bname fname mode parameters))
+                   (base (alist-get 'indirect parameters)))
+               (unless (or (buffer-live-p buf) (bufferp base))
                  (setq bname (funcall solve-name-conflict
                                       bname fname mode parameters)))
-               (if (not bname)
-                   nil
-                 (let (buf)
-                   (cond
-                    ((stringp base)
-                     (setq buf (generate-new-buffer bname))
-                     (with-current-buffer buf
-                       (setq-local persp-indirect-buffer-restore-info
-                                   (list bname fname mode parameters base)))
-                     (push buf persp-indirect-buffers-to-restore)
-                     buf)
-                    ((bufferp base)
-                     (setq buf (persp-get-buffer-or-null bname))
+               (cond
+                ((buffer-live-p buf) buf)
+                ((null bname) nil)
+                ((stringp base)
+                 (setq buf (generate-new-buffer bname))
+                 (with-current-buffer buf
+                   (setq-local persp-indirect-buffer-restore-info
+                               (list bname fname mode parameters base)))
+                 (push buf persp-indirect-buffers-to-restore)
+                 buf)
+                ((bufferp base)
+                 (setq buf (persp-get-buffer-or-null bname))
+                 (let ((persps (persp--buffer-in-persps buf)))
+                   (dolist (p persps)
+                     (persp--buffer-in-persps-remove buf p)
+                     (setf (persp-buffers p) (delq buf (persp-buffers p))))
+                   (with-current-buffer buf
+                     (rename-buffer (generate-new-buffer-name bname) t))
+                   (let ((*persp-pretend-switched-off*))
+                     (kill-buffer buf))
+                   (setq buf (let ((*persp-pretend-switched-off* t))
+                               (make-indirect-buffer base bname t)))
+                   (when (buffer-live-p buf)
+                     (dolist (p persps)
+                       (unless (persp-contain-buffer-p buf p)
+                         (persp--buffer-in-persps-add buf p)
+                         (setf (persp-buffers p) (cons buf (persp-buffers p)))))
                      (funcall restore-props
-                              buf bname fname mode parameters))
-                    (t
-                     (setq buf (or (funcall restore-file bname fname)
-                                   (get-buffer-create bname)))
-                     (funcall restore-props
-                              buf bname fname mode parameters)))))))))
+                              buf bname fname mode parameters)
+                     buf)))
+                (t
+                 (setq buf (or (funcall restore-file bname fname)
+                               (get-buffer-create bname)))
+                 (funcall restore-props
+                          buf bname fname mode parameters)))))))
       (condition-case-unless-debug err
           (persp-car-as-fun-cdr-as-args savelist)
         (error
