@@ -2194,7 +2194,7 @@ killed, but just removed from a perspective(s)."
                        (current-buffer)))
              (bname (buffer-name buffer))
              (bpersps (persp--buffer-in-persps buffer))
-             (kb-ret (funcall kb-f buffer)))
+             (kb-ret (funcall kb-f buffer-or-name)))
         (when kb-ret
           (mapc (lambda (p) (persp--remove-dead-buffers p bname)) bpersps)
           (remhash buffer persp-buffer-props-hash))
