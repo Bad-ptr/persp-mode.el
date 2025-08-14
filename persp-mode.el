@@ -2163,12 +2163,15 @@ killed, but just removed from a perspective(s)."
 
 (defun persp-kill-buffer-h ()
   (let ((buffer (current-buffer)))
-    (when (and persp-mode (not *persp-pretend-switched-off*) (persp--buffer-in-persps buffer))
+    (when (and persp-mode (not *persp-pretend-switched-off*)
+               (persp--buffer-in-persps buffer))
       (let (persp-autokill-buffer-on-remove
             (persp-when-remove-buffer-switch-to-other-buffer
              (unless persp-set-frame-buffer-predicate
                persp-when-remove-buffer-switch-to-other-buffer)))
-        (persp--remove-buffer-2 nil buffer)))))
+        (persp--remove-buffer-2 nil buffer)
+        (unless persp-use-kill-buffer-advice
+          (remhash buffer persp-buffer-props-hash))))))
 
 (defun persp--remove-dead-buffers (persp &optional bufname)
   (when persp
@@ -2180,6 +2183,7 @@ killed, but just removed from a perspective(s)."
                                (or (and bufname (concat "\"" bufname "\" "))
                                    "")
                                (persp-name persp))
+                      (persp--buffer-in-persps-remove b persp)
                       nil)))
            (persp-buffers persp)))))
 
@@ -2192,7 +2196,8 @@ killed, but just removed from a perspective(s)."
              (bpersps (persp--buffer-in-persps buffer))
              (kb-ret (funcall kb-f buffer)))
         (when kb-ret
-          (mapc (lambda (p) (persp--remove-dead-buffers p bname)) bpersps))
+          (mapc (lambda (p) (persp--remove-dead-buffers p bname)) bpersps)
+          (remhash buffer persp-buffer-props-hash))
         kb-ret)
     (funcall kb-f buffer-or-name)))
 
