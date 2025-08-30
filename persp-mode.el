@@ -963,7 +963,7 @@ of the persp will not be saved/restored for the frame"
   :type '(repeat function))
 
 (defcustom persp-get-window-for-state-get-put-function
-  #'window-main-window
+  #'frame-root-window
   "Function to get window for saving/restoring window configuration of a frame."
   :group 'persp-mode
   :type '(choice
