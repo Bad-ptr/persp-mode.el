@@ -966,9 +966,9 @@ of the persp will not be saved/restored for the frame"
   #'window-main-window
   "Function to get window for saving/restoring window configuration of a frame."
   :group 'persp-mode
-  :type '(choise
-          (const :tag "Use frame root window" :value #'frame-root-window)
-          (const :tag "Use frame main window" :value #'window-main-window)
+  :type '(choice
+          (const :tag "Use frame root window" :value frame-root-window)
+          (const :tag "Use frame main window" :value window-main-window)
           (function :tag "Custom function"
                     :value (lambda (&optional frame)
                              (frame-first-window frame)))))
