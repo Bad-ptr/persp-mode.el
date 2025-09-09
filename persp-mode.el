@@ -275,16 +275,18 @@ that perspective if `persp-set-last-persp-for-new-frames' is t.")
 
 (defcustom persp-lighter
   '(:eval
-    (format
-     (propertize
-      " #%.5s"
-      'face (let ((persp (get-current-persp)))
-              (if persp
-                  (if (persp-contain-buffer-p (current-buffer) persp)
-                      'persp-face-lighter-default
-                    'persp-face-lighter-buffer-not-in-persp)
-                'persp-face-lighter-nil-persp)))
-     (safe-persp-name (get-current-persp))))
+    (if (frame-parameter (selected-frame) 'persp-ignore)
+        " #ignore"
+      (format
+       (propertize
+        " #%.5s"
+        'face (let ((persp (get-current-persp)))
+                (if persp
+                    (if (persp-contain-buffer-p (current-buffer) persp)
+                        'persp-face-lighter-default
+                      'persp-face-lighter-buffer-not-in-persp)
+                  'persp-face-lighter-nil-persp)))
+       (safe-persp-name (get-current-persp)))))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
   :type 'sexp)
@@ -551,6 +553,7 @@ to interactivly read user input with completion.")
   '(choice
     (const :tag "Restore window-configuration" :value t)
     (const :tag "Do not restore window-configuration" :value nil)
+    (const :tag "Set persp-ignore flag for frame" :value persp-ignore)
     (const :tag "Set persp-ignore-wconf flag for frame"
            :value persp-ignore-wconf)
     (number :tag "Set persp-ignore-wconf for frame to this number"
@@ -944,6 +947,7 @@ function -- run that function."
 (defcustom persp-restore-window-conf-filter-functions
   (list (lambda (f _p _new-f-p)
           (or (not (frame-live-p f))
+              (frame-parameter f 'persp-ignore)
               (and (featurep 'posframe)
                    (or (frame-parameter f 'posframe-buffer)
                        (frame-parameter f 'posframe-parent-buffer)
@@ -3364,16 +3368,18 @@ Return `NAME'."
                type 'window)))
       (when  (or new-frame-p
                  (not (eq old-persp persp)))
-        (unless new-frame-p
-          (persp--deactivate frame-or-window persp))
         (cl-case type
           (frame
-           (setq persp-last-persp-name (safe-persp-name persp))
-           (set-frame-persp persp frame-or-window)
-           (when persp-init-frame-behaviour
-             (persp-restore-window-conf frame-or-window persp new-frame-p))
-           (run-hook-with-args 'persp-activated-functions 'frame frame-or-window persp))
+           (unless (frame-parameter frame-or-window 'persp-ignore)
+             (unless new-frame-p
+               (persp--deactivate frame-or-window persp))
+             (setq persp-last-persp-name (safe-persp-name persp))
+             (set-frame-persp persp frame-or-window)
+             (when persp-init-frame-behaviour
+               (persp-restore-window-conf frame-or-window persp new-frame-p))
+             (run-hook-with-args 'persp-activated-functions 'frame frame-or-window persp)))
           (window
+           (persp--deactivate frame-or-window persp)
            (set-window-persp persp frame-or-window)
            (let ((cbuf (window-buffer frame-or-window)))
              (unless (persp-contain-buffer-p cbuf persp)
@@ -3381,7 +3387,8 @@ Return `NAME'."
            (run-hook-with-args 'persp-activated-functions 'window frame-or-window persp)))))))
 
 (defun persp-init-new-frame (frame)
-  (unless *persp-pretend-switched-off*
+  (unless (or *persp-pretend-switched-off*
+              (frame-parameter frame 'persp-ignore))
     (condition-case-unless-debug err
         (progn
           (persp-init-frame frame t (frame-parameter frame 'client))
@@ -3394,59 +3401,62 @@ Return `NAME'."
        (message "[persp-mode] Error: Can not initialize frame -- %S"
                 err)))))
 (cl-defun persp-init-frame (frame &optional new-frame-p client)
-  (let ((persp-init-frame-behaviour
-         (cond
-          ((and client
-                (not (eql -1 persp-emacsclient-init-frame-behaviour-override)))
-           persp-emacsclient-init-frame-behaviour-override)
-          ((and (eq this-command 'make-frame)
-                (not (eql -1 persp-interactive-init-frame-behaviour-override)))
-           persp-interactive-init-frame-behaviour-override)
-          ((and new-frame-p (not (eql -1 persp-init-new-frame-behaviour-override)))
-           persp-init-new-frame-behaviour-override)
-          (t persp-init-frame-behaviour))))
-    (let (persp-name persp)
-      (cl-macrolet
-          ((set-default-persp
-            ()
-            `(progn
-               (setq persp-name (or (and persp-set-last-persp-for-new-frames
-                                         persp-last-persp-name)
-                                    persp-nil-name)
-                     persp (persp-get-by-name persp-name))
-               (unless (persp-p persp)
-                 (setq persp-name persp-nil-name
-                       persp (persp-add-new persp-name))))))
-        (cl-typecase persp-init-frame-behaviour
-          (function
-           (funcall persp-init-frame-behaviour frame new-frame-p))
-          (string
-           (setq persp-name persp-init-frame-behaviour
-                 persp (persp-add-new persp-name)))
-          (symbol
-           (cl-case persp-init-frame-behaviour
-             (auto-temp (setq persp-name (persp-gen-random-name)
-                              persp (persp-add-new persp-name))
-                        (when persp
-                          (setf (persp-auto persp) t)))
-             (prompt (select-frame frame)
-                     (setq persp-name
-                           (persp-read-persp "to switch" nil nil nil nil t)
-                           persp (persp-add-new persp-name)))
-             (t (set-default-persp))))
-          (t (set-default-persp))))
-      (when persp-name
-        (modify-frame-parameters frame `((persp . nil)))
-        (when persp-set-frame-buffer-predicate
-          (persp-set-frame-buffer-predicate frame))
-        (persp-set-frame-server-switch-hook frame)
-        (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
-                  (numberp persp-init-frame-behaviour))
-          (set-frame-parameter frame 'persp-ignore-wconf persp-init-frame-behaviour))
-        (persp-activate persp frame new-frame-p)))))
+  (unless (frame-parameter frame 'persp-ignore)
+    (let ((persp-init-frame-behaviour
+           (cond
+            ((and client
+                  (not (eql -1 persp-emacsclient-init-frame-behaviour-override)))
+             persp-emacsclient-init-frame-behaviour-override)
+            ((and (eq this-command 'make-frame)
+                  (not (eql -1 persp-interactive-init-frame-behaviour-override)))
+             persp-interactive-init-frame-behaviour-override)
+            ((and new-frame-p (not (eql -1 persp-init-new-frame-behaviour-override)))
+             persp-init-new-frame-behaviour-override)
+            (t persp-init-frame-behaviour))))
+      (let (persp-name persp)
+        (cl-macrolet
+            ((set-default-persp
+              ()
+              `(progn
+                 (setq persp-name (or (and persp-set-last-persp-for-new-frames
+                                           persp-last-persp-name)
+                                      persp-nil-name)
+                       persp (persp-get-by-name persp-name))
+                 (unless (persp-p persp)
+                   (setq persp-name persp-nil-name
+                         persp (persp-add-new persp-name))))))
+          (cl-typecase persp-init-frame-behaviour
+            (function
+             (funcall persp-init-frame-behaviour frame new-frame-p))
+            (string
+             (setq persp-name persp-init-frame-behaviour
+                   persp (persp-add-new persp-name)))
+            (symbol
+             (cl-case persp-init-frame-behaviour
+               (auto-temp (setq persp-name (persp-gen-random-name)
+                                persp (persp-add-new persp-name))
+                          (when persp
+                            (setf (persp-auto persp) t)))
+               (prompt (select-frame frame)
+                       (setq persp-name
+                             (persp-read-persp "to switch" nil nil nil nil t)
+                             persp (persp-add-new persp-name)))
+               (persp-ignore (set-frame-parameter frame 'persp-ignore t)
+                             (setq persp-name nil))
+               (t (set-default-persp))))
+            (t (set-default-persp))))
+        (when persp-name
+          (modify-frame-parameters frame `((persp . nil)))
+          (when persp-set-frame-buffer-predicate
+            (persp-set-frame-buffer-predicate frame))
+          (persp-set-frame-server-switch-hook frame)
+          (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
+                    (numberp persp-init-frame-behaviour))
+            (set-frame-parameter frame 'persp-ignore-wconf persp-init-frame-behaviour))
+          (persp-activate persp frame new-frame-p))))))
 
 (defun persp-delete-frame (frame)
-  (unless *persp-pretend-switched-off*
+  (unless (or *persp-pretend-switched-off* (frame-parameter frame 'persp-ignore))
     (condition-case-unless-debug err
         (progn
           (persp--deactivate frame persp-not-persp)
