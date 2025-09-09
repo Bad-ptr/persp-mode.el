@@ -275,18 +275,18 @@ that perspective if `persp-set-last-persp-for-new-frames' is t.")
 
 (defcustom persp-lighter
   '(:eval
-    (if (frame-parameter (selected-frame) 'persp-ignore)
-        " #ignore"
-      (format
-       (propertize
-        " #%.5s"
-        'face (let ((persp (get-current-persp)))
-                (if persp
-                    (if (persp-contain-buffer-p (current-buffer) persp)
-                        'persp-face-lighter-default
-                      'persp-face-lighter-buffer-not-in-persp)
-                  'persp-face-lighter-nil-persp)))
-       (safe-persp-name (get-current-persp)))))
+    (if (persp-frame-good-p (selected-frame))
+        (format
+         (propertize
+          " #%.5s"
+          'face (let ((persp (get-current-persp)))
+                  (if persp
+                      (if (persp-contain-buffer-p (current-buffer) persp)
+                          'persp-face-lighter-default
+                        'persp-face-lighter-buffer-not-in-persp)
+                    'persp-face-lighter-nil-persp)))
+         (safe-persp-name (get-current-persp)))
+      " #ignore"))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
   :type 'sexp)
@@ -631,6 +631,21 @@ If function -- run that function."
  'persp-ignore-wconf-of-frames-created-to-edit-file
  "`persp-emacsclient-frame-to-edit-file-behavoiur'" "persp-mode 2.0")
 
+(defcustom persp-filter-frame-functions
+  (list (lambda (f)
+          (or (not (frame-live-p f))
+              (frame-parameter f 'persp-ignore)
+              (> 50 (frame-width f))
+              (> 15 (frame-height f))
+              (and (featurep 'posframe)
+                   (or (frame-parameter f 'posframe-buffer)
+                       (frame-parameter f 'posframe-parent-buffer)
+                       (string= "posframe" (frame-parameter f 'title))))
+              (persp-is-frame-daemons-frame f))))
+  "Skip frame if one of functions returns non nil."
+  :group 'persp-mode
+  :type '(repeate function))
+
 (defcustom persp-add-buffer-on-find-file t
   "If t -- add a buffer with opened file to current perspective."
   :group 'persp-mode
@@ -946,20 +961,16 @@ function -- run that function."
 ;; remove persp new-frame-p arguments or make them optional
 (defcustom persp-restore-window-conf-filter-functions
   (list (lambda (f _p _new-f-p)
-          (or (not (frame-live-p f))
-              (frame-parameter f 'persp-ignore)
-              (and (featurep 'posframe)
-                   (or (frame-parameter f 'posframe-buffer)
-                       (frame-parameter f 'posframe-parent-buffer)
-                       (string= "posframe" (frame-parameter f 'title))))
-              (persp-is-frame-daemons-frame f)
-              (let ((f-piw (frame-parameter f 'persp-ignore-wconf)))
-                (if (numberp f-piw)
-                    (prog1 (< 0 f-piw)
-                      (when (> 1 (cl-decf f-piw))
-                        (setq f-piw nil))
-                      (set-frame-parameter f 'persp-ignore-wconf f-piw))
-                  f-piw)))))
+          (or
+           (> 50 (frame-width f))
+           (> 15 (frame-height f))
+           (let ((f-piw (frame-parameter f 'persp-ignore-wconf)))
+             (if (numberp f-piw)
+                 (prog1 (< 0 f-piw)
+                   (when (> 1 (cl-decf f-piw))
+                     (setq f-piw nil))
+                   (set-frame-parameter f 'persp-ignore-wconf f-piw))
+               f-piw)))))
   "The list of functions which takes a frame, persp and new-frame-p as arguments.
 If one of these functions return a non nil value then the window configuration
 of the persp will not be saved/restored for the frame"
@@ -1474,8 +1485,8 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 
 ;; Used in mode defenition:
 
-(defun persp-mode-restore-and-remove-from-make-frame-hook (&optional _f)
-  (if *persp-pretend-switched-off*
+(defun persp-mode-restore-and-remove-from-make-frame-hook (&optional frame)
+  (if (or *persp-pretend-switched-off* (not (persp-frame-good-p frame)))
       t
     (remove-hook 'after-make-frame-functions
                  #'persp-mode-restore-and-remove-from-make-frame-hook)
@@ -2322,12 +2333,13 @@ killed, but just removed from a perspective(s)."
 (defun persp-is-frame-daemons-frame (f)
   (and (fboundp 'daemonp) (daemonp) (eq f terminal-frame)))
 
+(defun persp-frame-good-p (&optional f)
+  (setq f (or f (selected-frame)))
+  (not (run-hook-with-args-until-success 'persp-filter-frame-functions f)))
+
 (defun persp-frame-list-without-daemon ()
   "Return a list of frames without the daemon's frame."
-  (if (daemonp)
-      (filtered-frame-list
-       (lambda (f) (not (persp-is-frame-daemons-frame f))))
-    (frame-list)))
+  (filtered-frame-list #'persp-frame-good-p))
 
 ;; TODO: rename
 (defun set-frame-persp (persp &optional frame)
@@ -3284,13 +3296,17 @@ Return `NAME'."
       (persp-frame-switch name frame))))
 (cl-defun persp-frame-switch (name &optional (frame (selected-frame)))
   (interactive "i")
-  (unless name
-    (setq name (persp-read-persp "to switch(in frame)" nil nil nil nil t)))
-  (unless (memq frame persp-inhibit-switch-for)
-    (run-hook-with-args 'persp-before-switch-functions name frame)
-    (let ((persp-inhibit-switch-for (cons frame persp-inhibit-switch-for)))
-      (persp-activate (persp-add-new name) frame)))
-  name)
+  (if (persp-frame-good-p frame)
+      (progn
+        (unless name
+          (setq name (persp-read-persp "to switch(in frame)" nil nil nil nil t)))
+        (unless (memq frame persp-inhibit-switch-for)
+          (run-hook-with-args 'persp-before-switch-functions name frame)
+          (let ((persp-inhibit-switch-for (cons frame persp-inhibit-switch-for)))
+            (persp-activate (persp-add-new name) frame)))
+        name)
+    (message "[persp-mode] Error: This frame is ignored by persp-mode!")
+    nil))
 (cl-defun persp-window-switch (name &optional (window (selected-window)))
   (interactive "i")
   (unless name
@@ -3370,7 +3386,7 @@ Return `NAME'."
                  (not (eq old-persp persp)))
         (cl-case type
           (frame
-           (unless (frame-parameter frame-or-window 'persp-ignore)
+           (when (persp-frame-good-p frame-or-window)
              (unless new-frame-p
                (persp--deactivate frame-or-window persp))
              (setq persp-last-persp-name (safe-persp-name persp))
@@ -3387,8 +3403,7 @@ Return `NAME'."
            (run-hook-with-args 'persp-activated-functions 'window frame-or-window persp)))))))
 
 (defun persp-init-new-frame (frame)
-  (unless (or *persp-pretend-switched-off*
-              (frame-parameter frame 'persp-ignore))
+  (unless (or *persp-pretend-switched-off* (not (persp-frame-good-p frame)))
     (condition-case-unless-debug err
         (progn
           (persp-init-frame frame t (frame-parameter frame 'client))
@@ -3401,7 +3416,7 @@ Return `NAME'."
        (message "[persp-mode] Error: Can not initialize frame -- %S"
                 err)))))
 (cl-defun persp-init-frame (frame &optional new-frame-p client)
-  (unless (frame-parameter frame 'persp-ignore)
+  (when (persp-frame-good-p frame)
     (let ((persp-init-frame-behaviour
            (cond
             ((and client
@@ -3456,7 +3471,7 @@ Return `NAME'."
           (persp-activate persp frame new-frame-p))))))
 
 (defun persp-delete-frame (frame)
-  (unless (or *persp-pretend-switched-off* (frame-parameter frame 'persp-ignore))
+  (unless (or *persp-pretend-switched-off* (not (persp-frame-good-p frame)))
     (condition-case-unless-debug err
         (progn
           (persp--deactivate frame persp-not-persp)
