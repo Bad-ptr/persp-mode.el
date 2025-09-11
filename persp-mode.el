@@ -274,19 +274,9 @@ that perspective if `persp-set-last-persp-for-new-frames' is t.")
   "Default face for the lighter.")
 
 (defcustom persp-lighter
-  '(:eval
-    (if (persp-frame-good-p (selected-frame))
-        (format
-         (propertize
-          " #%.5s"
-          'face (let ((persp (get-current-persp)))
-                  (if persp
-                      (if (persp-contain-buffer-p (current-buffer) persp)
-                          'persp-face-lighter-default
-                        'persp-face-lighter-buffer-not-in-persp)
-                    'persp-face-lighter-nil-persp)))
-         (safe-persp-name (get-current-persp)))
-      " #ignore"))
+  '(:eval (let ((frame (selected-frame)))
+            (or (frame-parameter frame 'persp-lighter)
+                " #persp")))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
   :type 'sexp)
@@ -2004,6 +1994,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
   (add-hook 'server-switch-hook          #'persp-server-switch)
   (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+  (add-hook 'window-configuration-change-hook #'persp-update-frame-lighter)
 
   (persp-set-ido-hooks persp-set-ido-hooks)
   (persp-set-read-buffer-function persp-set-read-buffer-function)
@@ -2027,6 +2018,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (remove-hook 'kill-emacs-hook              #'persp-kill-emacs-h)
   (remove-hook 'server-switch-hook           #'persp-server-switch)
   (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+  (remove-hook 'window-configuration-change-hook #'persp-update-frame-lighter)
 
   (persp-set-ido-hooks)
   (persp-set-read-buffer-function)
@@ -2330,6 +2322,36 @@ killed, but just removed from a perspective(s)."
         ((not (persp-with-name-exists-p nname phash))
          nname))))
 
+(let (update-lighter-throttle-timer frames-to-update)
+  (defun persp-update-frame-lighter (&optional f)
+    (unless f (setq f (selected-frame)))
+    (unless (memq f frames-to-update)
+      (push f frames-to-update))
+    (if (timerp update-lighter-throttle-timer)
+        t
+      (setq update-lighter-throttle-timer
+            (run-with-timer
+             1 nil
+             (lambda () (setq update-lighter-throttle-timer nil))))
+      (mapc
+       (lambda (f)
+         (let ((lighter
+                (if (persp-frame-good-p f)
+                    (format
+                     (propertize
+                      " #%.5s"
+                      'face (let ((persp (get-current-persp f)))
+                              (if persp
+                                  (if (persp-contain-buffer-p (current-buffer) persp)
+                                      'persp-face-lighter-default
+                                    'persp-face-lighter-buffer-not-in-persp)
+                                'persp-face-lighter-nil-persp)))
+                     (safe-persp-name (get-current-persp)))
+                  " #ignore")))
+           (set-frame-parameter f 'persp-lighter lighter)))
+       frames-to-update)
+      (setq frames-to-update nil))))
+
 (defun persp-is-frame-daemons-frame (f)
   (and (fboundp 'daemonp) (daemonp) (eq f terminal-frame)))
 
@@ -2387,6 +2409,7 @@ killed, but just removed from a perspective(s)."
 
 ;; TODO: rename
 (defun get-current-persp (&optional frame window)
+  (unless window (setq window (frame-selected-window frame)))
   (if (window-persp-set-p window)
       (get-window-persp window)
     (get-frame-persp frame)))
@@ -2774,6 +2797,7 @@ Return the created perspective."
          (persp-switch-to-buffer buffer))
        buffer))
    buffs-or-names)
+  (persp-update-frame-lighter)
   buffs-or-names)
 
 (cl-defun persp-add-buffers-by-regexp (&optional regexp (persp (get-current-persp)))
@@ -2890,8 +2914,10 @@ from the PERSP. On success return removed buffers otherwise nil."
            (if (and called-interactively-p current-prefix-arg)
                (not persp-autokill-buffer-on-remove)
              persp-autokill-buffer-on-remove)))
-      (mapcar (apply-partially #'persp--remove-buffer-2 persp)
-              buffs-or-names))))
+      (let ((ret (mapcar (apply-partially #'persp--remove-buffer-2 persp)
+                         buffs-or-names)))
+        (persp-update-frame-lighter)
+        ret))))
 
 (defun persp-kill-buffer (&optional buffers-or-names)
   "Kill buffers, read buffer with restriction to current perspective."
@@ -2906,6 +2932,7 @@ from the PERSP. On success return removed buffers otherwise nil."
     (setq buffers-or-names (list buffers-or-names)))
   (mapc #'kill-buffer
         (cl-remove-if-not #'persp-get-buffer-or-null buffers-or-names))
+  ;; (persp-update-frame-lighter)
   buffers-or-names)
 
 (defun persp-switch-to-buffer (buffer-or-name
@@ -2925,7 +2952,9 @@ from the PERSP. On success return removed buffers otherwise nil."
                     (read-buffer-to-switch "Switch to buffer: ")))))
   (when (and buffer-or-name
              (persp-get-buffer-or-null (get-buffer buffer-or-name)))
-    (switch-to-buffer buffer-or-name norecord force-same-window)))
+    (switch-to-buffer buffer-or-name norecord force-same-window)
+    ;; (persp-update-frame-lighter)
+    ))
 
 (cl-defun persp-remove-buffers-by-regexp
     (&optional regexp (persp (get-current-persp)))
@@ -3094,7 +3123,9 @@ perspective buffers or nil."
        window
        (or (and (buffer-live-p new-buf) new-buf)
            (car (persp-buffer-list-restricted (window-frame window) 2.5))
-           (car (buffer-list)))))))
+           (car (buffer-list))))
+      ;; (persp-update-frame-lighter (window-frame window))
+      )))
 
 (cl-defun persp-switch-to-prev-buffer
     (&optional (old-buff-or-name (current-buffer)) (persp (get-current-persp)))
@@ -3257,6 +3288,7 @@ Return that old buffer."
              'persp-renamed-functions persp old-name new-name)
             (when (string= old-name persp-last-persp-name)
               (setq persp-last-persp-name new-name)))
+          (mapc #'persp-update-frame-lighter (persp-frames-with-persp persp))
           old-name)
       (message
        "[persp-mode] Error: There is already a perspective with that name: %S."
@@ -3393,6 +3425,7 @@ Return `NAME'."
              (set-frame-persp persp frame-or-window)
              (when persp-init-frame-behaviour
                (persp-restore-window-conf frame-or-window persp new-frame-p))
+             (persp-update-frame-lighter frame-or-window)
              (run-hook-with-args 'persp-activated-functions 'frame frame-or-window persp)))
           (window
            (persp--deactivate frame-or-window persp)
@@ -3400,6 +3433,7 @@ Return `NAME'."
            (let ((cbuf (window-buffer frame-or-window)))
              (unless (persp-contain-buffer-p cbuf persp)
                (persp-set-another-buffer-for-window cbuf frame-or-window persp)))
+           (persp-update-frame-lighter (window-frame frame-or-window))
            (run-hook-with-args 'persp-activated-functions 'window frame-or-window persp)))))))
 
 (defun persp-init-new-frame (frame)
@@ -3416,59 +3450,60 @@ Return `NAME'."
        (message "[persp-mode] Error: Can not initialize frame -- %S"
                 err)))))
 (cl-defun persp-init-frame (frame &optional new-frame-p client)
-  (when (persp-frame-good-p frame)
-    (let ((persp-init-frame-behaviour
-           (cond
-            ((and client
-                  (not (eql -1 persp-emacsclient-init-frame-behaviour-override)))
-             persp-emacsclient-init-frame-behaviour-override)
-            ((and (eq this-command 'make-frame)
-                  (not (eql -1 persp-interactive-init-frame-behaviour-override)))
-             persp-interactive-init-frame-behaviour-override)
-            ((and new-frame-p (not (eql -1 persp-init-new-frame-behaviour-override)))
-             persp-init-new-frame-behaviour-override)
-            (t persp-init-frame-behaviour))))
-      (let (persp-name persp)
-        (cl-macrolet
-            ((set-default-persp
-              ()
-              `(progn
-                 (setq persp-name (or (and persp-set-last-persp-for-new-frames
-                                           persp-last-persp-name)
-                                      persp-nil-name)
-                       persp (persp-get-by-name persp-name))
-                 (unless (persp-p persp)
-                   (setq persp-name persp-nil-name
-                         persp (persp-add-new persp-name))))))
-          (cl-typecase persp-init-frame-behaviour
-            (function
-             (funcall persp-init-frame-behaviour frame new-frame-p))
-            (string
-             (setq persp-name persp-init-frame-behaviour
-                   persp (persp-add-new persp-name)))
-            (symbol
-             (cl-case persp-init-frame-behaviour
-               (auto-temp (setq persp-name (persp-gen-random-name)
-                                persp (persp-add-new persp-name))
-                          (when persp
-                            (setf (persp-auto persp) t)))
-               (prompt (select-frame frame)
-                       (setq persp-name
-                             (persp-read-persp "to switch" nil nil nil nil t)
-                             persp (persp-add-new persp-name)))
-               (persp-ignore (set-frame-parameter frame 'persp-ignore t)
-                             (setq persp-name nil))
-               (t (set-default-persp))))
-            (t (set-default-persp))))
-        (when persp-name
-          (modify-frame-parameters frame `((persp . nil)))
-          (when persp-set-frame-buffer-predicate
-            (persp-set-frame-buffer-predicate frame))
-          (persp-set-frame-server-switch-hook frame)
-          (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
-                    (numberp persp-init-frame-behaviour))
-            (set-frame-parameter frame 'persp-ignore-wconf persp-init-frame-behaviour))
-          (persp-activate persp frame new-frame-p))))))
+  (if (persp-frame-good-p frame)
+      (let ((persp-init-frame-behaviour
+             (cond
+              ((and client
+                    (not (eql -1 persp-emacsclient-init-frame-behaviour-override)))
+               persp-emacsclient-init-frame-behaviour-override)
+              ((and (eq this-command 'make-frame)
+                    (not (eql -1 persp-interactive-init-frame-behaviour-override)))
+               persp-interactive-init-frame-behaviour-override)
+              ((and new-frame-p (not (eql -1 persp-init-new-frame-behaviour-override)))
+               persp-init-new-frame-behaviour-override)
+              (t persp-init-frame-behaviour))))
+        (let (persp-name persp)
+          (cl-macrolet
+              ((set-default-persp
+                ()
+                `(progn
+                   (setq persp-name (or (and persp-set-last-persp-for-new-frames
+                                             persp-last-persp-name)
+                                        persp-nil-name)
+                         persp (persp-get-by-name persp-name))
+                   (unless (persp-p persp)
+                     (setq persp-name persp-nil-name
+                           persp (persp-add-new persp-name))))))
+            (cl-typecase persp-init-frame-behaviour
+              (function
+               (funcall persp-init-frame-behaviour frame new-frame-p))
+              (string
+               (setq persp-name persp-init-frame-behaviour
+                     persp (persp-add-new persp-name)))
+              (symbol
+               (cl-case persp-init-frame-behaviour
+                 (auto-temp (setq persp-name (persp-gen-random-name)
+                                  persp (persp-add-new persp-name))
+                            (when persp
+                              (setf (persp-auto persp) t)))
+                 (prompt (select-frame frame)
+                         (setq persp-name
+                               (persp-read-persp "to switch" nil nil nil nil t)
+                               persp (persp-add-new persp-name)))
+                 (persp-ignore (set-frame-parameter frame 'persp-ignore t)
+                               (setq persp-name nil))
+                 (t (set-default-persp))))
+              (t (set-default-persp))))
+          (when persp-name
+            (modify-frame-parameters frame `((persp . nil)))
+            (when persp-set-frame-buffer-predicate
+              (persp-set-frame-buffer-predicate frame))
+            (persp-set-frame-server-switch-hook frame)
+            (when (or (eq persp-init-frame-behaviour 'persp-ignore-wconf)
+                      (numberp persp-init-frame-behaviour))
+              (set-frame-parameter frame 'persp-ignore-wconf persp-init-frame-behaviour))
+            (persp-activate persp frame new-frame-p))))
+    (persp-update-frame-lighter frame)))
 
 (defun persp-delete-frame (frame)
   (unless (or *persp-pretend-switched-off* (not (persp-frame-good-p frame)))
