@@ -2243,8 +2243,10 @@ killed, but just removed from a perspective(s)."
 (defun persp-add-or-not-on-find-file ()
   (unless *persp-pretend-switched-off*
     (let ((no-select
-           (not (funcall persp-backtrace-frame-function 0 'find-file))))
+           (not (funcall persp-backtrace-frame-function 0 'find-file)))
+          (persp (get-current-persp)))
       (and
+       persp
        (cl-case persp-add-buffer-on-find-file
          ((nil) nil)
          (if-not-autopersp
@@ -2264,7 +2266,7 @@ killed, but just removed from a perspective(s)."
           t)
          (t t))
        (persp-add-buffer
-        (current-buffer) (get-current-persp) (not no-select) nil)))))
+        (current-buffer) persp (not no-select) nil)))))
 
 (defun persp-after-change-major-mode-h ()
   (unless *persp-pretend-switched-off*
