@@ -2343,7 +2343,7 @@ killed, but just removed from a perspective(s)."
       (mapc
        (lambda (f)
          (let ((lighter
-                (if (persp-frame-good-p f)
+                (if (persp-frame-not-ignored-p f)
                     (format
                      (propertize
                       " #%.5s"
@@ -2374,9 +2374,21 @@ killed, but just removed from a perspective(s)."
 (defun set-frame-persp (persp &optional frame)
   (set-frame-parameter frame 'persp persp))
 
+(defun persp-persp-param-assq (&optional frame-or-window)
+  (let ((paramf (cond ((framep frame-or-window) #'frame-parameters)
+                      ((windowp frame-or-window) #'window-parameters)
+                      (t nil))))
+    (when paramf
+      (assq 'persp (funcall paramf frame-or-window)))))
 ;; TODO: rename
 (defun get-frame-persp (&optional frame)
   (frame-parameter frame 'persp))
+
+(defun persp-frame-not-ignored-p (&optional f for-init)
+  (setq f (or f (selected-frame)))
+  (if for-init
+      (persp-frame-good-p f)
+    (persp-persp-param-assq f)))
 
 (cl-defun persp-names (&optional (phash *persp-hash*) (reverse t))
   (let (ret)
@@ -3335,7 +3347,7 @@ Return `NAME'."
       (persp-frame-switch name frame))))
 (cl-defun persp-frame-switch (name &optional (frame (selected-frame)))
   (interactive "i")
-  (if (persp-frame-good-p frame)
+  (if (persp-frame-not-ignored-p frame)
       (progn
         (unless name
           (setq name (persp-read-persp "to switch(in frame)" nil nil nil nil t)))
@@ -3425,7 +3437,7 @@ Return `NAME'."
                  (not (eq old-persp persp)))
         (cl-case type
           (frame
-           (when (persp-frame-good-p frame-or-window)
+           (when (persp-frame-not-ignored-p frame-or-window)
              (unless new-frame-p
                (persp--deactivate frame-or-window persp))
              (setq persp-last-persp-name (safe-persp-name persp))
@@ -3513,7 +3525,7 @@ Return `NAME'."
     (persp-update-frame-lighter frame)))
 
 (defun persp-delete-frame (frame)
-  (unless (or *persp-pretend-switched-off* (not (persp-frame-good-p frame)))
+  (unless (or *persp-pretend-switched-off* (not (persp-frame-not-ignored-p frame)))
     (condition-case-unless-debug err
         (progn
           (persp--deactivate frame persp-not-persp)
