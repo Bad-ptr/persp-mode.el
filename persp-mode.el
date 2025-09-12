@@ -3568,19 +3568,15 @@ Return `NAME'."
        (message "[persp-mode] Error: Can not deactivate frame -- %S"
                 err)))))
 
-;; TODO: rename
-(cl-defun find-other-frame-with-persp (&optional (persp (get-frame-persp))
-                                                 (exframe (selected-frame))
-                                                 for-save)
+(cl-defun persp-find-other-frame-with-persp (&optional (persp (get-frame-persp))
+                                                       (exframe (selected-frame))
+                                                       for-save)
   (let ((flist (delq exframe (persp-frames-with-persp persp))))
-    (cl-find-if
-     (lambda (f)
-       (and f
-            (if for-save
-                (not (frame-parameter f 'persp-ignore-wconf))
-              t)
-            (eq persp (get-frame-persp f))))
-     flist)))
+    (if for-save
+        (cl-find-if-not (lambda (f) (frame-parameter f 'persp-ignore-wconf)) flist)
+      (car flist))))
+(make-obsolete 'find-other-frame-with-persp 'persp-find-other-frame-with-persp
+               "persp-mode 4.0.0")
 
 
 
@@ -4359,7 +4355,7 @@ configuration, because of the error -- %S" err)
   (let ((frame (selected-frame)))
     (when (eq frame exfr) (setq frame nil))
     (unless (and frame (eq persp (get-frame-persp frame)))
-      (setq frame (find-other-frame-with-persp persp exfr t)))
+      (setq frame (persp-find-other-frame-with-persp persp exfr t)))
     (when frame (persp-frame-save-state frame set-persp-special-last-buffer))))
 
 
