@@ -2268,10 +2268,12 @@ killed, but just removed from a perspective(s)."
 
 (defun persp-after-change-major-mode-h ()
   (unless *persp-pretend-switched-off*
-    (let ((buf (current-buffer)))
+    (let ((buf (current-buffer))
+          (persp (get-current-persp)))
       (persp-find-and-set-persps-for-buffer buf)
       (when
           (and
+           persp
            (cond
             ((functionp persp-add-buffer-on-after-change-major-mode)
              (funcall persp-add-buffer-on-after-change-major-mode buf))
@@ -2282,7 +2284,7 @@ killed, but just removed from a perspective(s)."
            (not
             (persp-buffer-filtered-out-p
              buf persp-add-buffer-on-after-change-major-mode-filter-functions)))
-        (persp-add-buffer buf (get-current-persp) nil nil)))))
+        (persp-add-buffer buf persp nil nil)))))
 
 (defun persp-server-switch ()
   (unless *persp-pretend-switched-off*
