@@ -670,7 +670,7 @@ function -- run that function with buffer as argument."
     (when persp-mode
       (if val
           (add-hook 'after-change-major-mode-hook
-                    #'persp-after-change-major-mode-h t)
+                    #'persp-after-change-major-mode-h 99)
         (remove-hook 'after-change-major-mode-hook
                      #'persp-after-change-major-mode-h)))))
 
@@ -1957,7 +1957,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
                              (remove-hook 'persp-after-load-state-functions
                                           persp-after-load-lambda)))
                      (add-hook 'persp-after-load-state-functions
-                               persp-after-load-lambda t))
+                               persp-after-load-lambda 99))
                    persp-loaded-buffer)))))
 
     (add-hook 'persp-save-buffer-functions
@@ -1985,15 +1985,15 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 
 (defun persp-mode-setup-hooks ()
   (add-hook 'find-file-hook              #'persp-add-or-not-on-find-file)
-  (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function)
-  (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h)
+  (add-hook 'kill-buffer-query-functions #'persp-kill-buffer-query-function 100)
+  (add-hook 'kill-buffer-hook            #'persp-kill-buffer-h 99)
   (add-hook 'before-make-frame-hook      #'persp-before-make-frame)
   (add-hook 'after-make-frame-functions  #'persp-init-new-frame)
   (add-hook 'delete-frame-functions      #'persp-delete-frame)
   (add-hook 'kill-emacs-query-functions  #'persp-kill-emacs-query-function)
   (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
   (add-hook 'server-switch-hook          #'persp-server-switch)
-  (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
+  (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h 99)
   (add-hook 'window-configuration-change-hook #'persp-update-frame-lighter)
 
   (persp-set-ido-hooks persp-set-ido-hooks)
@@ -2080,12 +2080,15 @@ Here is a keymap of this minor mode:
                      (null (cdr (frame-list)))
                      (eq (selected-frame) terminal-frame)))
             (add-hook 'after-make-frame-functions
-                      #'persp-mode-restore-and-remove-from-make-frame-hook)
+                      #'persp-mode-restore-and-remove-from-make-frame-hook
+                      99)
           (persp-mode-restore-and-remove-from-make-frame-hook)))
 
     (run-hooks 'persp-mode-deactivated-hook)
-    (unless (memq #'persp-mode-restore-and-remove-from-make-frame-hook
-                  after-make-frame-functions)
+    (if (memq #'persp-mode-restore-and-remove-from-make-frame-hook
+              after-make-frame-functions)
+        (remove-hook 'after-make-frame-functions
+                     #'persp-mode-restore-and-remove-from-make-frame-hook)
       (persp-asave-on-exit t 1))
 
     (persp-mode-remove-hooks)
