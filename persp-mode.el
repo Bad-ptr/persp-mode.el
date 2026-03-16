@@ -75,6 +75,7 @@
 ;; Prerequirements:
 
 (require 'cl-lib)
+(require 'gv)
 (require 'easymenu)
 
 (declare-function golden-ratio-mode "ext:golden-ratio")
@@ -1288,7 +1289,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 ;; Perspective struct:
 
 (cl-defstruct (perspective
-               (:conc-name persp-)
+               (:conc-name persp--)
                (:constructor persp--make))
   (name "")
   (buffers nil)
@@ -1303,6 +1304,36 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
 
 (defun persp-p (obj)
   (or (null obj) (perspective-p obj)))
+
+(defun persp-name (p)
+  (persp--name (or p persp-nil-persp)))
+(defun persp-buffers (p)
+  (if p (persp--buffers p) (funcall persp-buffer-list-function)))
+(defun persp-window-conf (p)
+  (persp--window-conf (or p persp-nil-persp)))
+(defun persp-parameters (p)
+  (persp--parameters (or p persp-nil-persp)))
+(defun persp-weak (p)
+  (persp--weak (or p persp-nil-persp)))
+(defun persp-auto (p)
+  (persp--auto (or p persp-nil-persp)))
+(defun persp-hidden (p)
+  (persp--hidden (or p persp-nil-persp)))
+
+(gv-define-setter persp-name (newname p)
+  `(setf (persp--name (or ,p persp-nil-persp)) ,newname))
+(gv-define-setter persp-buffers (bufs p)
+  `(setf (persp--buffers (or ,p persp-nil-persp)) ,bufs))
+(gv-define-setter persp-window-conf (wc p)
+  `(setf (persp--window-conf (or ,p persp-nil-persp)) ,wc))
+(gv-define-setter persp-parameters (params p)
+  `(setf (persp--parameters (or ,p persp-nil-persp)) ,params))
+(gv-define-setter persp-weak (nweak p)
+  `(setf (persp--weak (or ,p persp-nil-persp)) ,nweak))
+(gv-define-setter persp-auto (nauto p)
+  `(setf (persp--auto (or ,p persp-nil-persp)) ,nauto))
+(gv-define-setter persp-hidden (nhidden p)
+  `(setf (persp--hidden (or ,p persp-nil-persp)) ,nhidden))
 
 (defvar persp-nil-wconf nil
   "Window configuration for the `nil' perspective.")
@@ -1468,35 +1499,13 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
      (persp-set-ido-hooks t)
      ,@body))
 
-(defun safe-persp-name (p)
-  (persp-name (or p persp-nil-persp)))
-(make-obsolete 'safe-persp-name "use persp-name." "persp-mode 4.0.0")
-
-(defun safe-persp-buffers (p)
-  (if (persp-nil-p p)
-      (funcall persp-buffer-list-function)
-    (persp-buffers p)))
-(make-obsolete 'safe-persp-buffers "use persp-buffers." "persp-mode 4.0.0")
-
-(defun safe-persp-window-conf (p)
-  (persp-window-conf (or p persp-nil-persp)))
-(make-obsolete 'safe-persp-window-conf "use persp-window-conf." "persp-mode 4.0.0")
-
-(defun safe-persp-parameters (p)
-  (persp-parameters (or p persp-nil-persp)))
-(make-obsolete 'safe-persp-parameters "use persp-parameters." "persp-mode 4.0.0")
-
-(defun safe-persp-weak (p)
-  (persp-weak (or p persp-nil-persp)))
-(make-obsolete 'safe-persp-weak "use persp-weak." "persp-mode 4.0.0")
-
-(defun safe-persp-auto (p)
-  (persp-auto (or p persp-nil-persp)))
-(make-obsolete 'safe-persp-auto "use persp-auto." "persp-mode 4.0.0")
-
-(defun safe-persp-hidden (p)
-  (persp-hidden (or p persp-nil-persp)))
-(make-obsolete 'safe-persp-hidden "use persp-hidden." "persp-mode 4.0.0")
+(define-obsolete-function-alias 'safe-persp-name        'persp-name        "persp-mode 4.0.0" "use persp-name.")
+(define-obsolete-function-alias 'safe-persp-buffers     'persp-buffers     "persp-mode 4.0.0" "use persp-buffers.")
+(define-obsolete-function-alias 'safe-persp-window-conf 'persp-window-conf "persp-mode 4.0.0" "use persp-window-conf.")
+(define-obsolete-function-alias 'safe-persp-parameters  'persp-parameters  "persp-mode 4.0.0" "use persp-parameters.")
+(define-obsolete-function-alias 'safe-persp-weak        'persp-weak        "persp-mode 4.0.0" "use persp-weak.")
+(define-obsolete-function-alias 'safe-persp-auto        'persp-auto        "persp-mode 4.0.0" "use persp-auto.")
+(define-obsolete-function-alias 'safe-persp-hidden      'persp-hidden      "persp-mode 4.0.0" "use persp-hidden.")
 
 
 (cl-defun persp-modify-parameters (alist &optional (persp (persp-get-current)))
