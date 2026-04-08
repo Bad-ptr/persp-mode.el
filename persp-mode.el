@@ -627,7 +627,7 @@ If function -- run that function."
 (defcustom persp-filter-frame-functions
   (list (lambda (f)
           (or (not (frame-live-p f))
-              (frame-parameter f 'persp-ignore)
+              (eq 'ignore (frame-parameter f 'persp-ignore))
               (> 50 (frame-width f))
               (> 15 (frame-height f))
               (and (featurep 'posframe)
@@ -1015,6 +1015,7 @@ function -- run that function."
            (null p)
            (> 50 (frame-width f))
            (> 15 (frame-height f))
+           (eq 'ignore (frame-parameter f 'persp-ignore))
            (let ((f-piw (frame-parameter f 'persp-ignore-wconf)))
              (if (numberp f-piw)
                  (prog1 (< 0 f-piw)
@@ -2460,40 +2461,41 @@ killed, but just removed from a perspective(s)."
 (let (update-lighter-throttle-timer frames-to-update)
   (defun persp-update-frame-lighter (&optional f)
     (unless f (setq f (selected-frame)))
-    (unless (memq f frames-to-update)
-      (push f frames-to-update))
-    (if (timerp update-lighter-throttle-timer)
-        t
-      (setq update-lighter-throttle-timer
-            (run-with-timer
-             1 nil
-             (lambda () (setq update-lighter-throttle-timer nil))))
-      (mapc
-       (lambda (f)
-         (let ((lighter
-                (let* ((persp-cons (persp-persp-param-assq f))
-                       (persp (cdr persp-cons)))
-                  (if persp
-                      (format
-                       (propertize
-                        " #%.5s"
-                        'face (if (persp-nil-p persp)
-                                  'persp-face-lighter-nil-persp
-                                (if (persp-contain-buffer-p (current-buffer) persp)
-                                    'persp-face-lighter-default
-                                  'persp-face-lighter-buffer-not-in-persp)))
-                       (persp-name persp))
-                    " #ignore"))))
-           (set-frame-parameter f 'persp-lighter lighter)))
-       frames-to-update)
-      (setq frames-to-update nil))))
+    (when (persp-frame-good-p f)
+      (unless (memq f frames-to-update)
+        (push f frames-to-update))
+      (if (timerp update-lighter-throttle-timer)
+          t
+        (setq update-lighter-throttle-timer
+              (run-with-timer
+               1 nil
+               (lambda () (setq update-lighter-throttle-timer nil))))
+        (mapc
+         (lambda (f)
+           (let ((lighter
+                  (let* ((persp-cons (persp-frame-window-persp-param-assq f))
+                         (persp (cdr persp-cons)))
+                    (if persp
+                        (format
+                         (propertize
+                          " #%.5s"
+                          'face (if (persp-nil-p persp)
+                                    'persp-face-lighter-nil-persp
+                                  (if (persp-contain-buffer-p (current-buffer) persp)
+                                      'persp-face-lighter-default
+                                    'persp-face-lighter-buffer-not-in-persp)))
+                         (persp-name persp))
+                      " #~"))))
+             (set-frame-parameter f 'persp-lighter lighter)))
+         frames-to-update)
+        (setq frames-to-update nil)))))
 
 (defun persp-is-frame-daemons-frame (f)
   (and (fboundp 'daemonp) (daemonp) (eq f terminal-frame)))
 
 (defun persp-frame-good-p (&optional f)
-  (setq f (or f (selected-frame)))
-  (not (run-hook-with-args-until-success 'persp-filter-frame-functions f)))
+  (not (run-hook-with-args-until-success 'persp-filter-frame-functions
+                                         (or f (selected-frame)))))
 
 (defun persp-frame-list-without-daemon ()
   "Return a list of frames without the daemon's frame."
@@ -2503,7 +2505,7 @@ killed, but just removed from a perspective(s)."
   (set-frame-parameter frame 'persp persp))
 (define-obsolete-function-alias 'set-frame-persp 'persp-set-for-frame "persp-mode 4.0.0")
 
-(defun persp-persp-param-assq (&optional frame-or-window)
+(defun persp-frame-window-persp-param-assq (&optional frame-or-window)
   (let ((paramf (cond ((framep frame-or-window) #'frame-parameters)
                       ((windowp frame-or-window) #'window-parameters)
                       (t nil))))
@@ -2513,12 +2515,6 @@ killed, but just removed from a perspective(s)."
 (defun persp-of-frame (&optional frame)
   (frame-parameter frame 'persp))
 (define-obsolete-function-alias 'get-frame-persp 'persp-of-frame "persp-mode 4.0.0")
-
-(defun persp-frame-not-ignored-p (&optional f for-init)
-  (setq f (or f (selected-frame)))
-  (if for-init
-      (persp-frame-good-p f)
-    (persp-persp-param-assq f)))
 
 (cl-defun persp-names (&optional (phash *persp-hash*) (reverse t))
   (let (ret)
@@ -3479,7 +3475,7 @@ Return `NAME'."
       (persp-frame-switch name frame))))
 (cl-defun persp-frame-switch (name &optional (frame (selected-frame)))
   (interactive "i")
-  (if (persp-frame-not-ignored-p frame)
+  (if (persp-frame-good-p frame)
       (progn
         (unless name
           (setq name (persp-read-persp "to switch(in frame)" nil nil nil nil t)))
@@ -3567,7 +3563,7 @@ Return `NAME'."
                  (not (eq old-persp persp)))
         (cl-case type
           (frame
-           (when (persp-frame-not-ignored-p frame-or-window)
+           (when (persp-frame-good-p frame-or-window)
              (unless new-frame-p
                (persp--deactivate frame-or-window persp))
              (setq persp-last-persp-name (persp-name persp))
@@ -3639,7 +3635,7 @@ Return `NAME'."
                          (setq persp-name
                                (persp-read-persp "to switch" nil nil nil nil t)
                                persp (persp-add-new persp-name)))
-                 (persp-ignore (set-frame-parameter frame 'persp-ignore t)
+                 (persp-ignore (set-frame-parameter frame 'persp-ignore 'ignore)
                                (setq persp-name nil))
                  (t (set-default-persp))))
               (t (set-default-persp))))
@@ -3652,10 +3648,11 @@ Return `NAME'."
                       (numberp persp-init-frame-behaviour))
               (set-frame-parameter frame 'persp-ignore-wconf persp-init-frame-behaviour))
             (persp-activate persp frame new-frame-p))))
+    (set-frame-parameter frame 'persp-ignore 'ignore)
     (persp-update-frame-lighter frame)))
 
 (defun persp-delete-frame (frame)
-  (unless (or *persp-pretend-switched-off* (not (persp-frame-not-ignored-p frame)))
+  (unless (or *persp-pretend-switched-off* (not (persp-frame-good-p frame)))
     (condition-case-unless-debug err
         (progn
           (persp--deactivate frame persp-not-persp)
