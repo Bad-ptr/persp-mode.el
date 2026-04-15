@@ -100,9 +100,7 @@
 (declare-function wg-restore-wconfig "ext:workgroups")
 (declare-function wg-make-wconfig "ext:workgroups")
 (declare-function wg-awhen "ext:workgroups")
-(declare-function wg-abind "ext:workgroups")
-
-(defvar wg-default-buffer)
+(declare-function wg-abind "ext:workgroups" (alist binds &rest body))
 
 (defvar ido-cur-item)
 (defvar ido-exit)
@@ -111,6 +109,8 @@
 (defvar ido-text-init)
 
 (defvar tabbar-buffer-list-function)
+
+(defvar window-restore-killed-buffer-windows)
 
 (defvar persp-mode nil)
 (defvar persp-key-map nil)
@@ -277,9 +277,8 @@ that perspective if `persp-set-last-persp-for-new-frames' is t.")
   "Default face for the lighter.")
 
 (defcustom persp-lighter
-  '(:eval (let ((frame (selected-frame)))
-            (or (frame-parameter frame 'persp-lighter)
-                " #persp")))
+  '(:eval (or (frame-parameter (selected-frame) 'persp-lighter)
+              " #~"))
   "Defines how the persp-mode show itself in the modeline."
   :group 'persp-mode
   :type 'sexp)
@@ -1144,10 +1143,14 @@ third -- is state must be writable"
                        (lambda (win)
                          "Switch to a buffer determined from WIN's fname and bname.
 Return the buffer if it was found, nil otherwise."
+                         (defvar _wg-fname)
+                         (defvar wg-bname)
+                         (defvar wg-it)
+                         (defvar wg-default-buffer)
                          (wg-abind
-                          win (fname bname)
-                          (cond ((wg-awhen (get-buffer bname)
-                                           (persp-switch-to-buffer it)))
+                          win (_wg-fname wg-bname)
+                          (cond ((wg-awhen (get-buffer wg-bname)
+                                           (persp-switch-to-buffer wg-it)))
                                 (t (persp-switch-to-buffer wg-default-buffer)
                                    nil))))))
               (wg-restore-wconfig pwc)))))
@@ -3086,6 +3089,7 @@ from the PERSP. On success return removed buffers otherwise nil."
     (setq buffers-or-names (list buffers-or-names)))
   (mapc #'kill-buffer
         (cl-remove-if-not #'persp-get-buffer-or-null buffers-or-names))
+  ;; TODO: not needed? -> window-configuration-change-hook
   ;; (persp-update-frame-lighter)
   buffers-or-names)
 
@@ -3107,6 +3111,7 @@ from the PERSP. On success return removed buffers otherwise nil."
   (when (and buffer-or-name
              (persp-get-buffer-or-null (get-buffer buffer-or-name)))
     (switch-to-buffer buffer-or-name norecord force-same-window)
+    ;; TODO: not needed? -> window-configuration-change-hook
     ;; (persp-update-frame-lighter)
     ))
 
@@ -3280,6 +3285,7 @@ perspective buffers or nil."
        (or (and (buffer-live-p new-buf) new-buf)
            (car (persp-buffer-list-restricted (window-frame window) 2.5))
            (car (buffer-list))))
+      ;; TODO: not needed? -> window-configuration-change-hook
       ;; (persp-update-frame-lighter (window-frame window))
       )))
 
