@@ -504,6 +504,7 @@ to interactivly read user input with completion.")
   'persp-toggle-read-persp-filter-keys 'persp-toggle-read-buffer-filter-keys
   "persp-mode 2.9")
 (defvar persp-toggle-read-buffer-filter-keys)
+(make-obsolete-variable 'persp-toggle-read-buffer-filter-keys nil "persp-mode 4.0")
 
 (defun persp-update-completion-system (&optional system remove)
   (interactive "i")
@@ -533,9 +534,7 @@ to interactivly read user input with completion.")
           (ido
            (persp-set-ido-hooks t)
            (setq persp-interactive-completion-function #'ido-completing-read))
-          (t nil))
-        (persp-set-toggle-read-buffer-filter-keys
-         persp-toggle-read-buffer-filter-keys)))))
+          (t nil))))))
 
 (define-widget 'persp-init-frame-behaviour-choices 'lazy
   "Choices of the init-frame behavoiurs for the persp-mode."
@@ -1247,9 +1246,15 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
     (read-key-sequence
      "Now press a key sequence to be used as the persp-key-map prefix: ")))
   (when prefix
+    (setq prefix (kbd prefix))
     (when (boundp 'persp-keymap-prefix)
       (substitute-key-definition 'persp-key-map nil persp-mode-map))
     (define-key persp-mode-map prefix 'persp-key-map)
+    (let ((pkm-lc (last persp-key-map)))
+      (when (stringp (car pkm-lc))
+        (setcar pkm-lc (concat (propertize "[persp]" 'face 'mode-line)
+                               (help-key-description prefix nil)
+                               " "))))
     (custom-set-default 'persp-keymap-prefix prefix)))
 
 (defcustom persp-keymap-prefix (kbd "C-c p")
@@ -1259,7 +1264,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   :set (lambda (_sym val) (persp-set-keymap-prefix val)))
 
 (defvar persp-read-multiple-keys)
-;; TODO: remove this function
+;; TODO?: remove this function?
 (defun persp-set-toggle-read-buffer-filter-keys (keys)
   (interactive
    (list
@@ -1271,6 +1276,7 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   'persp-set-toggle-read-persp-filter-keys
   'persp-set-toggle-read-buffer-filter-keys
   "persp-mode 2.9")
+(make-obsolete 'persp-set-toggle-read-buffer-filter-keys nil "persp-mode 4.0")
 
 (defcustom persp-read-multiple-keys
   `((toggle-persp-buffer-filter . ,(kbd "C-x C-p"))
@@ -1279,14 +1285,20 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   "Keybindings to use while prompting for multiple items."
   :group 'persp-mode
   :tag "Keys for reading multiple items"
-  :type '(alist :key-type symbol :value-type key-sequence))
+  :options '(toggle-persp-buffer-filter push-item pop-item)
+  :type '(alist
+          :key-type (choice (const :tag "toggle buffer filtering"
+                                   :value toggle-persp-buffer-filter)
+                            (const :tag "push" :value push-item)
+                            (const :tag "pop" :value pop-item))
+          :value-type key-sequence))
 
-(defcustom persp-toggle-read-buffer-filter-keys (kbd "C-x C-p")
-  "Keysequence to toggle the buffer filtering during read-buffer."
-  :group 'persp-mode
-  :type 'key-sequence
-  :set (lambda (_sym val)
-         (persp-set-toggle-read-buffer-filter-keys val)))
+;; (defcustom persp-toggle-read-buffer-filter-keys (kbd "C-x C-p")
+;;   "Keysequence to toggle the buffer filtering during read-buffer."
+;;   :group 'persp-mode
+;;   :type 'key-sequence
+;;   :set (lambda (sym val) (message "%S is deprecated" sym)))
+
 
 
 
@@ -4100,12 +4112,9 @@ Return `NAME'."
                              (and retlst
                                   (concat
                                    "< " (mapconcat #'identity retlst " ") " >"))
-                             (and persp-toggle-read-buffer-filter-keys
+                             (and toggle-filter-keys
                                   (concat
-                                   " [`"
-                                   (help-key-description
-                                    persp-toggle-read-buffer-filter-keys
-                                    nil)
+                                   " [`" (help-key-description toggle-filter-keys nil)
                                    "' toggles filter]"))
                              ": ")
                      buffer-names predicate require-match nil nil default))
