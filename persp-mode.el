@@ -74,6 +74,15 @@
 
 ;; Prerequirements:
 
+(when (and (featurep 'persp-mode)
+           (not (bound-and-true-p persp-skip-new-version-install-guard))
+           (not (let ((ppkg (cadr (assq 'persp-mode package-alist)))
+                      (cverstr (package-get-version)))
+                  (when (and ppkg cverstr)
+                    (version-list-= (package-desc-version ppkg)
+                                    (version-to-list cverstr))))))
+  (error (message "[persp-mode] Warning: New version will be loaded on Emacs restart.")))
+
 (require 'cl-lib)
 (require 'gv)
 (require 'easymenu)
