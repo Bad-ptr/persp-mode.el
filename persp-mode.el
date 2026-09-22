@@ -2118,7 +2118,9 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (add-hook 'kill-emacs-hook             #'persp-kill-emacs-h)
   (add-hook 'server-switch-hook          #'persp-server-switch)
   (add-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h 99)
-  (add-hook 'window-configuration-change-hook #'persp-update-frame-lighter)
+  (if (boundp 'window-state-change-functions)
+      (add-hook 'window-state-change-functions #'persp-update-frame-lighter)
+    (add-hook 'window-configuration-change-hook #'persp-update-frame-lighter))
 
   (persp-set-ido-hooks persp-set-ido-hooks)
   (persp-set-read-buffer-function persp-set-read-buffer-function)
@@ -2142,7 +2144,9 @@ the `*persp-restrict-buffers-to*' and friends is 2, 2.5, 3 or 3.5."
   (remove-hook 'kill-emacs-hook              #'persp-kill-emacs-h)
   (remove-hook 'server-switch-hook           #'persp-server-switch)
   (remove-hook 'after-change-major-mode-hook #'persp-after-change-major-mode-h)
-  (remove-hook 'window-configuration-change-hook #'persp-update-frame-lighter)
+  (if (boundp 'window-state-change-functions)
+      (remove-hook 'window-state-change-functions #'persp-update-frame-lighter)
+    (remove-hook 'window-configuration-change-hook #'persp-update-frame-lighter))
 
   (persp-set-ido-hooks)
   (persp-set-read-buffer-function)
