@@ -644,7 +644,7 @@ If function -- run that function."
               (persp-is-frame-daemons-frame f))))
   "Skip frame if one of functions returns non nil."
   :group 'persp-mode
-  :type '(repeate function))
+  :type '(repeat function))
 
 (defcustom persp-add-buffer-on-find-file t
   "If t -- add a buffer with opened file to current perspective."
@@ -2399,7 +2399,7 @@ killed, but just removed from a perspective(s)."
            (not (funcall persp-backtrace-frame-function 0 'find-file)))
           (persp (persp-get-current)))
       (and
-       persp
+       (not (persp-nil-p persp))
        (not (persp-parameter 'not-auto-add-buffers persp))
        (cl-case persp-add-buffer-on-find-file
          ((nil) nil)
@@ -2986,7 +2986,7 @@ Return the created perspective."
   (persp-normalize-persp-arg*)
   (unless (persp-nil-p persp)
     (persp-do-buffer-list-by-regexp
-     :regexp regexp :func 'persp-add-buffer :rest-args (list persp nil)
+     :regexp regexp :func #'persp-add-buffer :rest-args (list persp nil)
      :blist (persp-buffer-list-restricted (selected-frame) 1))))
 
 (cl-defun persp-temporarily-display-buffer
@@ -3148,7 +3148,7 @@ from the PERSP. On success return removed buffers otherwise nil."
   (persp-normalize-persp-arg*)
   (unless (persp-nil-p persp)
     (persp-do-buffer-list-by-regexp
-     :regexp regexp :func 'persp-remove-buffer
+     :regexp regexp :func #'persp-remove-buffer
      :blist (persp-buffers persp) :rest-args (list persp))))
 
 (cl-defun persp-import-buffers-from (persp-from
