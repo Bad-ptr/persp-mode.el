@@ -892,6 +892,13 @@ a list of new names."
   :group 'persp-mode
   :type 'hook)
 
+(defcustom persp-buffer-state-changed-functions nil
+  "Functions to run after a persp-mode changed something about a buffer.
+Arguments: buffer, perspective, event type symbol.
+Current events: \\='added, \\='removed."
+  :group 'persp-mode
+  :type 'hook)
+
 (defcustom persp-created-functions nil
   "Functions to run after a perspective was created.
 These functions must accept two arguments -- the created perspective
@@ -2970,20 +2977,25 @@ Return the created perspective."
                                   ": ")
                                  (current-buffer) t nil t)))))
   (unless (listp buffs-or-names) (setq buffs-or-names (list buffs-or-names)))
-  (mapc
-   (lambda (bon)
-     (let ((buffer (persp-get-buffer-or-null bon)))
-       (when (and (not (persp-nil-p persp)) buffer)
-         (unless (persp-contain-buffer-p buffer persp)
-           (push buffer (persp-buffers persp)))
-         (unless (persp-contain-buffer-p* buffer persp)
-           (persp--buffer-in-persps-add buffer persp)))
-       (when (and buffer switchorno (eq persp (persp-get-current)))
-         (persp-switch-to-buffer buffer))
-       buffer))
-   buffs-or-names)
-  (persp-update-frame-lighter)
-  buffs-or-names)
+  (let (added-buffers)
+    (mapc
+     (lambda (bon)
+       (let ((buffer (persp-get-buffer-or-null bon)))
+         (when (and (not (persp-nil-p persp)) buffer)
+           (unless (persp-contain-buffer-p buffer persp)
+             (push buffer (persp-buffers persp))
+             (push buffer added-buffers))
+           (unless (persp-contain-buffer-p* buffer persp)
+             (persp--buffer-in-persps-add buffer persp)))
+         (when (and buffer switchorno (eq persp (persp-get-current)))
+           (persp-switch-to-buffer buffer))
+         buffer))
+     buffs-or-names)
+    (persp-update-frame-lighter)
+    (mapc (lambda (b)
+            (run-hook-with-args 'persp-buffer-state-changed-functions b persp 'added))
+          added-buffers)
+    added-buffers))
 
 (cl-defun persp-add-buffers-by-regexp (&optional regexp (persp (persp-get-current)))
   (interactive)
@@ -3038,6 +3050,7 @@ Return the created perspective."
         (persp-switch-to-prev-buffer buffer persp))
       (persp--buffer-in-persps-remove buffer persp)
       (setf (persp-buffers persp) (delq buffer (persp-buffers persp)))
+      (run-hook-with-args 'persp-buffer-state-changed-functions buffer persp 'removed)
       persp)))
 
 (defun persp--remove-buffer-2 (&optional persp buffer-or-name)
