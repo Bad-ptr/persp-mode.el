@@ -74,14 +74,27 @@
 
 ;; Prerequirements:
 
-(when (and (featurep 'persp-mode)
-           (not (bound-and-true-p persp-skip-new-version-install-guard))
-           (not (let ((ppkg (cadr (assq 'persp-mode package-alist)))
-                      (cverstr (package-get-version)))
-                  (when (and ppkg cverstr)
-                    (version-list-= (package-desc-version ppkg)
-                                    (version-to-list cverstr))))))
-  (error (message "[persp-mode] Warning: New version will be loaded on Emacs restart.")))
+(defvar persp-mode-version nil)
+
+(when (featurep 'persp-mode)
+  (let* ((pkgs (cdr (assq 'persp-mode package-alist)))
+         (cv (and pkgs (package-desc-version (car pkgs))))
+         (pv (bound-and-true-p persp-mode-version)))
+    (when (and (not (bound-and-true-p persp-skip-new-version-install-guard))
+               (not (and cv pv (version-list-= cv pv))))
+      (when cv
+        (let ((tv (condition-case err
+                      (version-to-list (package-get-version))
+                    (error nil))))
+          (when tv
+            (dolist (pkgdsc pkgs)
+              (unless (version-list-= tv (package-desc-version pkgdsc))
+                ;;(when (string= "obsolete" (package-desc-status pkgdsc))
+                (ignore-errors
+                  (package-delete pkgdsc)))))))
+      (error (message "[persp-mode] Warning: New version will be loaded on Emacs restart.")))))
+
+(setq persp-mode-version (eval-when-compile (version-to-list (package-get-version))))
 
 (require 'cl-lib)
 (require 'gv)
