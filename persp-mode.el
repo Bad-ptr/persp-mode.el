@@ -3472,7 +3472,7 @@ Return that old buffer."
           (mapcar (lambda (pn) (persp-get-by-name pn)) names))
     (persp-save-state-to-file persp-auto-save-fname temphash
                               persp-auto-save-persps-to-their-file
-                              'yes 'yes))
+                              'yes))
   (persp-kill names))
 
 (cl-defun persp--rename (new-name
@@ -4289,7 +4289,8 @@ Return `NAME'."
              ,@body)
          (when (frame-live-p ,fvar)
            ,(with-nil-frame-hooks
-             `(delete-frame ,fvar t)))))))
+             `(with-current-buffer (window-buffer (selected-window))
+                (delete-frame ,fvar t))))))))
 
 
 
